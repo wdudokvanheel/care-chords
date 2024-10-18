@@ -1,7 +1,6 @@
 use anyhow::Error;
 use gstreamer as gst;
-use gstreamer::log;
-use gstreamer::prelude::{ElementExt, GstBinExt, GstBinExtManual, GstObjectExt, ObjectExt, PadExt};
+use gstreamer::prelude::{ElementExt, GstBinExtManual, GstObjectExt, ObjectExt, PadExt};
 use gstreamer_rtsp::RTSPLowerTrans;
 
 fn main() -> Result<(), Error> {
@@ -26,6 +25,8 @@ fn main() -> Result<(), Error> {
         .expect("Could not create audioconvert1 element.");
     let audioresample1 = gst::ElementFactory::make_with_name("audioresample", Some("audioresample1"))
         .expect("Could not create audioresample1 element.");
+    let buffer1 = gst::ElementFactory::make_with_name("queue", Some("buffer1"))
+        .expect("Could not create buffer1 element.");
 
     // Create elements for the second RTSP source (Spotify)
     let rtspsrc2 = gst::ElementFactory::make_with_name("rtspsrc", Some("rtspsrc2"))
@@ -59,10 +60,13 @@ fn main() -> Result<(), Error> {
     rtspclientsink.set_property("location", &"rtsp://localhost:8554/lumi");
     lamemp3enc.set_property("bitrate", &320);
 
+    buffer1.set_property("max-size-buffers", &0u32);
+    buffer1.set_property("max-size-bytes", &0u32);
+    buffer1.set_property("max-size-time", &(1_000_000_000u64));
 
     // Add elements to the pipeline
     pipeline.add_many(&[
-        &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1,
+        &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1, &buffer1,
         &rtspsrc2, &rtpmp4gdepay2, &aacparse2, &decodebin2, &queue2, &audioconvert2, &audioresample2,
         &audiomixer, &lamemp3enc, &rtspclientsink
     ])?;
@@ -72,7 +76,7 @@ fn main() -> Result<(), Error> {
         &rtpmp4gdepay1, &aacparse1, &decodebin1
     ])?;
     gst::Element::link_many(&[
-        &queue1, &audioconvert1, &audioresample1, &audiomixer
+        &queue1, &audioconvert1, &audioresample1, &buffer1, &audiomixer
     ])?;
 
     // Link static elements for the second RTSP source
