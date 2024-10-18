@@ -1,0 +1,12 @@
+[package]
+name = "sleepstream"
+version = "0.1.0"
+edition = "2021"
+
+[dependencies]
+gstreamer = "0.23.2"  # or latest version
+gstreamer-audio = "0.23.2"
+gstreamer-rtsp-server = "0.23.2"
+gstreamer-rtsp = "0.23.2"
+gstreamer-app = "0.23.2"
+anyhow = "1.0.89"
