@@ -4,6 +4,7 @@ use gstreamer::prelude::*;
 use gstreamer_rtsp::RTSPLowerTrans;
 use std::sync::{Arc, Mutex};
 use tokio;
+use warp::Filter;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -189,6 +190,27 @@ async fn main() -> Result<(), Error> {
 
     let volume1 = Arc::new(Mutex::new(volume1));
     let volume1_clone = Arc::clone(&volume1);
+
+    // Set up the HTTP server to listen for POST requests on :7755/sleep
+    let volume1_clone = Arc::clone(&volume1);
+    let control_route = warp::path("sleep")
+        .and(warp::post())
+        .and(warp::body::json())
+        .map(move |body: serde_json::Value| {
+            if let Some(time) = body.get("timer") {
+                if let Some(sleep_timer) = time.as_f64() {
+                    //TODO
+                }
+            }
+            warp::reply::json(&serde_json::json!({ "status": "ok" }))
+        });
+
+    let routes = control_route;
+
+    tokio::spawn(async move {
+        println!("Starting server @ :7755");
+        warp::serve(routes).run(([0, 0, 0, 0], 7755)).await;
+    });
 
     // tokio::spawn(async move {
     //     let mut volume_level = 0.0;
