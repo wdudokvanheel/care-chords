@@ -191,15 +191,17 @@ async fn main() -> Result<(), Error> {
     let volume1 = Arc::new(Mutex::new(volume1));
     let volume1_clone = Arc::clone(&volume1);
 
-    // Set up the HTTP server to listen for POST requests on :7755/sleep
+    // Set up the HTTP server to listen for POST requests on :7755/control
     let volume1_clone = Arc::clone(&volume1);
-    let control_route = warp::path("sleep")
+    let control_route = warp::path("control")
         .and(warp::post())
         .and(warp::body::json())
         .map(move |body: serde_json::Value| {
-            if let Some(time) = body.get("timer") {
-                if let Some(sleep_timer) = time.as_f64() {
-                    //TODO
+            if let Some(volume) = body.get("volume") {
+                if let Some(volume_level) = volume.as_f64() {
+                    let mut volume1 = volume1_clone.lock().unwrap();
+                    volume1.set_property("volume", volume_level);
+                    println!("Volume set to: {}", volume_level);
                 }
             }
             warp::reply::json(&serde_json::json!({ "status": "ok" }))
