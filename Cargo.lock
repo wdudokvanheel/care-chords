@@ -440,6 +440,32 @@ dependencies = [
 ]
 
 [[package]]
+name = "gstreamer-webrtc"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "a43183c11ab5a3209d8432966a88ef7d7fb37ae7ef4b6a8f000762ad6b912193"
+dependencies = [
+ "glib",
+ "gstreamer",
+ "gstreamer-sdp",
+ "gstreamer-webrtc-sys",
+ "libc",
+]
+
+[[package]]
+name = "gstreamer-webrtc-sys"
+version = "0.23.2"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "096c40f2d7489fc2a8b9e6494c4ddeb3796a5605f0611de61d17596f59b9423f"
+dependencies = [
+ "glib-sys",
+ "gstreamer-sdp-sys",
+ "gstreamer-sys",
+ "libc",
+ "system-deps",
+]
+
+[[package]]
 name = "hashbrown"
 version = "0.15.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -630,6 +656,8 @@ dependencies = [
  "gstreamer-audio",
  "gstreamer-rtsp",
  "gstreamer-rtsp-server",
+ "gstreamer-webrtc",
+ "gstreamer-webrtc-sys",
 ]
 
 [[package]]

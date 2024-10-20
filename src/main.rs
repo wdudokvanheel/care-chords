@@ -1,6 +1,6 @@
 use anyhow::Error;
 use gstreamer as gst;
-use gstreamer::prelude::{ElementExt, GstBinExtManual, GstObjectExt, ObjectExt, PadExt};
+use gstreamer::prelude::{ElementExt, GObjectExtManualGst, GstBinExtManual, GstObjectExt, ObjectExt, PadExt};
 use gstreamer_rtsp::RTSPLowerTrans;
 
 fn main() -> Result<(), Error> {
@@ -28,6 +28,15 @@ fn main() -> Result<(), Error> {
     let buffer1 = gst::ElementFactory::make_with_name("queue", Some("buffer1"))
         .expect("Could not create buffer1 element.");
 
+    // Create webrtcdsp element
+    let webrtcdsp1 = gst::ElementFactory::make_with_name("webrtcdsp", Some("webrtcdsp1"))
+        .expect("Could not create webrtcdsp1 element.");
+    webrtcdsp1.set_property("echo-cancel", &false);
+    webrtcdsp1.set_property("noise-suppression", &true);
+    webrtcdsp1.set_property_from_str("noise-suppression-level", &"very-high");
+    webrtcdsp1.set_property("voice-detection", &true);
+    webrtcdsp1.set_property("extended-filter", &true);
+
     // Create elements for the second RTSP source (Spotify)
     let rtspsrc2 = gst::ElementFactory::make_with_name("rtspsrc", Some("rtspsrc2"))
         .expect("Could not create rtspsrc2 element.");
@@ -44,6 +53,7 @@ fn main() -> Result<(), Error> {
     let audioresample2 = gst::ElementFactory::make_with_name("audioresample", Some("audioresample2"))
         .expect("Could not create audioresample2 element.");
 
+
     // Common elements
     let audiomixer = gst::ElementFactory::make_with_name("audiomixer", Some("audiomixer"))
         .expect("Could not create audiomixer element.");
@@ -55,7 +65,7 @@ fn main() -> Result<(), Error> {
     // Set element properties
     rtspsrc1.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
     rtspsrc1.set_property("protocols", RTSPLowerTrans::TCP);
-    rtspsrc2.set_property("location", &"rtsp://10.0.0.21:8554/spotify");
+    rtspsrc2.set_property("location", &"rtsp://10.0.0.153:8554/spotify");
     rtspsrc2.set_property("protocols", RTSPLowerTrans::TCP);
     rtspclientsink.set_property("location", &"rtsp://localhost:8554/lumi");
     lamemp3enc.set_property("bitrate", &320);
@@ -66,7 +76,7 @@ fn main() -> Result<(), Error> {
 
     // Add elements to the pipeline
     pipeline.add_many(&[
-        &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1, &buffer1,
+        &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1, &webrtcdsp1, &buffer1,
         &rtspsrc2, &rtpmp4gdepay2, &aacparse2, &decodebin2, &queue2, &audioconvert2, &audioresample2,
         &audiomixer, &lamemp3enc, &rtspclientsink
     ])?;
@@ -76,7 +86,7 @@ fn main() -> Result<(), Error> {
         &rtpmp4gdepay1, &aacparse1, &decodebin1
     ])?;
     gst::Element::link_many(&[
-        &queue1, &audioconvert1, &audioresample1, &buffer1, &audiomixer
+        &queue1, &audioconvert1, &audioresample1, &webrtcdsp1, &buffer1, &audiomixer
     ])?;
 
     // Link static elements for the second RTSP source
@@ -92,7 +102,7 @@ fn main() -> Result<(), Error> {
     ])?;
 
     // Connect to the pad-added signal of the rtspsrc1 element to dynamically link its source pad
-    rtspsrc1.connect_pad_added(move | _src, src_pad| {
+    rtspsrc1.connect_pad_added(move |_src, src_pad| {
         let src_pad_caps = src_pad.current_caps().unwrap();
         let src_pad_structure = src_pad_caps.structure(0).unwrap();
 
@@ -107,7 +117,7 @@ fn main() -> Result<(), Error> {
     });
 
     // Connect to the pad-added signal of the rtspsrc2 element to dynamically link its source pad
-    rtspsrc2.connect_pad_added(move | _src, src_pad| {
+    rtspsrc2.connect_pad_added(move |_src, src_pad| {
         let src_pad_caps = src_pad.current_caps().unwrap();
         let src_pad_structure = src_pad_caps.structure(0).unwrap();
 
