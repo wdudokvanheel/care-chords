@@ -1,9 +1,12 @@
 use anyhow::Error;
 use gstreamer as gst;
-use gstreamer::prelude::{ElementExt, GObjectExtManualGst, GstBinExtManual, GstObjectExt, ObjectExt, PadExt};
+use gstreamer::prelude::*;
 use gstreamer_rtsp::RTSPLowerTrans;
+use std::sync::{Arc, Mutex};
+use tokio;
 
-fn main() -> Result<(), Error> {
+#[tokio::main]
+async fn main() -> Result<(), Error> {
     // Initialize GStreamer
     gst::init()?;
 
@@ -33,9 +36,12 @@ fn main() -> Result<(), Error> {
         .expect("Could not create webrtcdsp1 element.");
     webrtcdsp1.set_property("echo-cancel", &false);
     webrtcdsp1.set_property("noise-suppression", &true);
-    webrtcdsp1.set_property_from_str("noise-suppression-level", &"very-high");
+    webrtcdsp1.set_property_from_str("noise-suppression-level", &"high");
     webrtcdsp1.set_property("voice-detection", &true);
     webrtcdsp1.set_property("extended-filter", &true);
+
+    let volume1 = gst::ElementFactory::make_with_name("volume", Some("volume1")).expect("Could not create volume element.");
+    volume1.set_property("volume", 0.1f64);
 
     // Create elements for the second RTSP source (Spotify)
     let rtspsrc2 = gst::ElementFactory::make_with_name("rtspsrc", Some("rtspsrc2"))
@@ -53,12 +59,13 @@ fn main() -> Result<(), Error> {
     let audioresample2 = gst::ElementFactory::make_with_name("audioresample", Some("audioresample2"))
         .expect("Could not create audioresample2 element.");
 
-
     // Common elements
     let audiomixer = gst::ElementFactory::make_with_name("audiomixer", Some("audiomixer"))
         .expect("Could not create audiomixer element.");
     let lamemp3enc = gst::ElementFactory::make_with_name("lamemp3enc", Some("lamemp3enc"))
         .expect("Could not create lamemp3enc element.");
+    let flacenc = gst::ElementFactory::make_with_name("flacenc", Some("flacenc"))
+        .expect("Could not create flacenc element.");
     let rtspclientsink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtspclientsink"))
         .expect("Could not create rtspclientsink element.");
 
@@ -66,6 +73,7 @@ fn main() -> Result<(), Error> {
     let audiostereo = gst::ElementFactory::make_with_name("capsfilter", Some("audiostereo"))
         .expect("Could not create audiostereo element.");
     audiostereo.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
+
 
 
     // Set element properties
@@ -78,12 +86,12 @@ fn main() -> Result<(), Error> {
 
     buffer1.set_property("max-size-buffers", &0u32);
     buffer1.set_property("max-size-bytes", &0u32);
-    buffer1.set_property("max-size-time", &(1_000_000_000u64));
+    buffer1.set_property("max-size-time", &(500_000_000u64));
 
     // Add elements to the pipeline
     pipeline.add_many(&[
         &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1, &webrtcdsp1, &buffer1,
-        &rtspsrc2, &rtpmp4gdepay2, &aacparse2, &decodebin2, &queue2, &audioconvert2, &audioresample2,
+        &rtspsrc2, &rtpmp4gdepay2, &aacparse2, &decodebin2, &queue2, &audioconvert2, &audioresample2, &volume1,
         &audiomixer, &audiostereo, &lamemp3enc, &rtspclientsink
     ])?;
 
@@ -100,7 +108,7 @@ fn main() -> Result<(), Error> {
         &rtpmp4gdepay2, &aacparse2, &decodebin2
     ])?;
     gst::Element::link_many(&[
-        &queue2, &audioconvert2, &audioresample2, &audiomixer
+        &queue2, &audioconvert2, &audioresample2, &volume1, &audiomixer
     ])?;
 
     gst::Element::link_many(&[
@@ -153,24 +161,62 @@ fn main() -> Result<(), Error> {
         }
     });
 
-    // Start playing the pipeline
+
+    // Set up the pipeline
     pipeline.set_state(gst::State::Playing)?;
 
-    // Run the pipeline until an error or EOS (End of Stream)
+    // Use a Tokio task to manage the GStreamer bus messages asynchronously
     let bus = pipeline.bus().unwrap();
-    for msg in bus.iter_timed(gst::ClockTime::NONE) {
-        match msg.view() {
-            gst::MessageView::Eos(..) => break,
-            gst::MessageView::Error(err) => {
-                eprintln!("Error from {}: {}", err.src().unwrap().path_string(), err.error());
-                break;
+    let pipeline_clone = pipeline.clone();
+    tokio::spawn(async move {
+        for msg in bus.iter_timed(gst::ClockTime::NONE) {
+            match msg.view() {
+                gst::MessageView::Eos(..) => {
+                    println!("End of stream reached");
+                    break;
+                }
+                gst::MessageView::Error(err) => {
+                    eprintln!("Error from {}: {}", err.src().unwrap().path_string(), err.error());
+                    break;
+                }
+                _ => (),
             }
-            _ => (),
         }
-    }
 
-    // Clean up
-    pipeline.set_state(gst::State::Null)?;
+        // Clean up the pipeline
+        pipeline_clone.set_state(gst::State::Null).unwrap();
+    });
+
+    let volume1 = Arc::new(Mutex::new(volume1));
+    let volume1_clone = Arc::clone(&volume1);
+
+    // tokio::spawn(async move {
+    //     let mut volume_level = 0.0;
+    //     let mut increasing = true;
+    //     let mut interval = time::interval(Duration::from_secs(1));
+    //
+    //     loop {
+    //         interval.tick().await;
+    //
+    //         let mut volume1 = volume1_clone.lock().unwrap();
+    //         volume1.set_property("volume", volume_level);
+    //
+    //         if increasing {
+    //             volume_level += 0.1;
+    //             if volume_level >= 1.0 {
+    //                 increasing = false;
+    //             }
+    //         } else {
+    //             volume_level -= 0.1;
+    //             if volume_level <= 0.0 {
+    //                 increasing = true;
+    //             }
+    //         }
+    //     }
+    // });
+
+    // Keep the runtime alive (you could also use some other async logic here)
+    tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
 
     Ok(())
 }
