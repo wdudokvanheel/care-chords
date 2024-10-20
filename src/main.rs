@@ -62,6 +62,12 @@ fn main() -> Result<(), Error> {
     let rtspclientsink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtspclientsink"))
         .expect("Could not create rtspclientsink element.");
 
+    // Create elements for forcing stereo output after mixing
+    let audiostereo = gst::ElementFactory::make_with_name("capsfilter", Some("audiostereo"))
+        .expect("Could not create audiostereo element.");
+    audiostereo.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
+
+
     // Set element properties
     rtspsrc1.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
     rtspsrc1.set_property("protocols", RTSPLowerTrans::TCP);
@@ -78,7 +84,7 @@ fn main() -> Result<(), Error> {
     pipeline.add_many(&[
         &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1, &webrtcdsp1, &buffer1,
         &rtspsrc2, &rtpmp4gdepay2, &aacparse2, &decodebin2, &queue2, &audioconvert2, &audioresample2,
-        &audiomixer, &lamemp3enc, &rtspclientsink
+        &audiomixer, &audiostereo, &lamemp3enc, &rtspclientsink
     ])?;
 
     // Link static elements for the first RTSP source
@@ -98,7 +104,7 @@ fn main() -> Result<(), Error> {
     ])?;
 
     gst::Element::link_many(&[
-        &audiomixer, &lamemp3enc, &rtspclientsink
+        &audiomixer, &audiostereo, &lamemp3enc, &rtspclientsink
     ])?;
 
     // Connect to the pad-added signal of the rtspsrc1 element to dynamically link its source pad
