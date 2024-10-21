@@ -34,19 +34,24 @@ async fn main() -> Result<(), Error> {
         .expect("Could not create livestream_resample element.");
     let livestream_buffer = gst::ElementFactory::make_with_name("queue", Some("livestream_buffer"))
         .expect("Could not create livestream_buffer element.");
-
-    // Create webrtcdsp element
     let livestream_dsp = gst::ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
         .expect("Could not create livestream_dsp element.");
+    let livestream_volume = gst::ElementFactory::make_with_name("volume", Some("livestream_volume"))
+        .expect("Could not create livestream_volume element.");
+
+    livestream_source.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
+    livestream_source.set_property("protocols", RTSPLowerTrans::TCP);
+    livestream_volume.set_property("volume", 1.0f64);
+
     livestream_dsp.set_property("echo-cancel", &false);
     livestream_dsp.set_property("noise-suppression", &true);
     livestream_dsp.set_property_from_str("noise-suppression-level", &"high");
     livestream_dsp.set_property("voice-detection", &true);
     livestream_dsp.set_property("extended-filter", &true);
 
-    let livestream_volume = gst::ElementFactory::make_with_name("volume", Some("livestream_volume"))
-        .expect("Could not create livestream_volume element.");
-    livestream_volume.set_property("volume", 1.0f64);
+    livestream_buffer.set_property("max-size-buffers", &0u32);
+    livestream_buffer.set_property("max-size-bytes", &0u32);
+    livestream_buffer.set_property("max-size-time", &(300_000_000u64));
 
     // Create elements for the music source
     let music_source = gst::ElementFactory::make_with_name("rtspsrc", Some("music_source"))
@@ -64,6 +69,9 @@ async fn main() -> Result<(), Error> {
     let music_resample = gst::ElementFactory::make_with_name("audioresample", Some("music_resample"))
         .expect("Could not create music_resample element.");
 
+    music_source.set_property("location", &"rtsp://10.0.0.153:8554/spotify");
+    music_source.set_property("protocols", RTSPLowerTrans::TCP);
+
     // Common elements
     let audio_mixer = gst::ElementFactory::make_with_name("audiomixer", Some("audio_mixer"))
         .expect("Could not create audio_mixer element.");
@@ -71,25 +79,14 @@ async fn main() -> Result<(), Error> {
         .expect("Could not create mp3_encoder element.");
     let flac_encoder = gst::ElementFactory::make_with_name("flacenc", Some("flac_encoder"))
         .expect("Could not create flac_encoder element.");
+    let stereo_filter = gst::ElementFactory::make_with_name("capsfilter", Some("stereo_filter"))
+        .expect("Could not create stereo_filter element.");
     let rtsp_sink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
         .expect("Could not create rtsp_sink element.");
 
-    // Create elements for forcing stereo output after mixing
-    let stereo_filter = gst::ElementFactory::make_with_name("capsfilter", Some("stereo_filter"))
-        .expect("Could not create stereo_filter element.");
-    stereo_filter.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
-
-    // Set element properties
-    livestream_source.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
-    livestream_source.set_property("protocols", RTSPLowerTrans::TCP);
-    music_source.set_property("location", &"rtsp://10.0.0.153:8554/spotify");
-    music_source.set_property("protocols", RTSPLowerTrans::TCP);
-    rtsp_sink.set_property("location", &"rtsp://localhost:8554/sleep");
     mp3_encoder.set_property("bitrate", &320);
-
-    livestream_buffer.set_property("max-size-buffers", &0u32);
-    livestream_buffer.set_property("max-size-bytes", &0u32);
-    livestream_buffer.set_property("max-size-time", &(500_000_000u64));
+    rtsp_sink.set_property("location", &"rtsp://localhost:8554/sleep");
+    stereo_filter.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
 
     // Add elements to the pipeline
     pipeline.add_many(&[
@@ -192,6 +189,7 @@ async fn main() -> Result<(), Error> {
 
     let livestream_volume = Arc::new(Mutex::new(livestream_volume));
     let livestream_volume_clone = Arc::clone(&livestream_volume);
+
     let control_route = warp::path("sleep")
         .and(warp::post())
         .and(warp::body::json())
