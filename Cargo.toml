@@ -13,3 +13,17 @@ anyhow = "1.0.89"
 tokio = { version = "1.40.0", features = ["full"] }
 serde_json = "1.0.132"
 warp = "0.3.7"
+time = "0.3.36"
+
+[workspace.metadata.cross.target.aarch64-unknown-linux-gnu]
+# Install libssl-dev:arm64, see <https://github.com/cross-rs/cross/blob/main/docs/custom_images.md#adding-dependencies-to-existing-images>
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update",
+    "apt-get --assume-yes install libgstreamer1.0:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer-plugins-base1.0-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer-plugins-base1.0:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer1.0-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstrtspserver-1.0-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstrtspserver-1.0:$CROSS_DEB_ARCH"
+]

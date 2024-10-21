@@ -1,9 +1,12 @@
+use std::time::Duration;
 use anyhow::Error;
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_rtsp::RTSPLowerTrans;
 use std::sync::{Arc, Mutex};
 use tokio;
+use tokio::time;
+use warp::http::StatusCode;
 use warp::Filter;
 
 #[tokio::main]
@@ -14,154 +17,152 @@ async fn main() -> Result<(), Error> {
     // Create the pipeline
     let pipeline = gst::Pipeline::new();
 
-    // Create elements for the first RTSP source (camera)
-    let rtspsrc1 = gst::ElementFactory::make_with_name("rtspsrc", Some("rtspsrc1"))
-        .expect("Could not create rtspsrc1 element.");
-    let rtpmp4gdepay1 = gst::ElementFactory::make_with_name("rtpmp4gdepay", Some("rtpmp4gdepay1"))
-        .expect("Could not create rtpmp4gdepay1 element.");
-    let aacparse1 = gst::ElementFactory::make_with_name("aacparse", Some("aacparse1"))
-        .expect("Could not create aacparse1 element.");
-    let decodebin1 = gst::ElementFactory::make_with_name("decodebin", Some("decodebin1"))
-        .expect("Could not create decodebin1 element.");
-    let queue1 = gst::ElementFactory::make_with_name("queue", Some("queue1"))
-        .expect("Could not create queue1 element.");
-    let audioconvert1 = gst::ElementFactory::make_with_name("audioconvert", Some("audioconvert1"))
-        .expect("Could not create audioconvert1 element.");
-    let audioresample1 = gst::ElementFactory::make_with_name("audioresample", Some("audioresample1"))
-        .expect("Could not create audioresample1 element.");
-    let buffer1 = gst::ElementFactory::make_with_name("queue", Some("buffer1"))
-        .expect("Could not create buffer1 element.");
+    // Create elements for the livestream source
+    let livestream_source = gst::ElementFactory::make_with_name("rtspsrc", Some("livestream_source"))
+        .expect("Could not create livestream_source element.");
+    let livestream_depay = gst::ElementFactory::make_with_name("rtpmp4gdepay", Some("livestream_depay"))
+        .expect("Could not create livestream_depay element.");
+    let livestream_parse = gst::ElementFactory::make_with_name("aacparse", Some("livestream_parse"))
+        .expect("Could not create livestream_parse element.");
+    let livestream_decoder = gst::ElementFactory::make_with_name("decodebin", Some("livestream_decoder"))
+        .expect("Could not create livestream_decoder element.");
+    let livestream_queue = gst::ElementFactory::make_with_name("queue", Some("livestream_queue"))
+        .expect("Could not create livestream_queue element.");
+    let livestream_convert = gst::ElementFactory::make_with_name("audioconvert", Some("livestream_convert"))
+        .expect("Could not create livestream_convert element.");
+    let livestream_resample = gst::ElementFactory::make_with_name("audioresample", Some("livestream_resample"))
+        .expect("Could not create livestream_resample element.");
+    let livestream_buffer = gst::ElementFactory::make_with_name("queue", Some("livestream_buffer"))
+        .expect("Could not create livestream_buffer element.");
 
     // Create webrtcdsp element
-    let webrtcdsp1 = gst::ElementFactory::make_with_name("webrtcdsp", Some("webrtcdsp1"))
-        .expect("Could not create webrtcdsp1 element.");
-    webrtcdsp1.set_property("echo-cancel", &false);
-    webrtcdsp1.set_property("noise-suppression", &true);
-    webrtcdsp1.set_property_from_str("noise-suppression-level", &"high");
-    webrtcdsp1.set_property("voice-detection", &true);
-    webrtcdsp1.set_property("extended-filter", &true);
+    let livestream_dsp = gst::ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
+        .expect("Could not create livestream_dsp element.");
+    livestream_dsp.set_property("echo-cancel", &false);
+    livestream_dsp.set_property("noise-suppression", &true);
+    livestream_dsp.set_property_from_str("noise-suppression-level", &"high");
+    livestream_dsp.set_property("voice-detection", &true);
+    livestream_dsp.set_property("extended-filter", &true);
 
-    let volume1 = gst::ElementFactory::make_with_name("volume", Some("volume1")).expect("Could not create volume element.");
-    volume1.set_property("volume", 0.1f64);
+    let livestream_volume = gst::ElementFactory::make_with_name("volume", Some("livestream_volume"))
+        .expect("Could not create livestream_volume element.");
+    livestream_volume.set_property("volume", 1.0f64);
 
-    // Create elements for the second RTSP source (Spotify)
-    let rtspsrc2 = gst::ElementFactory::make_with_name("rtspsrc", Some("rtspsrc2"))
-        .expect("Could not create rtspsrc2 element.");
-    let rtpmp4gdepay2 = gst::ElementFactory::make_with_name("rtpmp4gdepay", Some("rtpmp4gdepay2"))
-        .expect("Could not create rtpmp4gdepay2 element.");
-    let aacparse2 = gst::ElementFactory::make_with_name("aacparse", Some("aacparse2"))
-        .expect("Could not create aacparse2 element.");
-    let decodebin2 = gst::ElementFactory::make_with_name("decodebin", Some("decodebin2"))
-        .expect("Could not create decodebin2 element.");
-    let queue2 = gst::ElementFactory::make_with_name("queue", Some("queue2"))
-        .expect("Could not create queue2 element.");
-    let audioconvert2 = gst::ElementFactory::make_with_name("audioconvert", Some("audioconvert2"))
-        .expect("Could not create audioconvert2 element.");
-    let audioresample2 = gst::ElementFactory::make_with_name("audioresample", Some("audioresample2"))
-        .expect("Could not create audioresample2 element.");
+    // Create elements for the music source
+    let music_source = gst::ElementFactory::make_with_name("rtspsrc", Some("music_source"))
+        .expect("Could not create music_source element.");
+    let music_depay = gst::ElementFactory::make_with_name("rtpmp4gdepay", Some("music_depay"))
+        .expect("Could not create music_depay element.");
+    let music_parse = gst::ElementFactory::make_with_name("aacparse", Some("music_parse"))
+        .expect("Could not create music_parse element.");
+    let music_decoder = gst::ElementFactory::make_with_name("decodebin", Some("music_decoder"))
+        .expect("Could not create music_decoder element.");
+    let music_queue = gst::ElementFactory::make_with_name("queue", Some("music_queue"))
+        .expect("Could not create music_queue element.");
+    let music_convert = gst::ElementFactory::make_with_name("audioconvert", Some("music_convert"))
+        .expect("Could not create music_convert element.");
+    let music_resample = gst::ElementFactory::make_with_name("audioresample", Some("music_resample"))
+        .expect("Could not create music_resample element.");
 
     // Common elements
-    let audiomixer = gst::ElementFactory::make_with_name("audiomixer", Some("audiomixer"))
-        .expect("Could not create audiomixer element.");
-    let lamemp3enc = gst::ElementFactory::make_with_name("lamemp3enc", Some("lamemp3enc"))
-        .expect("Could not create lamemp3enc element.");
-    let flacenc = gst::ElementFactory::make_with_name("flacenc", Some("flacenc"))
-        .expect("Could not create flacenc element.");
-    let rtspclientsink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtspclientsink"))
-        .expect("Could not create rtspclientsink element.");
+    let audio_mixer = gst::ElementFactory::make_with_name("audiomixer", Some("audio_mixer"))
+        .expect("Could not create audio_mixer element.");
+    let mp3_encoder = gst::ElementFactory::make_with_name("lamemp3enc", Some("mp3_encoder"))
+        .expect("Could not create mp3_encoder element.");
+    let flac_encoder = gst::ElementFactory::make_with_name("flacenc", Some("flac_encoder"))
+        .expect("Could not create flac_encoder element.");
+    let rtsp_sink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
+        .expect("Could not create rtsp_sink element.");
 
     // Create elements for forcing stereo output after mixing
-    let audiostereo = gst::ElementFactory::make_with_name("capsfilter", Some("audiostereo"))
-        .expect("Could not create audiostereo element.");
-    audiostereo.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
-
-
+    let stereo_filter = gst::ElementFactory::make_with_name("capsfilter", Some("stereo_filter"))
+        .expect("Could not create stereo_filter element.");
+    stereo_filter.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
 
     // Set element properties
-    rtspsrc1.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
-    rtspsrc1.set_property("protocols", RTSPLowerTrans::TCP);
-    rtspsrc2.set_property("location", &"rtsp://10.0.0.153:8554/spotify");
-    rtspsrc2.set_property("protocols", RTSPLowerTrans::TCP);
-    rtspclientsink.set_property("location", &"rtsp://localhost:8554/lumi");
-    lamemp3enc.set_property("bitrate", &320);
+    livestream_source.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
+    livestream_source.set_property("protocols", RTSPLowerTrans::TCP);
+    music_source.set_property("location", &"rtsp://10.0.0.153:8554/spotify");
+    music_source.set_property("protocols", RTSPLowerTrans::TCP);
+    rtsp_sink.set_property("location", &"rtsp://localhost:8554/sleep");
+    mp3_encoder.set_property("bitrate", &320);
 
-    buffer1.set_property("max-size-buffers", &0u32);
-    buffer1.set_property("max-size-bytes", &0u32);
-    buffer1.set_property("max-size-time", &(500_000_000u64));
+    livestream_buffer.set_property("max-size-buffers", &0u32);
+    livestream_buffer.set_property("max-size-bytes", &0u32);
+    livestream_buffer.set_property("max-size-time", &(500_000_000u64));
 
     // Add elements to the pipeline
     pipeline.add_many(&[
-        &rtspsrc1, &rtpmp4gdepay1, &aacparse1, &decodebin1, &queue1, &audioconvert1, &audioresample1, &webrtcdsp1, &buffer1,
-        &rtspsrc2, &rtpmp4gdepay2, &aacparse2, &decodebin2, &queue2, &audioconvert2, &audioresample2, &volume1,
-        &audiomixer, &audiostereo, &lamemp3enc, &rtspclientsink
+        &livestream_source, &livestream_depay, &livestream_parse, &livestream_decoder, &livestream_queue, &livestream_convert, &livestream_resample, &livestream_dsp, &livestream_buffer,
+        &music_source, &music_depay, &music_parse, &music_decoder, &music_queue, &music_convert, &music_resample, &livestream_volume,
+        &audio_mixer, &stereo_filter, &mp3_encoder, &rtsp_sink
     ])?;
 
-    // Link static elements for the first RTSP source
+    // Link static elements for the livestream source
     gst::Element::link_many(&[
-        &rtpmp4gdepay1, &aacparse1, &decodebin1
+        &livestream_depay, &livestream_parse, &livestream_decoder
     ])?;
     gst::Element::link_many(&[
-        &queue1, &audioconvert1, &audioresample1, &webrtcdsp1, &buffer1, &audiomixer
-    ])?;
-
-    // Link static elements for the second RTSP source
-    gst::Element::link_many(&[
-        &rtpmp4gdepay2, &aacparse2, &decodebin2
-    ])?;
-    gst::Element::link_many(&[
-        &queue2, &audioconvert2, &audioresample2, &volume1, &audiomixer
+        &livestream_queue, &livestream_convert, &livestream_resample, &livestream_dsp, &livestream_buffer, &audio_mixer
     ])?;
 
+    // Link static elements for the music source
     gst::Element::link_many(&[
-        &audiomixer, &audiostereo, &lamemp3enc, &rtspclientsink
+        &music_depay, &music_parse, &music_decoder
+    ])?;
+    gst::Element::link_many(&[
+        &music_queue, &music_convert, &music_resample, &livestream_volume, &audio_mixer
     ])?;
 
-    // Connect to the pad-added signal of the rtspsrc1 element to dynamically link its source pad
-    rtspsrc1.connect_pad_added(move |_src, src_pad| {
+    gst::Element::link_many(&[
+        &audio_mixer, &stereo_filter, &mp3_encoder, &rtsp_sink
+    ])?;
+
+    // Connect to the pad-added signal of the livestream_source element to dynamically link its source pad
+    livestream_source.connect_pad_added(move |_src, src_pad| {
         let src_pad_caps = src_pad.current_caps().unwrap();
         let src_pad_structure = src_pad_caps.structure(0).unwrap();
 
         if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
             if media_type == "audio" {
-                let sink_pad = rtpmp4gdepay1.static_pad("sink").expect("Failed to get sink pad");
+                let sink_pad = livestream_depay.static_pad("sink").expect("Failed to get sink pad");
                 if let Err(err) = src_pad.link(&sink_pad) {
-                    eprintln!("Failed to link rtspsrc1 audio: {}", err);
+                    eprintln!("Failed to link livestream_source audio: {}", err);
                 }
             }
         }
     });
 
-    // Connect to the pad-added signal of the rtspsrc2 element to dynamically link its source pad
-    rtspsrc2.connect_pad_added(move |_src, src_pad| {
+    // Connect to the pad-added signal of the music_source element to dynamically link its source pad
+    music_source.connect_pad_added(move |_src, src_pad| {
         let src_pad_caps = src_pad.current_caps().unwrap();
         let src_pad_structure = src_pad_caps.structure(0).unwrap();
 
         if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
             if media_type == "audio" {
-                let sink_pad = rtpmp4gdepay2.static_pad("sink").expect("Failed to get sink pad");
+                let sink_pad = music_depay.static_pad("sink").expect("Failed to get sink pad");
                 if let Err(err) = src_pad.link(&sink_pad) {
-                    eprintln!("Failed to link rtspsrc2 audio: {}", err);
+                    eprintln!("Failed to link music_source audio: {}", err);
                 }
             }
         }
     });
 
-    decodebin1.connect_pad_added(move |_, src_pad| {
-        let queue1_sink_pad = queue1.static_pad("sink").expect("Failed to get sink pad from queue1");
+    livestream_decoder.connect_pad_added(move |_, src_pad| {
+        let livestream_queue_sink_pad = livestream_queue.static_pad("sink").expect("Failed to get sink pad from livestream_queue");
 
-        if let Err(err) = src_pad.link(&queue1_sink_pad) {
-            eprintln!("Failed to link decodebin to queue1: {}", err);
+        if let Err(err) = src_pad.link(&livestream_queue_sink_pad) {
+            eprintln!("Failed to link livestream_decoder to livestream_queue: {}", err);
         }
     });
 
-    decodebin2.connect_pad_added(move |_, src_pad| {
-        let queue1_sink_pad = queue2.static_pad("sink").expect("Failed to get sink pad from queue1");
+    music_decoder.connect_pad_added(move |_, src_pad| {
+        let music_queue_sink_pad = music_queue.static_pad("sink").expect("Failed to get sink pad from music_queue");
 
-        if let Err(err) = src_pad.link(&queue1_sink_pad) {
-            eprintln!("Failed to link decodebin to queue1: {}", err);
+        if let Err(err) = src_pad.link(&music_queue_sink_pad) {
+            eprintln!("Failed to link music_decoder to music_queue: {}", err);
         }
     });
-
 
     // Set up the pipeline
     pipeline.set_state(gst::State::Playing)?;
@@ -169,6 +170,7 @@ async fn main() -> Result<(), Error> {
     // Use a Tokio task to manage the GStreamer bus messages asynchronously
     let bus = pipeline.bus().unwrap();
     let pipeline_clone = pipeline.clone();
+
     tokio::spawn(async move {
         for msg in bus.iter_timed(gst::ClockTime::NONE) {
             match msg.view() {
@@ -188,25 +190,50 @@ async fn main() -> Result<(), Error> {
         pipeline_clone.set_state(gst::State::Null).unwrap();
     });
 
-    let volume1 = Arc::new(Mutex::new(volume1));
-    let volume1_clone = Arc::clone(&volume1);
-
-    // Set up the HTTP server to listen for POST requests on :7755/control
-    let volume1_clone = Arc::clone(&volume1);
-    let control_route = warp::path("control")
+    let livestream_volume = Arc::new(Mutex::new(livestream_volume));
+    let livestream_volume_clone = Arc::clone(&livestream_volume);
+    let control_route = warp::path("sleep")
         .and(warp::post())
         .and(warp::body::json())
-        .map(move |body: serde_json::Value| {
-            if let Some(volume) = body.get("volume") {
-                if let Some(volume_level) = volume.as_f64() {
-                    let mut volume1 = volume1_clone.lock().unwrap();
-                    volume1.set_property("volume", volume_level);
-                    println!("Volume set to: {}", volume_level);
-                }
-            }
-            warp::reply::json(&serde_json::json!({ "status": "ok" }))
-        });
+        .and_then(move |body: serde_json::Value| {
+            let livestream_volume_clone = Arc::clone(&livestream_volume_clone);
+            async move {
+                if let Some(time) = body.get("timer") {
+                    if let Some(sleep_timer) = time.as_u64() {
+                        // Spawn a new task to handle the timer and volume reduction
+                        let livestream_volume_clone = Arc::clone(&livestream_volume_clone);
+                        tokio::spawn(async move {
+                            println!("Starting sleep timer in {} seconds", sleep_timer);
 
+                            // Wait for the specified timer duration
+                            time::sleep(Duration::from_secs(sleep_timer)).await;
+
+                            println!("Starting volume decrease");
+
+                            // Gradually reduce the volume over interval
+                            let mut interval = time::interval(Duration::from_millis(500));
+                            for step in 0..=100 {
+                                let volume_level = 1.0 - (step as f64 * 0.01);
+                                {
+                                    let mut livestream_volume = livestream_volume_clone.lock().unwrap();
+                                    livestream_volume.set_property("volume", volume_level);
+                                }
+                                interval.tick().await;
+                            }
+                        });
+
+                        return Ok::<_, warp::Rejection>(warp::reply::with_status(
+                            warp::reply::json(&serde_json::json!({ "status": "timer started" })),
+                            StatusCode::OK,
+                        ));
+                    }
+                }
+                Ok::<_, warp::Rejection>(warp::reply::with_status(
+                    warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
+                    StatusCode::BAD_REQUEST,
+                ))
+            }
+        });
     let routes = control_route;
 
     tokio::spawn(async move {
@@ -214,33 +241,8 @@ async fn main() -> Result<(), Error> {
         warp::serve(routes).run(([0, 0, 0, 0], 7755)).await;
     });
 
-    // tokio::spawn(async move {
-    //     let mut volume_level = 0.0;
-    //     let mut increasing = true;
-    //     let mut interval = time::interval(Duration::from_secs(1));
-    //
-    //     loop {
-    //         interval.tick().await;
-    //
-    //         let mut volume1 = volume1_clone.lock().unwrap();
-    //         volume1.set_property("volume", volume_level);
-    //
-    //         if increasing {
-    //             volume_level += 0.1;
-    //             if volume_level >= 1.0 {
-    //                 increasing = false;
-    //             }
-    //         } else {
-    //             volume_level -= 0.1;
-    //             if volume_level <= 0.0 {
-    //                 increasing = true;
-    //             }
-    //         }
-    //     }
-    // });
-
-    // Keep the runtime alive (you could also use some other async logic here)
-    tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
+    // // Keep the runtime alive (you could also use some other async logic here)
+    // tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
 
     Ok(())
 }
