@@ -5,6 +5,7 @@ use gstreamer_rtsp::RTSPLowerTrans;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio;
+use tokio::process::Command;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
@@ -199,6 +200,12 @@ async fn main() -> Result<(), Error> {
             async move {
                 if let Some(time) = body.get("timer") {
                     if let Some(sleep_timer) = time.as_u64() {
+                        // Valid timer, let's start the timer and resume playback (might be paused, otherwise will be ignored)
+                        println!("Executing bash script to play Spotify");
+                        if let Err(e) = Command::new("/home/wesley/playspot.sh").status().await {
+                            eprintln!("Failed to execute bash script: {}", e);
+                        }
+
                         // Spawn a new task to handle the timer and volume reduction
                         let livestream_volume_clone = Arc::clone(&livestream_volume_clone);
                         tokio::spawn(async move {
@@ -219,6 +226,22 @@ async fn main() -> Result<(), Error> {
                                 }
                                 interval.tick().await;
                             }
+
+                            // Wait for 1 second before executing the bash script
+                            time::sleep(Duration::from_secs(1)).await;
+                            println!("Executing bash script to pause Spotify");
+                            if let Err(e) = Command::new("/home/wesley/pausespot.sh").status().await {
+                                eprintln!("Failed to execute bash script: {}", e);
+                            }
+
+                            // Wait for 1 second before restoring the volume back to 1.0
+                            time::sleep(Duration::from_secs(5)).await;
+                            {
+                                let mut livestream_volume = livestream_volume_clone.lock().unwrap();
+                                livestream_volume.set_property("volume", 1.0);
+                            }
+
+                            println!("Volume restored");
                         });
 
                         return Ok::<_, warp::Rejection>(warp::reply::with_status(
@@ -241,7 +264,7 @@ async fn main() -> Result<(), Error> {
     });
 
     // // Keep the runtime alive (you could also use some other async logic here)
-    // tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
+    tokio::signal::ctrl_c().await.expect("Failed to listen for ctrl-c");
 
     Ok(())
 }
