@@ -1,23 +1,22 @@
-use std::time::Duration;
 use anyhow::Error;
 use gstreamer as gst;
 use gstreamer::prelude::*;
 use gstreamer_rtsp::RTSPLowerTrans;
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
 
+
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    // Initialize GStreamer
     gst::init()?;
 
-    // Create the pipeline
     let pipeline = gst::Pipeline::new();
 
-    // Create elements for the livestream source
+    // Create elements for the rtsp livestream source
     let livestream_source = gst::ElementFactory::make_with_name("rtspsrc", Some("livestream_source"))
         .expect("Could not create livestream_source element.");
     let livestream_depay = gst::ElementFactory::make_with_name("rtpmp4gdepay", Some("livestream_depay"))
@@ -34,6 +33,8 @@ async fn main() -> Result<(), Error> {
         .expect("Could not create livestream_resample element.");
     let livestream_buffer = gst::ElementFactory::make_with_name("queue", Some("livestream_buffer"))
         .expect("Could not create livestream_buffer element.");
+    let livestream_rgvolume = gst::ElementFactory::make_with_name("rgvolume", Some("livestream_rgvolume"))
+        .expect("Could not create livestream_rgvolume element.");
     let livestream_dsp = gst::ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
         .expect("Could not create livestream_dsp element.");
     let livestream_volume = gst::ElementFactory::make_with_name("volume", Some("livestream_volume"))
@@ -48,6 +49,9 @@ async fn main() -> Result<(), Error> {
     livestream_dsp.set_property_from_str("noise-suppression-level", &"high");
     livestream_dsp.set_property("voice-detection", &true);
     livestream_dsp.set_property("extended-filter", &true);
+
+    // Reduce volume
+    livestream_rgvolume.set_property("pre-amp", &-30.0f64);
 
     livestream_buffer.set_property("max-size-buffers", &0u32);
     livestream_buffer.set_property("max-size-bytes", &0u32);
@@ -77,8 +81,6 @@ async fn main() -> Result<(), Error> {
         .expect("Could not create audio_mixer element.");
     let mp3_encoder = gst::ElementFactory::make_with_name("lamemp3enc", Some("mp3_encoder"))
         .expect("Could not create mp3_encoder element.");
-    let flac_encoder = gst::ElementFactory::make_with_name("flacenc", Some("flac_encoder"))
-        .expect("Could not create flac_encoder element.");
     let stereo_filter = gst::ElementFactory::make_with_name("capsfilter", Some("stereo_filter"))
         .expect("Could not create stereo_filter element.");
     let rtsp_sink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
@@ -92,7 +94,7 @@ async fn main() -> Result<(), Error> {
     pipeline.add_many(&[
         &livestream_source, &livestream_depay, &livestream_parse, &livestream_decoder, &livestream_queue, &livestream_convert, &livestream_resample, &livestream_dsp, &livestream_buffer,
         &music_source, &music_depay, &music_parse, &music_decoder, &music_queue, &music_convert, &music_resample, &livestream_volume,
-        &audio_mixer, &stereo_filter, &mp3_encoder, &rtsp_sink
+        &audio_mixer, &stereo_filter, &mp3_encoder, &rtsp_sink, &livestream_rgvolume
     ])?;
 
     // Link static elements for the livestream source
@@ -100,7 +102,7 @@ async fn main() -> Result<(), Error> {
         &livestream_depay, &livestream_parse, &livestream_decoder
     ])?;
     gst::Element::link_many(&[
-        &livestream_queue, &livestream_convert, &livestream_resample, &livestream_dsp, &livestream_buffer, &audio_mixer
+        &livestream_queue, &livestream_convert, &livestream_resample, &livestream_rgvolume, &livestream_dsp, &livestream_buffer, &audio_mixer
     ])?;
 
     // Link static elements for the music source
@@ -161,7 +163,6 @@ async fn main() -> Result<(), Error> {
         }
     });
 
-    // Set up the pipeline
     pipeline.set_state(gst::State::Playing)?;
 
     // Use a Tokio task to manage the GStreamer bus messages asynchronously
