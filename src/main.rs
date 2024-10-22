@@ -1,7 +1,9 @@
 use anyhow::Error;
 use gstreamer as gst;
 use gstreamer::prelude::*;
+use gstreamer::prelude::*;
 use gstreamer_rtsp::RTSPLowerTrans;
+use gstreamer_rtsp_server::prelude::RTSPMediaExt;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio;
@@ -9,7 +11,6 @@ use tokio::process::Command;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
-
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -38,12 +39,14 @@ async fn main() -> Result<(), Error> {
         .expect("Could not create livestream_rgvolume element.");
     let livestream_dsp = gst::ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
         .expect("Could not create livestream_dsp element.");
-    let livestream_volume = gst::ElementFactory::make_with_name("volume", Some("livestream_volume"))
-        .expect("Could not create livestream_volume element.");
+    let livestream_cap_filter = gst::ElementFactory::make_with_name("capsfilter", Some("livestream_cap_filter")).expect("Failed to create capsfilter");
+    let livestream_cap_resample = gst::ElementFactory::make_with_name("audioresample", Some("livestream_cap_resample"))
+        .expect("Could not create audioresample element for capsfilter");
+    let livestream_cap_convert = gst::ElementFactory::make_with_name("audioconvert", Some("capsfilter_converter"))
+        .expect("Could not create audioconvert element for capsfilter");
 
     livestream_source.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
     livestream_source.set_property("protocols", RTSPLowerTrans::TCP);
-    livestream_volume.set_property("volume", 1.0f64);
 
     livestream_dsp.set_property("echo-cancel", &false);
     livestream_dsp.set_property("noise-suppression", &true);
@@ -59,23 +62,27 @@ async fn main() -> Result<(), Error> {
     livestream_buffer.set_property("max-size-time", &(300_000_000u64));
 
     // Create elements for the music source
-    let music_source = gst::ElementFactory::make_with_name("rtspsrc", Some("music_source"))
+    let music_source = gst::ElementFactory::make_with_name("pulsesrc", Some("music_source"))
         .expect("Could not create music_source element.");
-    let music_depay = gst::ElementFactory::make_with_name("rtpmp4gdepay", Some("music_depay"))
-        .expect("Could not create music_depay element.");
-    let music_parse = gst::ElementFactory::make_with_name("aacparse", Some("music_parse"))
-        .expect("Could not create music_parse element.");
-    let music_decoder = gst::ElementFactory::make_with_name("decodebin", Some("music_decoder"))
-        .expect("Could not create music_decoder element.");
-    let music_queue = gst::ElementFactory::make_with_name("queue", Some("music_queue"))
-        .expect("Could not create music_queue element.");
-    let music_convert = gst::ElementFactory::make_with_name("audioconvert", Some("music_convert"))
-        .expect("Could not create music_convert element.");
-    let music_resample = gst::ElementFactory::make_with_name("audioresample", Some("music_resample"))
-        .expect("Could not create music_resample element.");
+    let music_volume = gst::ElementFactory::make_with_name("volume", Some("livestream_volume"))
+        .expect("Could not create livestream_volume element.");
+    let music_cap_filter = gst::ElementFactory::make_with_name("capsfilter", Some("music_cap_filter"))
+        .expect("Failed to create music_cap_filter");
 
-    music_source.set_property("location", &"rtsp://10.0.0.153:8554/spotify");
-    music_source.set_property("protocols", RTSPLowerTrans::TCP);
+    music_source.set_property("device", &"alsa_output.platform-bcm2835_audio.analog-stereo.monitor");
+    music_volume.set_property("volume", 1.0f64);
+    music_cap_filter.set_property("caps", &gst::Caps::builder("audio/x-raw")
+        .field("format", &"S16LE")
+        .field("rate", &44100)
+        .field("channels", &2)
+        .build());
+
+    let music_buffer = gst::ElementFactory::make_with_name("queue", Some("music_buffer"))
+        .expect("Could not create livestream_buffer element.");
+    music_buffer.set_property("max-size-buffers", &0u32);
+    music_buffer.set_property("max-size-bytes", &0u32);
+    music_buffer.set_property("max-size-time", &(1000_000_000u64));
+
 
     // Common elements
     let audio_mixer = gst::ElementFactory::make_with_name("audiomixer", Some("audio_mixer"))
@@ -87,31 +94,45 @@ async fn main() -> Result<(), Error> {
     let rtsp_sink = gst::ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
         .expect("Could not create rtsp_sink element.");
 
+    livestream_cap_filter.set_property("caps", &gst::Caps::builder("audio/x-raw")
+        .field("format", &"S16LE")
+        .field("rate", &44100)
+        .field("channels", &2)
+        .build());
+
     mp3_encoder.set_property("bitrate", &320);
-    rtsp_sink.set_property("location", &"rtsp://localhost:8554/sleep");
+    rtsp_sink.set_property("location", &"rtsp://10.0.0.153:8554/sleep");
     stereo_filter.set_property("caps", &gst::Caps::builder("audio/x-raw").field("channels", &2).build());
 
     // Add elements to the pipeline
     pipeline.add_many(&[
         &livestream_source, &livestream_depay, &livestream_parse, &livestream_decoder, &livestream_queue, &livestream_convert, &livestream_resample, &livestream_dsp, &livestream_buffer,
-        &music_source, &music_depay, &music_parse, &music_decoder, &music_queue, &music_convert, &music_resample, &livestream_volume,
-        &audio_mixer, &stereo_filter, &mp3_encoder, &rtsp_sink, &livestream_rgvolume
+        &livestream_cap_convert, &livestream_cap_resample,
+        &livestream_cap_filter,
+        &music_source, &music_cap_filter, &music_volume,
+        &livestream_rgvolume,&music_buffer,
+        &audio_mixer, &stereo_filter, &mp3_encoder, &rtsp_sink
     ])?;
 
     // Link static elements for the livestream source
     gst::Element::link_many(&[
         &livestream_depay, &livestream_parse, &livestream_decoder
     ])?;
-    gst::Element::link_many(&[
-        &livestream_queue, &livestream_convert, &livestream_resample, &livestream_rgvolume, &livestream_dsp, &livestream_buffer, &audio_mixer
-    ])?;
 
-    // Link static elements for the music source
     gst::Element::link_many(&[
-        &music_depay, &music_parse, &music_decoder
+        &livestream_queue,
+        &livestream_convert,
+        &livestream_resample,
+        &livestream_rgvolume,
+        &livestream_dsp,
+        &livestream_buffer,
+        &livestream_cap_convert,
+        &livestream_cap_resample,
+        &livestream_cap_filter,
+        &audio_mixer,
     ])?;
     gst::Element::link_many(&[
-        &music_queue, &music_convert, &music_resample, &livestream_volume, &audio_mixer
+        &music_source, &music_cap_filter, &music_buffer, &music_volume, &audio_mixer
     ])?;
 
     gst::Element::link_many(&[
@@ -133,34 +154,11 @@ async fn main() -> Result<(), Error> {
         }
     });
 
-    // Connect to the pad-added signal of the music_source element to dynamically link its source pad
-    music_source.connect_pad_added(move |_src, src_pad| {
-        let src_pad_caps = src_pad.current_caps().unwrap();
-        let src_pad_structure = src_pad_caps.structure(0).unwrap();
-
-        if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
-            if media_type == "audio" {
-                let sink_pad = music_depay.static_pad("sink").expect("Failed to get sink pad");
-                if let Err(err) = src_pad.link(&sink_pad) {
-                    eprintln!("Failed to link music_source audio: {}", err);
-                }
-            }
-        }
-    });
-
     livestream_decoder.connect_pad_added(move |_, src_pad| {
         let livestream_queue_sink_pad = livestream_queue.static_pad("sink").expect("Failed to get sink pad from livestream_queue");
 
         if let Err(err) = src_pad.link(&livestream_queue_sink_pad) {
             eprintln!("Failed to link livestream_decoder to livestream_queue: {}", err);
-        }
-    });
-
-    music_decoder.connect_pad_added(move |_, src_pad| {
-        let music_queue_sink_pad = music_queue.static_pad("sink").expect("Failed to get sink pad from music_queue");
-
-        if let Err(err) = src_pad.link(&music_queue_sink_pad) {
-            eprintln!("Failed to link music_decoder to music_queue: {}", err);
         }
     });
 
@@ -189,7 +187,7 @@ async fn main() -> Result<(), Error> {
         pipeline_clone.set_state(gst::State::Null).unwrap();
     });
 
-    let livestream_volume = Arc::new(Mutex::new(livestream_volume));
+    let livestream_volume = Arc::new(Mutex::new(music_volume));
     let livestream_volume_clone = Arc::clone(&livestream_volume);
 
     let control_route = warp::path("sleep")
@@ -221,7 +219,7 @@ async fn main() -> Result<(), Error> {
                             for step in 0..=100 {
                                 let volume_level = 1.0 - (step as f64 * 0.01);
                                 {
-                                    let mut livestream_volume = livestream_volume_clone.lock().unwrap();
+                                    let livestream_volume = livestream_volume_clone.lock().unwrap();
                                     livestream_volume.set_property("volume", volume_level);
                                 }
                                 interval.tick().await;
@@ -237,7 +235,7 @@ async fn main() -> Result<(), Error> {
                             // Wait for 1 second before restoring the volume back to 1.0
                             time::sleep(Duration::from_secs(5)).await;
                             {
-                                let mut livestream_volume = livestream_volume_clone.lock().unwrap();
+                                let livestream_volume = livestream_volume_clone.lock().unwrap();
                                 livestream_volume.set_property("volume", 1.0);
                             }
 
