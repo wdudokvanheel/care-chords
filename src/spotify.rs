@@ -1,3 +1,8 @@
+use dbus::arg::messageitem::MessageItem;
+use dbus::arg::Variant;
+use dbus::blocking::BlockingSender;
+use dbus::blocking::Connection;
+use dbus::Message;
 use std::time::Duration;
 
 pub fn send_spotify_message(message: &str) {
@@ -16,9 +21,40 @@ pub fn send_spotify_message(message: &str) {
     )
         .expect("Failed to call dbus method");
 
-    let response = conn.send_with_reply_and_block(pause_msg, Duration::from_millis(5000))
+    let _ = conn.send_with_reply_and_block(pause_msg, Duration::from_millis(5000))
         .expect("Failed to send message to dbus");
-    println!("Pause command sent, response: {:?}", response);
+}
+
+
+pub fn playback(uri: &str) {
+    let spotify_dest = get_dbus_spotify_connection();
+    if spotify_dest.is_none() {
+        return;
+    }
+    let (conn, spotify_dest) = spotify_dest.unwrap();
+
+    // Spotify URI for the playlist (replace with your playlist URI)
+    let playlist_uri =
+        if !uri.starts_with("spotify:") {
+            format!("spotify:{}", uri)
+        } else {
+            uri.to_string()
+        };
+
+    let mut message = Message::new_method_call(
+        spotify_dest,
+        "/org/mpris/MediaPlayer2",
+        "org.mpris.MediaPlayer2.Player",
+        "OpenUri",
+    )
+        .expect("Failed to call dbus method");
+
+    message.append_items(&[
+        MessageItem::Str(playlist_uri.to_string())]
+    );
+
+    let _ = conn.send_with_reply_and_block(message, Duration::from_millis(5000))
+        .expect("Failed to send message to dbus");
 }
 
 pub fn is_spotify_playing() -> bool {

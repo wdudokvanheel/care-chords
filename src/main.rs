@@ -13,15 +13,9 @@ use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
 
-use dbus::blocking::BlockingSender;
-use dbus::blocking::Connection;
-use dbus::Message;
-use dbus::arg::Variant;
-
 #[tokio::main]
 async fn main() -> Result<(), Error> {
     let gst_pipeline = StreamPipeline::new()?;
-
     gst_pipeline.set_state(gst::State::Playing)?;
 
     // Use a Tokio task to manage the GStreamer bus messages asynchronously
@@ -30,95 +24,29 @@ async fn main() -> Result<(), Error> {
         .expect("Pipeline without bus. Shouldn't happen!");
 
     let pipeline_clone = gst_pipeline.pipeline.clone();
-
     tokio::spawn(async move {
-        for msg in bus.iter_timed(gst::ClockTime::NONE) {
-            match msg.view() {
-                gst::MessageView::Eos(..) => {
-                    println!("End of stream reached");
-                    break;
-                }
-                gst::MessageView::Error(err) => {
-                    eprintln!(
-                        "Error from {}: {}",
-                        err.src().map(|s| s.path_string()).unwrap_or_else(|| "None".into()),
-                        err.error()
-                    );
-                    break;
-                }
-                _ => (),
-            }
-        }
-
-        // Clean up the pipeline
-        pipeline_clone.set_state(gst::State::Null).unwrap();
+        handle_gst_bus_messages(bus, pipeline_clone.into()).await;
     });
 
-    let music_volume = gst_pipeline.music.volume.clone();
-    let music_volume = Arc::new(Mutex::new(music_volume));
+    let music_volume = Arc::new(Mutex::new(gst_pipeline.music.volume.clone()));
 
-    let control_route = warp::path("sleep")
+    let sleep_route = warp::path("sleep")
         .and(warp::post())
         .and(warp::body::json())
-        .and_then(move |body: Value| {
-            let music_volume_clone = Arc::clone(&music_volume);
-            async move {
-                if let Some(time) = body.get("timer") {
-                    if let Some(sleep_timer) = time.as_u64() {
-                        // Valid timer, let's start the timer and resume playback (might be paused, otherwise will be ignored)
-                        println!("Executing bash script to play Spotify");
-                        spotify::send_spotify_message("Play");
+        .and(with_volume(music_volume.clone()))
+        .and_then(handle_sleep_request);
 
-                        // Spawn a new task to handle the timer and volume reduction
-                        let music_volume_clone = Arc::clone(&music_volume_clone);
-                        tokio::spawn(async move {
-                            println!("Starting sleep timer in {} seconds", sleep_timer);
+    let control_route = warp::path("control")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and_then(handle_control_request);
 
-                            // Wait for the specified timer duration
-                            time::sleep(Duration::from_secs(sleep_timer)).await;
+    let playback_route = warp::path("play")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and_then(handle_playback_request);
 
-                            println!("Starting volume decrease");
-
-                            // Gradually reduce the volume over interval
-                            let mut interval = time::interval(Duration::from_millis(500));
-                            for step in 0..=100 {
-                                let volume_level = 1.0 - (step as f64 * 0.01);
-                                {
-                                    let music_volume = music_volume_clone.lock().unwrap();
-                                    music_volume.set_property("volume", volume_level);
-                                }
-                                interval.tick().await;
-                            }
-
-                            // Wait for 1 second before executing the bash script
-                            time::sleep(Duration::from_secs(1)).await;
-                            println!("Executing bash script to pause Spotify");
-                            spotify::send_spotify_message("Pause");
-
-
-                            // Wait for 5 seconds before restoring the volume back to 1.0
-                            time::sleep(Duration::from_secs(5)).await;
-                            {
-                                let music_volume = music_volume_clone.lock().unwrap();
-                                music_volume.set_property("volume", 1.0);
-                            }
-
-                            println!("Volume restored");
-                        });
-
-                        return Ok::<_, warp::Rejection>(warp::reply::with_status(
-                            warp::reply::json(&serde_json::json!({ "status": "timer started" })),
-                            StatusCode::OK,
-                        ));
-                    }
-                }
-                Ok::<_, warp::Rejection>(warp::reply::with_status(
-                    warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
-                    StatusCode::BAD_REQUEST,
-                ))
-            }
-        });
-    let routes = control_route;
+    let routes = sleep_route.or(control_route).or(playback_route);
 
     tokio::spawn(async move {
         println!("Starting server @ :7755");
@@ -131,4 +59,122 @@ async fn main() -> Result<(), Error> {
         .expect("Failed to listen for ctrl-c");
 
     Ok(())
+}
+
+async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
+    for msg in bus.iter_timed(gst::ClockTime::NONE) {
+        match msg.view() {
+            gst::MessageView::Eos(..) => {
+                println!("End of stream reached");
+                break;
+            }
+            gst::MessageView::Error(err) => {
+                eprintln!(
+                    "Error from {}: {}",
+                    err.src().map(|s| s.path_string()).unwrap_or_else(|| "None".into()),
+                    err.error()
+                );
+                break;
+            }
+            _ => (),
+        }
+    }
+    // Clean up the pipeline
+    if let Err(e) = pipeline.set_state(gst::State::Null) {
+        eprintln!("Failed to set pipeline state to Null: {}", e);
+    }
+}
+
+fn with_volume(volume: Arc<Mutex<gst::Element>>) -> impl Filter<Extract=(Arc<Mutex<gst::Element>>,), Error=std::convert::Infallible> + Clone {
+    warp::any().map(move || volume.clone())
+}
+
+async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(uri) = body.get("uri").and_then(|t| t.as_str()) {
+        spotify::playback(uri);
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({ "status": "ok" })),
+            StatusCode::OK,
+        ));
+    }
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
+        StatusCode::BAD_REQUEST,
+    ))
+}
+
+async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(state) = body.get("state").and_then(|t| t.as_str()) {
+        if state.to_lowercase().eq("play") {
+            spotify::send_spotify_message("Play");
+        } else if state.to_lowercase().eq("pause") {
+            spotify::send_spotify_message("Pause");
+        }
+
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({ "status": "ok" })),
+            StatusCode::OK,
+        ));
+    }
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
+        StatusCode::BAD_REQUEST,
+    ))
+}
+
+async fn handle_sleep_request(body: Value, music_volume: Arc<Mutex<gst::Element>>) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(sleep_timer) = body.get("timer").and_then(|t| t.as_u64()) {
+        if !spotify::is_spotify_playing() {
+            spotify::send_spotify_message("Play");
+        }
+
+        // Spawn a new task to handle the timer and volume reduction
+        tokio::spawn(handle_volume_reduction(sleep_timer, music_volume));
+
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({ "status": "timer started" })),
+            StatusCode::OK,
+        ));
+    }
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
+        StatusCode::BAD_REQUEST,
+    ))
+}
+
+async fn handle_volume_reduction(sleep_timer: u64, music_volume: Arc<Mutex<gst::Element>>) {
+    println!("Starting sleep timer in {} seconds", sleep_timer);
+
+    // Wait for the specified timer duration
+    time::sleep(Duration::from_secs(sleep_timer)).await;
+
+    println!("Starting volume decrease");
+
+    // Gradually reduce the volume over interval
+    let mut interval = time::interval(Duration::from_millis(500));
+    for step in 0..=100 {
+        let volume_level = 1.0 - (step as f64 * 0.01);
+        {
+            let music_volume = music_volume.lock().unwrap();
+            music_volume.set_property("volume", volume_level);
+        }
+        interval.tick().await;
+    }
+
+    // Wait for 1 second before executing the bash script
+    time::sleep(Duration::from_secs(1)).await;
+    println!("Executing bash script to pause Spotify");
+    spotify::send_spotify_message("Pause");
+
+    // Wait for 5 seconds before restoring the volume back to 1.0
+    time::sleep(Duration::from_secs(5)).await;
+    {
+        let music_volume = music_volume.lock().unwrap();
+        music_volume.set_property("volume", 1.0);
+    }
+
+    println!("Volume restored");
 }
