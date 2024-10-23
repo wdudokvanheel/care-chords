@@ -1,4 +1,5 @@
 mod pipeline;
+mod spotify;
 
 use anyhow::Error;
 use gstreamer as gst;
@@ -8,7 +9,6 @@ use serde_json::Value;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
 use tokio;
-use tokio::process::Command;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
@@ -16,6 +16,7 @@ use warp::Filter;
 use dbus::blocking::BlockingSender;
 use dbus::blocking::Connection;
 use dbus::Message;
+use dbus::arg::Variant;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -66,7 +67,7 @@ async fn main() -> Result<(), Error> {
                     if let Some(sleep_timer) = time.as_u64() {
                         // Valid timer, let's start the timer and resume playback (might be paused, otherwise will be ignored)
                         println!("Executing bash script to play Spotify");
-                        send_spotify_message("Play");
+                        spotify::send_spotify_message("Play");
 
                         // Spawn a new task to handle the timer and volume reduction
                         let music_volume_clone = Arc::clone(&music_volume_clone);
@@ -92,7 +93,7 @@ async fn main() -> Result<(), Error> {
                             // Wait for 1 second before executing the bash script
                             time::sleep(Duration::from_secs(1)).await;
                             println!("Executing bash script to pause Spotify");
-                            send_spotify_message("Pause");
+                            spotify::send_spotify_message("Pause");
 
 
                             // Wait for 5 seconds before restoring the volume back to 1.0
@@ -131,40 +132,3 @@ async fn main() -> Result<(), Error> {
 
     Ok(())
 }
-
-pub fn send_spotify_message(message: &str) {
-    // Establish a connection to the D-Bus session
-    let conn = Connection::new_session()
-        .expect("Failed to create a dbus connection");
-
-    // Call ListNames to get all service names on the session bus
-    let proxy = conn.with_proxy("org.freedesktop.DBus", "/org/freedesktop/DBus", Duration::from_millis(5000));
-    let (names, ): (Vec<String>,) = proxy.method_call("org.freedesktop.DBus", "ListNames", ())
-        .expect("Failed to list dbus names");
-
-    // Find the Spotify destination that contains the word 'spotify'
-    let spotify_dest = names.iter().find(|name| name.contains("org.mpris.MediaPlayer2.spotify"));
-
-    // Check if Spotify destination is found
-    let spotify_dest = match spotify_dest {
-        Some(dest) => dest,
-        None => {
-            eprintln!("Spotify destination not found.");
-            return;
-        }
-    };
-
-    // Send the Pause command to Spotify
-    let pause_msg = Message::new_method_call(
-        spotify_dest,
-        "/org/mpris/MediaPlayer2",
-        "org.mpris.MediaPlayer2.Player",
-        message,
-    )
-        .expect("Failed to call dbus method");
-
-    let response = conn.send_with_reply_and_block(pause_msg, Duration::from_millis(5000))
-        .expect("Failed to send message to dbus");
-    println!("Pause command sent, response: {:?}", response);
-}
-
