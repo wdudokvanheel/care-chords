@@ -16,7 +16,7 @@ class GStreamerController: NSObject, ObservableObject {
     
     func startPipeline() {
         DispatchQueue.global(qos: .background).async {
-            setenv("GST_DEBUG", "3", 1)
+            setenv("GST_DEBUG", "2", 1)
             gst_ios_init()
             self.setupPipeline()
             self.runMainLoop()
@@ -37,7 +37,26 @@ class GStreamerController: NSObject, ObservableObject {
     
     private func setupPipeline() {
         // Define your pipeline
-        let pipelineDescription = "rtspsrc location=rtsp://10.0.0.21:8554/lumi protocols=tcp ! rtph264depay ! queue ! h264parse ! avdec_h264 ! videoconvert ! videoscale !  video/x-raw,width=640,height=480 ! glimagesink name=videosink"
+        let pipelineDescription = "rtspsrc location=rtsp://10.0.0.12:8554/camera.rlc_520a_clear protocols=tcp latency=1000 ! rtph264depay ! queue ! h264parse ! vtdec ! videorate ! videoscale ! video/x-raw,width=2560,height=1920 ! identity silent=false ! glimagesink force-aspect-ratio=true name=videosink render-rectangle=\"<0,0,2560,1920>\""
+        
+//        // Create elements
+//        guard let pipeline = gst_pipeline_new("pipeline"),
+//              let source = gst_element_factory_make("rtspsrc", "source"),
+//              let videoQueue = gst_element_factory_make("queue", "videoQueue"),
+//              let videoDepay = gst_element_factory_make("rtph264depay", "videoDepay"),
+//              let videoDecoder = gst_element_factory_make("avdec_h264", "videoDecoder"),
+//              let videoConvert = gst_element_factory_make("videoconvert", "videoConvert"),
+//              let videoSink = gst_element_factory_make("glimagesink", "videosink"),
+//              let audioQueue = gst_element_factory_make("queue", "audioQueue"),
+//              let audioDepay = gst_element_factory_make("rtppcmudepay", "audioDepay"),
+//              let audioDecoder = gst_element_factory_make("mulawdec", "audioDecoder"),
+//              let audioConvert = gst_element_factory_make("audioconvert", "audioConvert"),
+//              let audioResample = gst_element_factory_make("audioresample", "audioResample"),
+//              let audioSink = gst_element_factory_make("autoaudiosink", "audioSink") else {
+//            print("Failed to create elements")
+//            return
+//        }
+        
         
         // Parse the pipeline
         var error: UnsafeMutablePointer<GError>?
@@ -85,18 +104,9 @@ class GStreamerController: NSObject, ObservableObject {
         
         let messageType = message.pointee.type
         let messageTypeName = String(cString: gst_message_type_get_name(messageType))
-        print("GStreamer Message Type: \(messageTypeName)")
+//        print("GStreamer Message Type: \(messageTypeName)")
         
         switch messageType {
-//        case GST_MESSAGE_ELEMENT:
-//            if let structure = gst_message_get_structure(message) {
-//                let name = String(cString: gst_structure_get_name(structure))
-//                if name == "prepare-window-handle" {
-//                    DispatchQueue.main.async {
-//                        self.setWindowHandle(message: message)
-//                    }
-//                }
-//            }
         case GST_MESSAGE_ERROR:
             var err: UnsafeMutablePointer<GError>?
             var debug: UnsafeMutablePointer<gchar>?
@@ -141,7 +151,8 @@ class GStreamerController: NSObject, ObservableObject {
 
             // Check if the element implements GstVideoOverlay
             if let instance = UnsafeMutableRawPointer(videoSinkElement)?.assumingMemoryBound(to: GTypeInstance.self),
-               g_type_check_instance_is_a(instance, gst_video_overlay_get_type()) != 0 {
+               g_type_check_instance_is_a(instance, gst_video_overlay_get_type()) != 0
+            {
 
                 let windowHandle = guintptr(bitPattern: Unmanaged.passUnretained(videoView).toOpaque())
                 gst_video_overlay_set_window_handle(OpaquePointer(videoSinkElement), windowHandle)
@@ -156,5 +167,4 @@ class GStreamerController: NSObject, ObservableObject {
             print("Could not retrieve video sink to set window handle")
         }
     }
-
 }
