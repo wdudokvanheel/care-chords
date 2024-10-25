@@ -9,4 +9,5 @@
 #import <GStreamer/gst/video/videooverlay.h>
 #import <glib-object.h>
 
+#import <GStreamer/gst/app/gstappsink.h>
 #endif
