@@ -6,8 +6,11 @@ import UIKit
 @objc class CameraViewController: NSObject, GStreamerBackendProtocol, ObservableObject {
     var gstBackend: GStreamerBackend?
     var camUIView: UIView
-    @Published var gStreamerInitializationStatus: Bool = false
-    @Published var messageFromGstBackend: String?
+    
+    @Published
+    var gStreamerInitializationStatus: Bool = false
+    @Published
+    var messageFromGstBackend: String?
     
     init(camUIView: UIView) {
         self.camUIView = camUIView
@@ -33,10 +36,15 @@ import UIKit
     }
     
     @objc func gStreamerInitialized() {
-        self.gStreamerInitializationStatus = true
+        DispatchQueue.main.async{
+            print("Init complete")
+            self.gStreamerInitializationStatus = true
+        }
     }
     
     @objc func gstreamerSetUIMessageWithMessage(message: String) {
-        self.messageFromGstBackend = message
+        DispatchQueue.main.async{
+            self.messageFromGstBackend = message
+        }
     }
 }

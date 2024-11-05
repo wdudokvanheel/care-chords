@@ -45,8 +45,8 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
         self->ui_delegate = (id<GStreamerBackendProtocol>)uiDelegate;
         self->ui_video_view = video_view;
         
-        GST_DEBUG_CATEGORY_INIT (debug_category, "GStreamerSwiftUIDemo", 0, "GStreamerSwiftUIDemo-Backend");
-        gst_debug_set_threshold_for_name("GStreamerSwiftUIDemo", GST_LEVEL_INFO);
+        GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
+        gst_debug_set_threshold_for_name("SleepStreamer", GST_LEVEL_TRACE);
     }
     
     return self;
@@ -88,6 +88,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 /* Change the message on the UI through the UI delegate */
 -(void)setUIMessage:(gchar*) message
 {
+    printf("Setting message to: {} %s", message);
     NSString *messagString = [NSString stringWithUTF8String:message];
     if(ui_delegate)
     {
@@ -123,8 +124,15 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *se
 {
     GstState old_state, new_state, pending_state;
     gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
+    
     /* Only pay attention to messages coming from the pipeline, not its children */
     if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
+        printf(g_strdup_printf("State changed from %s to %s\n", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state)));
+
+        if (new_state == GST_STATE_READY) {
+            [self play];
+        }
+        
         gchar *message = g_strdup_printf("State changed from %s to %s", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
         [self setUIMessage:message];
         g_free (message);
@@ -191,7 +199,7 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *se
     gst_object_unref (bus);
     
     /* Create a GLib Main Loop and set it to run */
-    GST_DEBUG ("Entering main loop...");
+//    GST_DEBUG ("Entering main loop...");
     printf("\nEntering main loop..\n");
     main_loop = g_main_loop_new (context, FALSE);
     //sleep(5);
