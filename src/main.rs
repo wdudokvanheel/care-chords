@@ -12,6 +12,7 @@ use tokio;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
+use crate::spotify::transfer_playback;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -166,7 +167,7 @@ async fn handle_volume_reduction(sleep_timer: u64, music_volume: Arc<Mutex<gst::
 
     // Wait for 1 second before executing the bash script
     time::sleep(Duration::from_secs(1)).await;
-    println!("Executing bash script to pause Spotify");
+    println!("Pausing Spotify playback");
     spotify::send_spotify_message("Pause");
 
     // Wait for 5 seconds before restoring the volume back to 1.0

@@ -12,12 +12,34 @@ pub fn send_spotify_message(message: &str) {
     }
     let (conn, spotify_dest) = spotify_dest.unwrap();
 
-    // Send the Pause command to Spotify
+    println!("Sending spotify message: {}", message);
+
     let pause_msg = Message::new_method_call(
         spotify_dest,
         "/org/mpris/MediaPlayer2",
         "org.mpris.MediaPlayer2.Player",
         message,
+    )
+        .expect("Failed to call dbus method");
+
+    let _ = conn.send_with_reply_and_block(pause_msg, Duration::from_millis(5000))
+        .expect("Failed to send message to dbus");
+}
+
+pub fn transfer_playback() {
+    let spotify_dest = get_dbus_spotify_connection();
+    if spotify_dest.is_none() {
+        return;
+    }
+    let (conn, spotify_dest) = spotify_dest.unwrap();
+
+    println!("Transferring Spotify playback to local device");
+
+    let pause_msg = Message::new_method_call(
+        spotify_dest,
+        "/rs/spotifyd/Controls",
+        "rs.spotifyd.Controls",
+        "TransferPlayback",
     )
         .expect("Failed to call dbus method");
 
