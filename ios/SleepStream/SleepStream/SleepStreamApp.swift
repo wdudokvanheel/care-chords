@@ -13,7 +13,8 @@ struct SleepStreamApp: App {
 
     var body: some Scene {
         WindowGroup {
-            ContentView()
+            AudioPlayerView()
+//            ContentView()
         }
     }
 }

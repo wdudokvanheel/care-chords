@@ -18,5 +18,6 @@
 //#import <GStreamer/gst/app/gstappsink.h>
 //#endif
 
-#import "GStreamerBackend.h"
+#import "GStreamerVideoBackend.h"
+#import "GStreamerAudioBackend.h"
 #import "gst_ios_init.h"

@@ -5,7 +5,7 @@
 #include <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
 
-@interface GStreamerBackend : NSObject
+@interface GStreamerVideoBackend : NSObject
 
 -(id) init:(id) uiDelegate videoView:(UIView*) video_view;
 

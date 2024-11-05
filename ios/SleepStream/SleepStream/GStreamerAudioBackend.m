@@ -1,10 +1,9 @@
 #import <unistd.h>
-#import "GStreamerBackend.h"
+#import "GStreamerAudioBackend.h"
 #import "gst_ios_init.h"
 #import <UIKit/UIKit.h>
 
 #import <GStreamer/gst/gst.h>
-#import <GStreamer/gst/video/video.h>
 #import <GStreamer/gst/rtsp/rtsp.h>
 #import "SleepStream-Bridging-Header.h"
 
@@ -13,42 +12,41 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 #import "SleepStream-Swift.h"
 
-@interface GStreamerBackend()
+@interface GStreamerAudioBackend()
 -(void)setUIMessage:(gchar*) message;
 -(void)run_app_pipeline;
 -(void)check_initialization_complete;
 @end
 
-@implementation GStreamerBackend {
+@implementation GStreamerAudioBackend {
     id<GStreamerBackendProtocol> ui_delegate;        /* Class that we use to interact with the user interface */
     GstElement *pipeline;      /* The running pipeline */
-    GstElement *video_sink;    /* The video sink element which receives XOverlay commands */
     GMainContext *context;     /* GLib context used to run the main loop */
     GMainLoop *main_loop;      /* GLib main loop */
     gboolean initialized;      /* To avoid informing the UI multiple times about the initialization */
     GstBus *bus;
-    UIView *ui_video_view;     /* UIView that holds the video */
     GstMessage* eos_msg;
 
     /* New elements */
     GstElement *rtspsrc;
-    GstElement *rtph264depay;
+    GstElement *depayloader;
     GstElement *queue;
-    GstElement *h264parse;
-    GstElement *avdec_h264;
-    GstElement *autovideosink;
+    GstElement *parser;
+    GstElement *decoder;
+    GstElement *converter;
+    GstElement *sampler;
+    GstElement *audio_sink;
 }
 
 /*
  * Interface methods
  */
 
--(id) init:(id) uiDelegate videoView:(UIView *)video_view
+-(id) init:(id) uiDelegate
 {
     if (self = [super init])
     {
         self->ui_delegate = (id<GStreamerBackendProtocol>)uiDelegate;
-        self->ui_video_view = video_view;
 
         GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
         gst_debug_set_threshold_for_name("SleepStreamer", GST_LEVEL_TRACE);
@@ -97,14 +95,14 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     }
 }
 
-static void eos_cb(GstBus *bus, GstMessage *msg, GStreamerBackend *self){
+static void eos_cb(GstBus *bus, GstMessage *msg, GStreamerAudioBackend *self){
     printf("\nEOS called\n");
     gst_element_set_state (self->pipeline, GST_STATE_NULL);
     g_main_loop_quit(self->main_loop);
 }
 
 /* Retrieve errors from the bus and show them on the UI */
-static void error_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *self)
+static void error_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBackend *self)
 {
     GError *err;
     gchar *debug_info;
@@ -121,7 +119,7 @@ static void error_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *self)
 }
 
 /* Notify UI about pipeline state changes */
-static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *self)
+static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBackend *self)
 {
     GstState old_state, new_state, pending_state;
     gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
@@ -129,10 +127,6 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *se
     /* Only pay attention to messages coming from the pipeline, not its children */
     if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
         printf("State changed from %s to %s\n", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
-
-        if (new_state == GST_STATE_READY) {
-            [self play];
-        }
 
         gchar *message = g_strdup_printf("State changed from %s to %s", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
         [self setUIMessage:message];
@@ -154,7 +148,7 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerBackend *se
     }
 }
 
-static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerBackend *self)
+static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend *self)
 {
     GstCaps *caps;
     GstStructure *str;
@@ -171,24 +165,24 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerBackend *sel
     printf("Received new pad '%s' from '%s':\n", new_pad_type, GST_ELEMENT_NAME(src));
 
     if (g_str_has_prefix(new_pad_type, "application/x-rtp")) {
-        /* Check if it's video */
+        /* Check if it's audio */
         const gchar *media = gst_structure_get_string(str, "media");
-        if (g_strcmp0(media, "video") == 0) {
-            GstPad *sink_pad = gst_element_get_static_pad(self->rtph264depay, "sink");
+        if (g_strcmp0(media, "audio") == 0) {
+            GstPad *sink_pad = gst_element_get_static_pad(self->depayloader, "sink");
             GstPadLinkReturn ret;
 
-            /* Attempt to link the dynamic pad to rtph264depay sink pad */
+            /* Attempt to link the dynamic pad to depayloader sink pad */
             ret = gst_pad_link(new_pad, sink_pad);
             if (GST_PAD_LINK_FAILED(ret)) {
-                gchar *message = g_strdup_printf("Failed to link dynamic video pad.");
+                gchar *message = g_strdup_printf("Failed to link dynamic audio pad.");
                 [self setUIMessage:message];
                 g_free(message);
             } else {
-                GST_DEBUG("Link succeeded (video).");
+                GST_DEBUG("Link succeeded (audio).");
             }
             gst_object_unref(sink_pad);
-        } else if (g_strcmp0(media, "audio") == 0) {
-            printf("Ignoring audio pad.\n");
+        } else if (g_strcmp0(media, "video") == 0) {
+            printf("Ignoring video pad.\n");
         }
     } else {
         printf("Unknown pad type: %s\n", new_pad_type);
@@ -212,13 +206,15 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerBackend *sel
     self->pipeline = pipeline;
 
     self->rtspsrc = gst_element_factory_make("rtspsrc", "source");
-    self->rtph264depay = gst_element_factory_make("rtph264depay", "depay");
+    self->depayloader = gst_element_factory_make("rtpmp4gdepay", "depay");
     self->queue = gst_element_factory_make("queue", "queue");
-    self->h264parse = gst_element_factory_make("h264parse", "parse");
-    self->avdec_h264 = gst_element_factory_make("avdec_h264", "decoder");
-    self->autovideosink = gst_element_factory_make("autovideosink", "videosink");
+    self->parser = gst_element_factory_make("aacparse", "parser");
+    self->decoder = gst_element_factory_make("avdec_aac", "decoder");
+    self->converter = gst_element_factory_make("audioconvert", "converter");
+    self->sampler = gst_element_factory_make("audioresample", "sampler");
+    self->audio_sink = gst_element_factory_make("autoaudiosink", "audiosink");
 
-    if (!pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->autovideosink) {
+    if (!pipeline || !self->rtspsrc || !self->depayloader || !self->queue || !self->parser || !self->decoder || !self->audio_sink || !self->converter || !self->sampler) {
         gchar *message = g_strdup_printf("Not all elements could be created.");
         [self setUIMessage:message];
         g_free(message);
@@ -230,10 +226,10 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerBackend *sel
     g_object_set(self->rtspsrc, "protocols", GST_RTSP_LOWER_TRANS_TCP, NULL);
 
     /* Add elements to the pipeline */
-    gst_bin_add_many(GST_BIN(pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->autovideosink, NULL);
+    gst_bin_add_many(GST_BIN(pipeline), self->rtspsrc, self->depayloader, self->queue, self->parser, self->decoder, self->converter, self->sampler, self->audio_sink, NULL);
 
     /* Link the elements (except rtspsrc, which is linked dynamically) */
-    if (!gst_element_link_many(self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->autovideosink, NULL)) {
+    if (!gst_element_link_many(self->depayloader, self->queue, self->parser, self->decoder, self->converter, self->sampler, self->audio_sink, NULL)) {
         gchar *message = g_strdup_printf("Elements could not be linked.");
         [self setUIMessage:message];
         g_free(message);
@@ -244,16 +240,8 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerBackend *sel
     /* Connect to the pad-added signal for dynamic pad linking */
     g_signal_connect(self->rtspsrc, "pad-added", G_CALLBACK(on_pad_added), (__bridge void *)self);
 
-    /* Set the pipeline to READY, so it can already accept a window handle */
+    /* Set the pipeline to READY */
     gst_element_set_state(pipeline, GST_STATE_READY);
-
-    /* Set the video sink */
-    self->video_sink = gst_bin_get_by_interface(GST_BIN(pipeline), GST_TYPE_VIDEO_OVERLAY);
-    if (!self->video_sink) {
-        GST_ERROR ("Could not retrieve video sink");
-        return;
-    }
-    gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(self->video_sink), (guintptr) (id) ui_video_view);
 
     /* Signals to watch */
     bus = gst_element_get_bus (pipeline);

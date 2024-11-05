@@ -15,10 +15,13 @@
 		2B49A9172CDA2A8500734789 /* GStreamer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A9152CDA2A8500734789 /* GStreamer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		2B49A91D2CDA2AF200734789 /* libiconv.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */; };
 		2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A91F2CDA2B1300734789 /* gst_ios_init.m */; };
-		2BF07A942CDA497F007D56F7 /* GStreamerBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A912CDA497F007D56F7 /* GStreamerBackend.m */; };
+		2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */; };
 		2BF07A952CDA497F007D56F7 /* GStreamerBackendProtocol.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A932CDA497F007D56F7 /* GStreamerBackendProtocol.swift */; };
 		2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A962CDA4985007D56F7 /* CameraView.swift */; };
 		2BF07A992CDA4986007D56F7 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A972CDA4986007D56F7 /* CameraViewController.swift */; };
+		2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */; };
+		2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */; };
+		2BF07AA02CDA6C2C007D56F7 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -46,11 +49,16 @@
 		2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SleepStream-Bridging-Header.h"; sourceTree = "<group>"; };
 		2B49A91F2CDA2B1300734789 /* gst_ios_init.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = gst_ios_init.m; path = "../../gstreamer-test/gstreamer-test/gst_ios_init.m"; sourceTree = "<group>"; };
 		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gst_ios_init.h; path = "../../gstreamer-test/gstreamer-test/gst_ios_init.h"; sourceTree = "<group>"; };
-		2BF07A912CDA497F007D56F7 /* GStreamerBackend.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GStreamerBackend.m; sourceTree = "<group>"; };
-		2BF07A922CDA497F007D56F7 /* GStreamerBackend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GStreamerBackend.h; sourceTree = "<group>"; };
+		2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GStreamerVideoBackend.m; sourceTree = "<group>"; };
+		2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GStreamerVideoBackend.h; sourceTree = "<group>"; };
 		2BF07A932CDA497F007D56F7 /* GStreamerBackendProtocol.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GStreamerBackendProtocol.swift; sourceTree = "<group>"; };
 		2BF07A962CDA4985007D56F7 /* CameraView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
 		2BF07A972CDA4986007D56F7 /* CameraViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraViewController.swift; sourceTree = "<group>"; };
+		2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GStreamerAudioBackend.h; sourceTree = "<group>"; };
+		2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GStreamerAudioBackend.m; sourceTree = "<group>"; };
+		2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
+		2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
+		2BF07AA12CDA6FD1007D56F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -86,10 +94,12 @@
 		2B49A9052CDA2A3100734789 /* SleepStream */ = {
 			isa = PBXGroup;
 			children = (
+				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
 				2B49A9202CDA2B1300734789 /* gst_ios_init.h */,
 				2B49A91F2CDA2B1300734789 /* gst_ios_init.m */,
-				2BF07A922CDA497F007D56F7 /* GStreamerBackend.h */,
-				2BF07A912CDA497F007D56F7 /* GStreamerBackend.m */,
+				2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */,
+				2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */,
+				2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */,
 				2BF07A932CDA497F007D56F7 /* GStreamerBackendProtocol.swift */,
 				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
 				2BF07A962CDA4985007D56F7 /* CameraView.swift */,
@@ -98,6 +108,9 @@
 				2B49A90A2CDA2A3300734789 /* Assets.xcassets */,
 				2B49A90C2CDA2A3300734789 /* Preview Content */,
 				2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */,
+				2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */,
+				2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */,
+				2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */,
 			);
 			path = SleepStream;
 			sourceTree = "<group>";
@@ -191,12 +204,15 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2BF07AA02CDA6C2C007D56F7 /* AudioController.swift in Sources */,
 				2BF07A952CDA497F007D56F7 /* GStreamerBackendProtocol.swift in Sources */,
-				2BF07A942CDA497F007D56F7 /* GStreamerBackend.m in Sources */,
+				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
 				2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */,
 				2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */,
+				2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */,
 				2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */,
+				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
 				2BF07A992CDA4986007D56F7 /* CameraViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -341,11 +357,12 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers;
+				INFOPLIST_FILE = SleepStream/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",
@@ -414,11 +431,12 @@
 				);
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers;
+				INFOPLIST_FILE = SleepStream/Info.plist;
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
-				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPhone = "UIInterfaceOrientationPortrait UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight";
+				INFOPLIST_KEY_UISupportedInterfaceOrientations = UIInterfaceOrientationPortrait;
+				INFOPLIST_KEY_UISupportedInterfaceOrientations_iPad = "UIInterfaceOrientationLandscapeLeft UIInterfaceOrientationLandscapeRight UIInterfaceOrientationPortrait UIInterfaceOrientationPortraitUpsideDown";
 				LD_RUNPATH_SEARCH_PATHS = (
 					"$(inherited)",
 					"@executable_path/Frameworks",

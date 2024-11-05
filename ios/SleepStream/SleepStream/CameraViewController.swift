@@ -4,7 +4,7 @@ import SwiftUI
 import UIKit
 
 @objc class CameraViewController: NSObject, GStreamerBackendProtocol, ObservableObject {
-    var gstBackend: GStreamerBackend?
+    var gstBackend: GStreamerVideoBackend?
     var camUIView: UIView
     
     @Published
@@ -17,7 +17,7 @@ import UIKit
     }
     
     func initBackend() {
-        self.gstBackend = GStreamerBackend(self, videoView: self.camUIView)
+        self.gstBackend = GStreamerVideoBackend(self, videoView: self.camUIView)
         let queue = DispatchQueue(label: "run_app_q")
         queue.async {
             self.gstBackend?.run_app_pipeline_threaded()
