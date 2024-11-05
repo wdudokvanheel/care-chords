@@ -4,7 +4,7 @@ import UIKit
 typealias guintptr = UInt
 typealias GstVideoOverlay = OpaquePointer
 
-struct VideoView: UIViewRepresentable {
+struct GStreamerView: UIViewRepresentable {
     @EnvironmentObject
     var gstreamerController: GStreamerController
 

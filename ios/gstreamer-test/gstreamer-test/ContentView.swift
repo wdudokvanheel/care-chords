@@ -1,20 +1,23 @@
 import SwiftUI
 
 struct ContentView: View {
-    @StateObject private var gstreamerController = GStreamerController()
+    @StateObject 
+    private var gstreamerController = GStreamerController(video: true)
     
     var body: some View {
         VStack{
-            VideoView()
-                .frame(width: 2560 / 2, height: 1920 / 2)
+            Button("Switch"){
+                gstreamerController.toggleVideo()
+            }
+            GStreamerView()
+                .frame(width: 2560 / 8, height: 1920 / 8)
                 .onAppear {
-                    gstreamerController.startPipeline()
+//                    gstreamerController.startPipeline()
                 }
                 .onDisappear {
-                    gstreamerController.stopPipeline()
+//                    gstreamerController.stopPipeline()
                 }
                 .environmentObject(self.gstreamerController)
-            Spacer()
         }
     }
 }

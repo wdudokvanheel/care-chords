@@ -16,7 +16,7 @@
 		2B1F2A562CCA48BD00F285DC /* bridging-header.h in Sources */ = {isa = PBXBuildFile; fileRef = 2B1F2A552CCA486500F285DC /* bridging-header.h */; };
 		2B1F2A582CCA79E700F285DC /* libiconv.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B1F2A572CCA79BE00F285DC /* libiconv.2.tbd */; };
 		2B1F2A5A2CCA7A5400F285DC /* GStreamerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1F2A592CCA7A5400F285DC /* GStreamerController.swift */; };
-		2B1F2A5C2CCA7EE000F285DC /* VideoView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1F2A5B2CCA7EE000F285DC /* VideoView.swift */; };
+		2B1F2A5C2CCA7EE000F285DC /* GStreamerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1F2A5B2CCA7EE000F285DC /* GStreamerView.swift */; };
 		2B1F2A5F2CCA836700F285DC /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B1F2A5E2CCA836700F285DC /* gst_ios_init.m */; };
 /* End PBXBuildFile section */
 
@@ -44,7 +44,7 @@
 		2B1F2A552CCA486500F285DC /* bridging-header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "bridging-header.h"; sourceTree = "<group>"; };
 		2B1F2A572CCA79BE00F285DC /* libiconv.2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libiconv.2.tbd; path = usr/lib/libiconv.2.tbd; sourceTree = SDKROOT; };
 		2B1F2A592CCA7A5400F285DC /* GStreamerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GStreamerController.swift; sourceTree = "<group>"; };
-		2B1F2A5B2CCA7EE000F285DC /* VideoView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoView.swift; sourceTree = "<group>"; };
+		2B1F2A5B2CCA7EE000F285DC /* GStreamerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GStreamerView.swift; sourceTree = "<group>"; };
 		2B1F2A5D2CCA836600F285DC /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gst_ios_init.h; sourceTree = "<group>"; };
 		2B1F2A5E2CCA836700F285DC /* gst_ios_init.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = gst_ios_init.m; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -90,7 +90,7 @@
 				2B1F2A482CCA481E00F285DC /* Preview Content */,
 				2B1F2A552CCA486500F285DC /* bridging-header.h */,
 				2B1F2A592CCA7A5400F285DC /* GStreamerController.swift */,
-				2B1F2A5B2CCA7EE000F285DC /* VideoView.swift */,
+				2B1F2A5B2CCA7EE000F285DC /* GStreamerView.swift */,
 			);
 			path = "gstreamer-test";
 			sourceTree = "<group>";
@@ -184,7 +184,7 @@
 			buildActionMask = 2147483647;
 			files = (
 				2B1F2A562CCA48BD00F285DC /* bridging-header.h in Sources */,
-				2B1F2A5C2CCA7EE000F285DC /* VideoView.swift in Sources */,
+				2B1F2A5C2CCA7EE000F285DC /* GStreamerView.swift in Sources */,
 				2B1F2A5F2CCA836700F285DC /* gst_ios_init.m in Sources */,
 				2B1F2A452CCA481C00F285DC /* ContentView.swift in Sources */,
 				2B1F2A5A2CCA7A5400F285DC /* GStreamerController.swift in Sources */,
