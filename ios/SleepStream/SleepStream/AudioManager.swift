@@ -1,32 +1,12 @@
-import AVKit
 import Foundation
-import os
 import SwiftUI
+import AVKit
 
-class AudioController: GStreamerBackendDelegate, ObservableObject {
+class AudioManager: ObservableObject {
     @Published var currentOutput: String = "Unknown"
-    @Published var state: AudioState = .initializing
-    @Published var backendMessage: String = ""
-
-    private var gstBackend: GStreamerAudioBackend?
 
     init() {
-        print("Starting audio")
-        self.gstBackend = GStreamerAudioBackend(self)
         configureAudioSession()
-
-        let queue = DispatchQueue(label: "gstreamer_audio_queue")
-        queue.async {
-            self.gstBackend?.run_app_pipeline_threaded()
-        }
-    }
-
-    func pause() {
-        gstBackend?.pause()
-    }
-
-    func play() {
-        gstBackend?.play()
     }
 
     private func configureAudioSession() {
@@ -35,17 +15,6 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
             try AVAudioSession.sharedInstance().setActive(true)
         } catch {
             print("Failed to configure audio session:", error)
-        }
-    }
-
-    func gStreamerInitialized() {
-        print("Init AUDIO complete")
-    }
-
-    func gstreamerMessage(message: String) {
-        DispatchQueue.main.async {
-            print("Got message: \(message)")
-            self.backendMessage = message
         }
     }
 
@@ -59,12 +28,6 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
         updateCurrentOutput()
     }
 
-    func gstreamerAudioState(state newstate: AudioState) {
-        DispatchQueue.main.async {
-            self.state = newstate
-        }
-    }
-
     func stopMonitoringAudioRoute() {
         NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
     }
@@ -76,12 +39,12 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
     private func updateCurrentOutput() {
         let audioSession = AVAudioSession.sharedInstance()
         if let output = audioSession.currentRoute.outputs.first {
-
+            
             switch output.portType {
             case .builtInSpeaker:
-                currentOutput = "\(output.portName)"
+                currentOutput = "\(output.portName) iPhone Speaker"
             case .bluetoothA2DP, .bluetoothLE, .bluetoothHFP:
-                currentOutput = "\(output.portName)"
+                currentOutput = "\(output.portName) Bluetooth Device"
             case .airPlay:
                 currentOutput = "AirPlay"
             case .headphones, .headsetMic:

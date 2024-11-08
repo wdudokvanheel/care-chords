@@ -3,7 +3,13 @@ import Foundation
 import SwiftUI
 import UIKit
 
-@objc class CameraViewController: NSObject, GStreamerBackendProtocol, ObservableObject {
+@objc class CameraViewController: NSObject, GStreamerBackendDelegate, ObservableObject {
+    func updateAudioState() {
+    }
+    
+    func gstreamerAudioState(state: AudioState) {
+    }
+    
     var gstBackend: GStreamerVideoBackend?
     var camUIView: UIView
     
@@ -42,7 +48,7 @@ import UIKit
         }
     }
     
-    @objc func gstreamerSetUIMessageWithMessage(message: String) {
+    @objc func gstreamerMessage(message: String) {
         DispatchQueue.main.async{
             self.messageFromGstBackend = message
         }

@@ -16,4 +16,4 @@
 -(void) run_app_pipeline_threaded;
 @end
 
-#endif /* GStreamerBackend_h */
+#endif

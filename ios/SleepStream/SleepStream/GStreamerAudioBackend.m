@@ -19,7 +19,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 @end
 
 @implementation GStreamerAudioBackend {
-    id<GStreamerBackendProtocol> ui_delegate;        /* Class that we use to interact with the user interface */
+    id<GStreamerBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
     GstElement *pipeline;      /* The running pipeline */
     GMainContext *context;     /* GLib context used to run the main loop */
     GMainLoop *main_loop;      /* GLib main loop */
@@ -46,7 +46,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 {
     if (self = [super init])
     {
-        self->ui_delegate = (id<GStreamerBackendProtocol>)uiDelegate;
+        self->ui_delegate = (id<GStreamerBackendDelegate>)uiDelegate;
 
         GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
         gst_debug_set_threshold_for_name("SleepStreamer", GST_LEVEL_TRACE);
@@ -70,6 +70,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void) pause
 {
+    printf("PAUSING!!!!!!\n\n\n\n\n\n\n");
     if(gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
         [self setUIMessage:"Failed to set pipeline to paused"];
     }
@@ -91,7 +92,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     NSString *messagString = [NSString stringWithUTF8String:message];
     if(ui_delegate)
     {
-        [ui_delegate gstreamerSetUIMessageWithMessageWithMessage:messagString];
+        [ui_delegate gstreamerMessageWithMessage:messagString];
     }
 }
 
@@ -128,10 +129,35 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBacken
     if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
         printf("State changed from %s to %s\n", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
 
-        gchar *message = g_strdup_printf("State changed from %s to %s", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
-        [self setUIMessage:message];
-        g_free (message);
+        switch (new_state) {
+            case GST_STATE_PLAYING:
+                if (self->ui_delegate) {
+                    [self->ui_delegate gstreamerAudioStateWithState:AudioStatePlaying];
+                }
+                break;
+
+            case GST_STATE_PAUSED:
+                if (self->ui_delegate) {
+                    [self->ui_delegate gstreamerAudioStateWithState:(AudioState)AudioStatePaused];
+                }
+                break;
+
+            case GST_STATE_READY:
+                if (self->ui_delegate) {
+                    [self->ui_delegate gstreamerAudioStateWithState:(AudioState)AudioStateReady];
+                }
+                break;
+            case GST_STATE_NULL:
+                if (self->ui_delegate) {
+                    [self->ui_delegate gstreamerAudioStateWithState:(AudioState)AudioStateInitializing];
+                }
+                break;
+
+            default:
+                break;
+        }
     }
+    // TODO Check state of audio sink to know actual playing state?
 }
 
 /* Check if all conditions are met to report GStreamer as initialized.
@@ -206,7 +232,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend
     self->pipeline = pipeline;
 
     self->rtspsrc = gst_element_factory_make("rtspsrc", "source");
-    self->depayloader = gst_element_factory_make("rtpmp4gdepay", "depay");
+    self->depayloader = gst_element_factory_make("rtpmp4adepay", "depay");
     self->queue = gst_element_factory_make("queue", "queue");
     self->parser = gst_element_factory_make("aacparse", "parser");
     self->decoder = gst_element_factory_make("avdec_aac", "decoder");
@@ -222,7 +248,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend
     }
 
     /* Set element properties */
-    g_object_set(self->rtspsrc, "location", "rtsp://10.0.0.12:8554/camera.rlc_520a_clear", NULL);
+    g_object_set(self->rtspsrc, "location", "rtsp://10.0.0.153:8554/sleep", NULL);
     g_object_set(self->rtspsrc, "protocols", GST_RTSP_LOWER_TRANS_TCP, NULL);
 
     /* Add elements to the pipeline */
@@ -254,12 +280,12 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend
     g_signal_connect (G_OBJECT (bus), "message::state-changed", (GCallback)state_changed_cb, (__bridge void *)self);
     gst_object_unref (bus);
 
-    /* Create a GLib Main Loop and set it to run */
-    printf("\nEntering main loop...\n");
+    /* Create and run the main loop */
+    GST_DEBUG ("\Starting main loop...\n");
     main_loop = g_main_loop_new (context, FALSE);
     [self check_initialization_complete];
     g_main_loop_run (main_loop);
-    GST_DEBUG ("Exited main loop");
+    GST_DEBUG ("Main loop finished");
     g_main_loop_unref (main_loop);
     main_loop = NULL;
 

@@ -20,7 +20,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 @end
 
 @implementation GStreamerVideoBackend {
-    id<GStreamerBackendProtocol> ui_delegate;        /* Class that we use to interact with the user interface */
+    id<GStreamerBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
     GstElement *pipeline;      /* The running pipeline */
     GstElement *video_sink;    /* The video sink element which receives XOverlay commands */
     GMainContext *context;     /* GLib context used to run the main loop */
@@ -47,7 +47,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 {
     if (self = [super init])
     {
-        self->ui_delegate = (id<GStreamerBackendProtocol>)uiDelegate;
+        self->ui_delegate = (id<GStreamerBackendDelegate>)uiDelegate;
         self->ui_video_view = video_view;
 
         GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
@@ -93,7 +93,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     NSString *messagString = [NSString stringWithUTF8String:message];
     if(ui_delegate)
     {
-        [ui_delegate gstreamerSetUIMessageWithMessageWithMessage:messagString];
+        [ui_delegate gstreamerMessageWithMessage:messagString];
     }
 }
 
@@ -129,7 +129,7 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerVideoBacken
     /* Only pay attention to messages coming from the pipeline, not its children */
     if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
         printf("State changed from %s to %s\n", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
-
+        
         if (new_state == GST_STATE_READY) {
             [self play];
         }
