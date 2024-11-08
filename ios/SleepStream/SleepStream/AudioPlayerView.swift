@@ -50,7 +50,7 @@ struct AudioPlayerView: View {
     }
 
     func selectPlaylist(playlist: Playlist) {
-        let request = PlayRequest(uri: playlist.uri)
+        let request = PlayRequest(uri: "playlist:\(playlist.uri)")
         NetworkManager.sendRequest(with: request, to: "http://10.0.0.153:7755/play", method: .POST).sink(receiveCompletion: { completion in
             switch completion {
             case .failure(let error):
