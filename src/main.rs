@@ -1,9 +1,11 @@
 mod pipeline;
 mod spotify;
 
+use crate::spotify::transfer_playback;
 use anyhow::Error;
 use gstreamer as gst;
 use gstreamer::prelude::*;
+use gstreamer_audio::prelude::AudioDecoderExtManual;
 use pipeline::StreamPipeline;
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
@@ -12,7 +14,6 @@ use tokio;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
-use crate::spotify::transfer_playback;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -72,7 +73,9 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
             gst::MessageView::Error(err) => {
                 eprintln!(
                     "Error from {}: {}",
-                    err.src().map(|s| s.path_string()).unwrap_or_else(|| "None".into()),
+                    err.src()
+                        .map(|s| s.path_string())
+                        .unwrap_or_else(|| "None".into()),
                     err.error()
                 );
                 break;
@@ -86,13 +89,16 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
     }
 }
 
-fn with_volume(volume: Arc<Mutex<gst::Element>>) -> impl Filter<Extract=(Arc<Mutex<gst::Element>>,), Error=std::convert::Infallible> + Clone {
+fn with_volume(
+    volume: Arc<Mutex<gst::Element>>,
+) -> impl Filter<Extract = (Arc<Mutex<gst::Element>>,), Error = std::convert::Infallible> + Clone {
     warp::any().map(move || volume.clone())
 }
 
 async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(uri) = body.get("uri").and_then(|t| t.as_str()) {
         spotify::playback(uri);
+        transfer_playback();
         return Ok(warp::reply::with_status(
             warp::reply::json(&serde_json::json!({ "status": "ok" })),
             StatusCode::OK,
@@ -125,7 +131,10 @@ async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::R
     ))
 }
 
-async fn handle_sleep_request(body: Value, music_volume: Arc<Mutex<gst::Element>>) -> Result<impl warp::Reply, warp::Rejection> {
+async fn handle_sleep_request(
+    body: Value,
+    music_volume: Arc<Mutex<gst::Element>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(sleep_timer) = body.get("timer").and_then(|t| t.as_u64()) {
         if !spotify::is_spotify_playing() {
             spotify::send_spotify_message("Play");

@@ -192,8 +192,9 @@ impl MusicElements {
 
 pub struct CommonElements {
     audio_mixer: Element,
-    mp3_encoder: Element,
+    aac_encoder: Element,
     stereo_filter: Element,
+    mp4_mux: Element,
     rtsp_sink: Element,
 }
 
@@ -201,14 +202,16 @@ impl CommonElements {
     fn new() -> Result<Self, Error> {
         let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("audio_mixer"))
             .expect("Could not create audio_mixer element.");
-        let mp3_encoder = ElementFactory::make_with_name("lamemp3enc", Some("mp3_encoder"))
-            .expect("Could not create mp3_encoder element.");
+        let aac_encoder = ElementFactory::make_with_name("avenc_aac", Some("aac_encoder"))
+            .expect("Could not create aac_encoder element.");
         let stereo_filter = ElementFactory::make_with_name("capsfilter", Some("stereo_filter"))
             .expect("Could not create stereo_filter element.");
+        let mp4_mux = ElementFactory::make_with_name("mp4mux", Some("mp4_mux"))
+            .expect("Could not create mp4_mux element.");
         let rtsp_sink = ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
             .expect("Could not create rtsp_sink element.");
 
-        mp3_encoder.set_property("bitrate", &320);
+        // mp3_encoder.set_property("bitrate", &320);
         rtsp_sink.set_property("location", &"rtsp://10.0.0.153:8554/sleep");
         stereo_filter.set_property(
             "caps",
@@ -217,8 +220,9 @@ impl CommonElements {
 
         Ok(Self {
             audio_mixer,
-            mp3_encoder,
+            aac_encoder,
             stereo_filter,
+            mp4_mux,
             rtsp_sink,
         })
     }
@@ -226,8 +230,9 @@ impl CommonElements {
     fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error> {
         pipeline.add_many(&[
             &self.audio_mixer,
-            &self.mp3_encoder,
             &self.stereo_filter,
+            &self.aac_encoder,
+            &self.mp4_mux,
             &self.rtsp_sink,
         ])?;
         Ok(())
@@ -237,7 +242,7 @@ impl CommonElements {
         Element::link_many(&[
             &self.audio_mixer,
             &self.stereo_filter,
-            &self.mp3_encoder,
+            &self.aac_encoder,
             &self.rtsp_sink,
         ])?;
         Ok(())

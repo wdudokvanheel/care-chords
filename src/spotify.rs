@@ -49,6 +49,8 @@ pub fn transfer_playback() {
 
 
 pub fn playback(uri: &str) {
+    println!("Requesting playback of {}", uri);
+
     let spotify_dest = get_dbus_spotify_connection();
     if spotify_dest.is_none() {
         return;
