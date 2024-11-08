@@ -7,6 +7,8 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
     @Published var currentOutput: String = "Unknown"
     @Published var state: AudioState = .initializing
     @Published var backendMessage: String = ""
+    
+    @Published var pauseOnSpeaker = true
 
     private var gstBackend: GStreamerAudioBackend?
 
@@ -76,6 +78,7 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
     private func updateCurrentOutput() {
         let audioSession = AVAudioSession.sharedInstance()
         if let output = audioSession.currentRoute.outputs.first {
+            updatePlaybackStatus(output.portType)
 
             switch output.portType {
             case .builtInSpeaker:
@@ -93,6 +96,15 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
             }
         } else {
             currentOutput = "No Output"
+        }
+    }
+
+    private func updatePlaybackStatus(_ port: AVAudioSession.Port) {
+        if port == .builtInSpeaker, state == .playing, pauseOnSpeaker {
+            pause()
+        }
+        if port == .bluetoothA2DP, pauseOnSpeaker {
+            play()
         }
     }
 }

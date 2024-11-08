@@ -4,7 +4,7 @@ import os
 import SwiftUI
 
 struct AudioPlayerView: View {
-//    @State private var cancellables = Set<AnyCancellable>()
+    @State private var cancellables = Set<AnyCancellable>()
 
     @StateObject var controller: AudioController = .init()
     @State var playlists: [Playlist] = [
@@ -61,7 +61,7 @@ struct AudioPlayerView: View {
         }, receiveValue: { data in
             print("Response: \(String(data: data, encoding: .utf8) ?? "Invalid response")")
         })
-//        .store(in: &cancellables)
+        .store(in: &cancellables)
     }
 
     func togglePlay() {
