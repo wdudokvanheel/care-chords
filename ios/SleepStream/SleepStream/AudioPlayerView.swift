@@ -26,76 +26,7 @@ struct AudioPlayerView: View {
             PlayPauseButton(audioState: model.controller.state, action: model.togglePlayState)
                 .buttonStyle(.borderedProminent)
 
-            VStack {
-                HStack {
-                    Text("Music controls")
-                        .foregroundStyle(.white)
-                        .fontWeight(.bold)
-                        .padding()
-                    Spacer()
-                }
-                HStack {
-                    // TODO:
-                    Spacer()
-
-                    // Previous Song Button
-                    Button(action: {
-                        // Previous song action
-                    }) {
-                        Image(systemName: "backward.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(.white)
-                    }
-
-                    Spacer()
-
-                    // Play/Pause Button
-                    Button(action: {
-                        // Play/Pause action
-                    }) {
-                        Image(systemName: "play.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 50, height: 50)
-                            .foregroundColor(.white)
-                            .padding(.leading, 6)
-                    }
-
-                    Spacer()
-
-                    // Next Song Button
-                    Button(action: {
-                        // Next song action
-                    }) {
-                        Image(systemName: "forward.fill")
-                            .resizable()
-                            .scaledToFit()
-                            .frame(width: 40, height: 40)
-                            .foregroundColor(.white)
-                    }
-
-                    Spacer()
-                }
-                .padding(.bottom)
-            }
-            .frame(maxWidth: .infinity)
-            .padding()
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.black.opacity(0.8), lineWidth: 2)
-            )
-            .shadow(color: Color.lightForestGreen.opacity(0.2), radius: 10, x: 0, y: 0)
-            .padding()
+            MusicStateView(controller: model.music)
         }
         .background(
             LinearGradient(
@@ -122,7 +53,131 @@ struct ControllerStateView: View {
     }
 }
 
-struct PlayRequest: Encodable {
+struct MusicStateView: View {
+    @ObservedObject var controller: MusicController
+
+    var body: some View {
+        VStack {
+            VStack {
+                if let metadata = controller.status.metadata {
+                    if let url = URL(string: metadata.artwork_url) {
+                        RemoteImageView(imageUrl: url)
+                    }
+
+                    Text(metadata.title)
+                        .foregroundStyle(.white)
+                        .fontWeight(.bold)
+                        .multilineTextAlignment(.center)
+                        .lineLimit(1)
+                    Text(metadata.artist)
+                        .foregroundStyle(.white)
+                        .opacity(0.9)
+                        .fontWeight(.light)
+                }
+            }
+            HStack {
+                Spacer()
+                // Previous Song Button
+                Button(action: {
+                    controller.previous()
+                }) {
+                    Image(systemName: "backward.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .foregroundColor(.white)
+                }
+
+                Spacer()
+
+                // Play/Pause Button
+                Button(action: {
+                    if controller.status.playing {
+                        controller.pause()
+                    }
+                    else {
+                        controller.play()
+                    }
+                }) {
+                    Image(systemName: controller.status.playing ? "pause.fill" : "play.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 50, height: 50)
+                        .foregroundColor(.white)
+                        .padding(.leading, 6)
+                }
+
+                Spacer()
+
+                // Next Song Button
+                Button(action: {
+                    controller.next()
+                }) {
+                    Image(systemName: "forward.fill")
+                        .resizable()
+                        .scaledToFit()
+                        .frame(width: 40, height: 40)
+                        .foregroundColor(.white)
+                }
+
+                Spacer()
+            }
+            .padding(.bottom)
+        }
+        .frame(maxWidth: .infinity)
+        .padding()
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        )
+        .overlay(
+            RoundedRectangle(cornerRadius: 20, style: .continuous)
+                .stroke(Color.black.opacity(0.8), lineWidth: 2)
+        )
+        .shadow(color: Color.lightForestGreen.opacity(0.2), radius: 10, x: 0, y: 0)
+        .padding()
+    }
+}
+
+struct RemoteImageView: View {
+    let imageUrl: URL
+
+    var body: some View {
+        AsyncImage(url: imageUrl) { phase in
+            switch phase {
+            case .empty:
+                ProgressView() // Show a loading indicator while the image loads
+            case .success(let image):
+                image
+                    .resizable()
+                    .scaledToFit() // You can adjust this to `.scaledToFill()` or other as needed
+            case .failure:
+                Image(systemName: "photo")
+                    .resizable()
+                    .scaledToFit()
+                    .foregroundColor(.gray) // Fallback in case of an error
+            @unknown default:
+                EmptyView()
+            }
+        }
+        .clipShape(RoundedRectangle(cornerRadius: 8.0))
+        .overlay(
+            RoundedRectangle(cornerRadius: 8.0, style: .continuous)
+                .stroke(Color.black, lineWidth: 1)
+        )
+//        .frame(width: 200, height: 200) // Adjust the frame as needed
+    }
+}
+
+struct ActionRequest: Encodable {
+    let action: String
+}
+
+struct PlaybackRequest: Encodable {
     let uri: String
 }
 

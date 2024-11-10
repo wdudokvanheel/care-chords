@@ -5,7 +5,7 @@ enum HTTPMethod: String {
     case POST
 }
 
-class NetworkService {
+enum NetworkService {
     static func sendRequest<T: Encodable>(
         with object: T?,
         to url: String,
@@ -34,3 +34,6 @@ class NetworkService {
             .eraseToAnyPublisher()
     }
 }
+
+// Placeholder type for empty body requests
+struct EmptyBody: Encodable {}
