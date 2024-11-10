@@ -1,79 +1,123 @@
-import Combine
-import Foundation
-import os
 import SwiftUI
 
 struct AudioPlayerView: View {
-    @State private var cancellables = Set<AnyCancellable>()
-
-    @StateObject var controller: AudioController = .init()
-    @State var playlists: [Playlist] = [
-        Playlist("CBL & Rain", "04qC7znZ4eWnTVezaEBOF7"),
-        Playlist("Handpan", "0XszLZdqIrit8epvbcEe61"),
-        Playlist("Fantasy & Rain", "46ZaYOSrlpvO1qjB1ezofY"),
-    ]
+    @StateObject private var model = AudioPlayerViewModel()
 
     var body: some View {
         VStack {
-            Text("Audio state: \(controller.state.description)")
-            Text("Output: \(controller.currentOutput)")
-                .onAppear {
-                    controller.startMonitoringAudioRoute()
-                }
-                .onDisappear {
-                    controller.stopMonitoringAudioRoute()
-                }
-            Text("Gstreamer message: \(controller.backendMessage)")
-            Spacer()
+            ControllerStateView(controller: model.controller)
 
             HStack {
-                ForEach(playlists) { playlist in
+                ForEach(model.playlists) { playlist in
                     Button(action: {
-                        selectPlaylist(playlist: playlist)
+                        model.selectPlaylist(playlist: playlist)
                     }) {
                         Text(playlist.name)
                             .foregroundColor(.white)
                     }
                     .padding(.all, 8)
                     .background {
-                        RoundedRectangle(cornerRadius: 24.0)
+                        RoundedRectangle(cornerRadius: 8.0)
                             .foregroundColor(.indigo)
                     }
                 }
             }
             Spacer()
-            Button("Play/pause") {
-                togglePlay()
+            PlayPauseButton(audioState: model.controller.state, action: model.togglePlay)
+                .buttonStyle(.borderedProminent)
+
+            VStack {
+                HStack {
+                    Text("Music controls")
+                        .foregroundStyle(.white)
+                        .fontWeight(.bold)
+                        .padding()
+                    Spacer()
+                }
+                HStack {
+                    // TODO:
+                    Spacer()
+
+                    // Previous Song Button
+                    Button(action: {
+                        // Previous song action
+                    }) {
+                        Image(systemName: "backward.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                            .foregroundColor(.white)
+                    }
+
+                    Spacer()
+
+                    // Play/Pause Button
+                    Button(action: {
+                        // Play/Pause action
+                    }) {
+                        Image(systemName: "play.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 50, height: 50)
+                            .foregroundColor(.white)
+                            .padding(.leading, 6)
+                    }
+
+                    Spacer()
+
+                    // Next Song Button
+                    Button(action: {
+                        // Next song action
+                    }) {
+                        Image(systemName: "forward.fill")
+                            .resizable()
+                            .scaledToFit()
+                            .frame(width: 40, height: 40)
+                            .foregroundColor(.white)
+                    }
+
+                    Spacer()
+                }
+                .padding(.bottom)
             }
-            .buttonStyle(.borderedProminent)
+            .frame(maxWidth: .infinity)
+            .padding()
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.black.opacity(0.8), lineWidth: 2)
+            )
+            .shadow(color: Color.lightForestGreen.opacity(0.2), radius: 10, x: 0, y: 0)
+            .padding()
         }
+        .background(
+            LinearGradient(
+                gradient: Gradient(colors: [Color.darkerBlue, Color.veryDarkBlue]),
+                startPoint: .top,
+                endPoint: .bottom
+            )
+            .edgesIgnoringSafeArea(.all)
+        )
+        .onAppear(perform: model.onAppear)
+        .onDisappear(perform: model.onDisappear)
     }
+}
 
-    func selectPlaylist(playlist: Playlist) {
-        let request = PlayRequest(uri: "playlist:\(playlist.uri)")
-        NetworkManager.sendRequest(with: request, to: "http://10.0.0.153:7755/play", method: .POST).sink(receiveCompletion: { completion in
-            switch completion {
-            case .failure(let error):
-                print("Error: \(error.localizedDescription)")
-            case .finished:
-                break
-            }
-        }, receiveValue: { data in
-            print("Response: \(String(data: data, encoding: .utf8) ?? "Invalid response")")
-        })
-        .store(in: &cancellables)
-    }
+struct ControllerStateView: View {
+    @ObservedObject var controller: AudioController
 
-    func togglePlay() {
-        switch controller.state {
-        case .playing:
-            controller.pause()
-        case .paused:
-            controller.play()
-        case .initializing:
-            break
-        case .ready:
-            controller.play()
+    var body: some View {
+        VStack {
+            Text("Audio state: \(controller.state.description)")
+            Text("Output: \(controller.currentOutput)")
+            Text("Gstreamer message: \(controller.backendMessage)")
         }
     }
 }
@@ -93,37 +137,44 @@ struct Playlist: Identifiable {
     }
 }
 
-enum HTTPMethod: String {
-    case GET
-    case POST
+extension Color {
+    static let veryDarkBlue = Color(red: 0.02, green: 0.08, blue: 0.15) // Very dark blue
+    static let darkerBlue = Color(red: 0.03, green: 0.1, blue: 0.2) // Darker blue
+    static let darkForestGreen = Color(red: 0.0, green: 0.27, blue: 0.13)
+    static let lightForestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
 }
 
-enum NetworkManager {
-    static func sendRequest<T: Encodable>(
-        with object: T?,
-        to url: String,
-        method: HTTPMethod
-    ) -> AnyPublisher<Data, URLError> {
-        guard let url = URL(string: url) else {
-            return Fail(error: URLError(.requestBodyStreamExhausted)).eraseToAnyPublisher()
-        }
+struct PlayPauseButton: View {
+    let audioState: AudioState
+    let action: () -> Void
 
-        var request = URLRequest(url: url)
-        request.httpMethod = method.rawValue
-        request.setValue("application/json", forHTTPHeaderField: "Content-Type")
+    var body: some View {
+        Button(action: action) {
+            ZStack {
+                Circle()
+                    .fill(LinearGradient(
+                        gradient: Gradient(colors: [.blue, .purple]),
+                        startPoint: .topLeading,
+                        endPoint: .bottomTrailing
+                    ))
+                    .frame(width: 100, height: 100)
+                    .shadow(radius: 10)
+                    .scaleEffect(audioState == .playing ? 1.1 : 1.0)
+                    .animation(
+                        audioState == .playing ?
+                            Animation.easeInOut(duration: 1.4).repeatForever(autoreverses: true) :
+                            .default,
+                        value: audioState
+                    )
 
-        if let object = object, method == .POST {
-            do {
-                let jsonData = try JSONEncoder().encode(object)
-                request.httpBody = jsonData
-            } catch {
-                return Fail(error: URLError(.requestBodyStreamExhausted)).eraseToAnyPublisher()
+                Image(systemName: audioState == .playing ? "pause.fill" : "play.fill")
+                    .resizable()
+                    .scaledToFit()
+                    .frame(width: 100, height: 50)
+                    .foregroundColor(.white)
+                    .padding(audioState != .playing ? EdgeInsets(top: 0, leading: 6, bottom: 0, trailing: 0) : EdgeInsets())
             }
         }
-
-        return URLSession.shared.dataTaskPublisher(for: request)
-            .map { $0.data }
-            .receive(on: RunLoop.main)
-            .eraseToAnyPublisher()
+        .buttonStyle(PlainButtonStyle())
     }
 }

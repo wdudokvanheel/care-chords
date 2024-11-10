@@ -13,7 +13,6 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
     private var gstBackend: GStreamerAudioBackend?
 
     init() {
-        print("Starting audio")
         self.gstBackend = GStreamerAudioBackend(self)
         configureAudioSession()
 
@@ -41,12 +40,11 @@ class AudioController: GStreamerBackendDelegate, ObservableObject {
     }
 
     func gStreamerInitialized() {
-        print("Init AUDIO complete")
     }
 
     func gstreamerMessage(message: String) {
         DispatchQueue.main.async {
-            print("Got message: \(message)")
+            print("Got GStreamer message: \(message)")
             self.backendMessage = message
         }
     }

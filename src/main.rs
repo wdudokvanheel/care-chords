@@ -124,10 +124,13 @@ async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::
 
 async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(state) = body.get("state").and_then(|t| t.as_str()) {
-        if state.to_lowercase().eq("play") {
-            spotify::send_spotify_message("Play");
-        } else if state.to_lowercase().eq("pause") {
-            spotify::send_spotify_message("Pause");
+
+        match state.to_lowercase().as_str() {
+            "play" => spotify::send_spotify_message("Play"),
+            "pause" => spotify::send_spotify_message("Pause"),
+            "next" => spotify::send_spotify_message("Next"),
+            "previous" => spotify::send_spotify_message("Previous"),
+            _ => {}
         }
 
         return Ok(warp::reply::with_status(

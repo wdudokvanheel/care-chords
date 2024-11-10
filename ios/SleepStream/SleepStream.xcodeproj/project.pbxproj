@@ -7,6 +7,8 @@
 	objects = {
 
 /* Begin PBXBuildFile section */
+		2B0AE66B2CDFBD420073A036 /* NetworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66A2CDFBD420073A036 /* NetworkService.swift */; };
+		2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */; };
 		2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */; };
 		2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9082CDA2A3100734789 /* ContentView.swift */; };
 		2B49A90B2CDA2A3300734789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B49A90A2CDA2A3300734789 /* Assets.xcassets */; };
@@ -22,7 +24,6 @@
 		2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */; };
 		2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */; };
 		2BF07AA02CDA6C2C007D56F7 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */; };
-		2BF07AA32CDAB7CC007D56F7 /* AudioManager.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07AA22CDAB7CC007D56F7 /* AudioManager.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -40,6 +41,8 @@
 /* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
+		2B0AE66A2CDFBD420073A036 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
+		2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerViewModel.swift; sourceTree = "<group>"; };
 		2B49A9032CDA2A3100734789 /* SleepStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStreamApp.swift; sourceTree = "<group>"; };
 		2B49A9082CDA2A3100734789 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -60,7 +63,6 @@
 		2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
 		2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
 		2BF07AA12CDA6FD1007D56F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
-		2BF07AA22CDAB7CC007D56F7 /* AudioManager.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioManager.swift; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
 /* Begin PBXFrameworksBuildPhase section */
@@ -101,11 +103,12 @@
 				2B49A91F2CDA2B1300734789 /* gst_ios_init.m */,
 				2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */,
 				2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */,
-				2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */,
-				2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */,
-				2BF07AA22CDAB7CC007D56F7 /* AudioManager.swift */,
-				2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */,
 				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
+				2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */,
+				2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */,
+				2B0AE66A2CDFBD420073A036 /* NetworkService.swift */,
+				2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */,
+				2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */,
 				2BF07A962CDA4985007D56F7 /* CameraView.swift */,
 				2BF07A972CDA4986007D56F7 /* CameraViewController.swift */,
 				2B49A9082CDA2A3100734789 /* ContentView.swift */,
@@ -207,16 +210,17 @@
 			isa = PBXSourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B0AE66B2CDFBD420073A036 /* NetworkService.swift in Sources */,
 				2BF07AA02CDA6C2C007D56F7 /* AudioController.swift in Sources */,
 				2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */,
 				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
+				2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */,
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
 				2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */,
 				2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */,
 				2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */,
 				2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
-				2BF07AA32CDAB7CC007D56F7 /* AudioManager.swift in Sources */,
 				2BF07A992CDA4986007D56F7 /* CameraViewController.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
