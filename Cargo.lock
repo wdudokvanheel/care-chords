@@ -1196,6 +1196,7 @@ dependencies = [
  "gstreamer-audio",
  "gstreamer-rtsp",
  "gstreamer-rtsp-server",
+ "serde",
  "serde_json",
  "time",
  "tokio",

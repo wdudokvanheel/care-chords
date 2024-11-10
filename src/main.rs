@@ -1,7 +1,7 @@
 mod pipeline;
 mod spotify;
 
-use crate::spotify::transfer_playback;
+use crate::spotify::{is_spotify_playing, transfer_playback};
 use anyhow::Error;
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -14,6 +14,7 @@ use tokio;
 use tokio::time;
 use warp::http::StatusCode;
 use warp::Filter;
+use serde::{Deserialize, Serialize};
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
@@ -48,7 +49,12 @@ async fn main() -> Result<(), Error> {
         .and(warp::body::json())
         .and_then(handle_playback_request);
 
-    let routes = sleep_route.or(control_route).or(playback_route);
+    let state_route = warp::path("status")
+        .and(warp::get())
+        .and_then(handle_state_request);
+
+    // Update the routes to include the new /state route
+    let routes = sleep_route.or(control_route).or(playback_route).or(state_route);
 
     tokio::spawn(async move {
         println!("Starting server @ :7755");
@@ -61,6 +67,11 @@ async fn main() -> Result<(), Error> {
         .expect("Failed to listen for ctrl-c");
 
     Ok(())
+}
+
+#[derive(Serialize, Deserialize, Debug)]
+struct PlayerStateDto {
+    playing: bool,
 }
 
 async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
@@ -128,6 +139,16 @@ async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::R
     Ok(warp::reply::with_status(
         warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
         StatusCode::BAD_REQUEST,
+    ))
+}
+
+async fn handle_state_request() -> Result<impl warp::Reply, warp::Rejection> {
+    let playing = is_spotify_playing();
+    let state = PlayerStateDto { playing };
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&state),
+        StatusCode::OK,
     ))
 }
 
