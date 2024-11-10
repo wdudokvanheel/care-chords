@@ -23,7 +23,7 @@ struct AudioPlayerView: View {
                 }
             }
             Spacer()
-            PlayPauseButton(audioState: model.controller.state, action: model.togglePlay)
+            PlayPauseButton(audioState: model.controller.state, action: model.togglePlayState)
                 .buttonStyle(.borderedProminent)
 
             VStack {

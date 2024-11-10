@@ -10,12 +10,17 @@ class AudioPlayerViewModel: ObservableObject {
         Playlist("Fantasy & Rain", "46ZaYOSrlpvO1qjB1ezofY"),
     ]
 
-    func onAppear() {
-        controller.startMonitoringAudioRoute()
-    }
-
-    func onDisappear() {
-        controller.stopMonitoringAudioRoute()
+    func togglePlayState() {
+        switch controller.state {
+        case .playing:
+            controller.pause()
+        case .paused:
+            controller.play()
+        case .initializing:
+            break
+        case .ready:
+            controller.play()
+        }
     }
 
     func selectPlaylist(playlist: Playlist) {
@@ -33,16 +38,11 @@ class AudioPlayerViewModel: ObservableObject {
         .store(in: &cancellables)
     }
 
-    func togglePlay() {
-        switch controller.state {
-        case .playing:
-            controller.pause()
-        case .paused:
-            controller.play()
-        case .initializing:
-            break
-        case .ready:
-            controller.play()
-        }
+    func onAppear() {
+        controller.startMonitoringAudioRoute()
+    }
+
+    func onDisappear() {
+        controller.stopMonitoringAudioRoute()
     }
 }

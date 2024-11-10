@@ -1,9 +1,3 @@
-@objc protocol GStreamerBackendDelegate {
-    func gStreamerInitialized()
-    func gstreamerMessage(message: String)
-    func gstreamerAudioState(state: AudioState)
-}
-
 @objc enum AudioState: Int {
     case initializing = 0
     case ready = 1

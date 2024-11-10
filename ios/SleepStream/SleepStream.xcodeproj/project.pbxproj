@@ -9,6 +9,7 @@
 /* Begin PBXBuildFile section */
 		2B0AE66B2CDFBD420073A036 /* NetworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66A2CDFBD420073A036 /* NetworkService.swift */; };
 		2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */; };
+		2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6702CE0B2F20073A036 /* AudioState.swift */; };
 		2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */; };
 		2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9082CDA2A3100734789 /* ContentView.swift */; };
 		2B49A90B2CDA2A3300734789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B49A90A2CDA2A3300734789 /* Assets.xcassets */; };
@@ -43,6 +44,7 @@
 /* Begin PBXFileReference section */
 		2B0AE66A2CDFBD420073A036 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
 		2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerViewModel.swift; sourceTree = "<group>"; };
+		2B0AE6702CE0B2F20073A036 /* AudioState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioState.swift; sourceTree = "<group>"; };
 		2B49A9032CDA2A3100734789 /* SleepStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStreamApp.swift; sourceTree = "<group>"; };
 		2B49A9082CDA2A3100734789 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -51,8 +53,8 @@
 		2B49A9152CDA2A8500734789 /* GStreamer.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GStreamer.framework; path = ../../../../Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework; sourceTree = "<group>"; };
 		2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libiconv.2.tbd; path = usr/lib/libiconv.2.tbd; sourceTree = SDKROOT; };
 		2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SleepStream-Bridging-Header.h"; sourceTree = "<group>"; };
-		2B49A91F2CDA2B1300734789 /* gst_ios_init.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; name = gst_ios_init.m; path = "../../gstreamer-test/gstreamer-test/gst_ios_init.m"; sourceTree = "<group>"; };
-		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; name = gst_ios_init.h; path = "../../gstreamer-test/gstreamer-test/gst_ios_init.h"; sourceTree = "<group>"; };
+		2B49A91F2CDA2B1300734789 /* gst_ios_init.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = gst_ios_init.m; sourceTree = "<group>"; };
+		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gst_ios_init.h; sourceTree = "<group>"; };
 		2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GStreamerVideoBackend.m; sourceTree = "<group>"; };
 		2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GStreamerVideoBackend.h; sourceTree = "<group>"; };
 		2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GStreamerBackendDelegate.swift; sourceTree = "<group>"; };
@@ -78,6 +80,22 @@
 /* End PBXFrameworksBuildPhase section */
 
 /* Begin PBXGroup section */
+		2B0AE66F2CE0B24B0073A036 /* GStreamer */ = {
+			isa = PBXGroup;
+			children = (
+				2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */,
+				2B49A9202CDA2B1300734789 /* gst_ios_init.h */,
+				2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */,
+				2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */,
+				2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */,
+				2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */,
+				2B49A91F2CDA2B1300734789 /* gst_ios_init.m */,
+				2B0AE6702CE0B2F20073A036 /* AudioState.swift */,
+				2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */,
+			);
+			path = GStreamer;
+			sourceTree = "<group>";
+		};
 		2B49A8FA2CDA2A3100734789 = {
 			isa = PBXGroup;
 			children = (
@@ -98,25 +116,18 @@
 		2B49A9052CDA2A3100734789 /* SleepStream */ = {
 			isa = PBXGroup;
 			children = (
-				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
-				2B49A9202CDA2B1300734789 /* gst_ios_init.h */,
-				2B49A91F2CDA2B1300734789 /* gst_ios_init.m */,
-				2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */,
-				2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */,
+				2B0AE66F2CE0B24B0073A036 /* GStreamer */,
 				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
+				2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */,
 				2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */,
 				2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */,
-				2B0AE66A2CDFBD420073A036 /* NetworkService.swift */,
-				2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */,
-				2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */,
 				2BF07A962CDA4985007D56F7 /* CameraView.swift */,
 				2BF07A972CDA4986007D56F7 /* CameraViewController.swift */,
 				2B49A9082CDA2A3100734789 /* ContentView.swift */,
+				2B0AE66A2CDFBD420073A036 /* NetworkService.swift */,
+				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
 				2B49A90A2CDA2A3300734789 /* Assets.xcassets */,
 				2B49A90C2CDA2A3300734789 /* Preview Content */,
-				2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */,
-				2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */,
-				2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */,
 			);
 			path = SleepStream;
 			sourceTree = "<group>";
@@ -222,6 +233,7 @@
 				2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
 				2BF07A992CDA4986007D56F7 /* CameraViewController.swift in Sources */,
+				2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};
@@ -414,7 +426,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.SleepStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "SleepStream/SleepStream-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "SleepStream/GStreamer/SleepStream-Bridging-Header.h";
 				SWIFT_OPTIMIZATION_LEVEL = "-Onone";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
@@ -455,7 +467,7 @@
 				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.SleepStream;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
-				SWIFT_OBJC_BRIDGING_HEADER = "SleepStream/SleepStream-Bridging-Header.h";
+				SWIFT_OBJC_BRIDGING_HEADER = "SleepStream/GStreamer/SleepStream-Bridging-Header.h";
 				SWIFT_VERSION = 5.0;
 				TARGETED_DEVICE_FAMILY = "1,2";
 			};
