@@ -3,7 +3,7 @@ import Foundation
 import SwiftUI
 import UIKit
 
-@objc class CameraViewController: NSObject, GStreamerBackendDelegate, ObservableObject {
+@objc class CameraController: NSObject, GStreamerBackendDelegate, ObservableObject {
     func updateAudioState() {
     }
     

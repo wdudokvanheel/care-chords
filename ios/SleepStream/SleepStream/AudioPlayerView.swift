@@ -5,7 +5,7 @@ struct AudioPlayerView: View {
 
     var body: some View {
         VStack {
-            ControllerStateView(controller: model.controller, toggleOutput: model.toggleOutput)
+            ControllerStateView(controller: model.gstreamer, toggleOutput: model.toggleOutput)
             SpotifyView(spotify: model.spotify, playlistSelect: model.selectPlaylist)
             Spacer()
 
@@ -25,12 +25,12 @@ struct AudioPlayerView: View {
 }
 
 struct ControllerStateView: View {
-    @ObservedObject var controller: AudioController
+    @ObservedObject var controller: GStreamerController
     let toggleOutput: () -> Void
 
     var body: some View {
         VStack {
-            AudioOutputButton(audioState: controller.state, action: toggleOutput)
+            AudioOutputStatusButton(audioState: controller.state, action: toggleOutput)
 //
 //            Text("Audio state: \(controller.state.description)")
 //            Text("Output: \(controller.currentOutput)")
@@ -189,7 +189,7 @@ extension Color {
 }
 
 struct SpotifyView: View {
-    @ObservedObject var spotify: Spotify
+    @ObservedObject var spotify: SpotifyController
     let playlistSelect: (Playlist) -> Void
 
     private let playlistSize: CGFloat = 110.0
@@ -252,7 +252,7 @@ struct SpotifyView: View {
     }
 }
 
-struct AudioOutputButton: View {
+struct AudioOutputStatusButton: View {
     var audioState: AudioState
     let action: () -> Void
 

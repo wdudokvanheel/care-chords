@@ -7,11 +7,8 @@ import UIKit
 /**
  A helper class that wraps around an instance of `SpotifyAPI` and provides
  convenience methods for authorizing your application.
-
- Its most important role is to handle changes to the authorization information
- and save them to persistent storage in the keychain.
  */
-final class Spotify: ObservableObject {
+final class SpotifyController: ObservableObject {
     
     private static let clientId: String = "fc4ccd0248b948cb8a5f19d594dfba0d"
     private static let clientSecret: String = "083ff619a9814a56a7d96ce31019c188"
@@ -70,8 +67,8 @@ final class Spotify: ObservableObject {
     /// web API.
     let api = SpotifyAPI(
         authorizationManager: AuthorizationCodeFlowManager(
-            clientId: Spotify.clientId,
-            clientSecret: Spotify.clientSecret
+            clientId: SpotifyController.clientId,
+            clientSecret: SpotifyController.clientSecret
         )
     )
       
@@ -113,28 +110,13 @@ final class Spotify: ObservableObject {
                     from: authManagerData
                 )
                 print("found authorization information in keychain")
-                  
-                /*
-                 This assignment causes `authorizationManagerDidChange` to emit
-                 a signal, meaning that `authorizationManagerDidChange()` will
-                 be called.
-
-                 Note that if you had subscribed to
-                 `authorizationManagerDidChange` after this line, then
-                 `authorizationManagerDidChange()` would not have been called
-                 and the @Published `isAuthorized` property would not have been
-                 properly updated.
-
-                 We do not need to update `isAuthorized` here because it is
-                 already done in `authorizationManagerDidChange()`.
-                 */
                 self.api.authorizationManager = authorizationManager
                   
             } catch {
-                print("could not decode authorizationManager from data:\n\(error)")
+                print("Could not decode authorizationManager from data:\n\(error)")
             }
         } else {
-            print("did NOT find authorization information in keychain")
+            print("Did NOT find authorization information in keychain")
         }
     }
       
@@ -152,9 +134,6 @@ final class Spotify: ObservableObject {
         let url = self.api.authorizationManager.makeAuthorizationURL(
             redirectURI: self.loginCallbackURL,
             showDialog: true,
-            // This same value **MUST** be provided for the state parameter of
-            // `authorizationManager.requestAccessAndRefreshTokens(redirectURIWithQuery:state:)`.
-            // Otherwise, an error will be thrown.
             state: self.authorizationState,
             scopes: [
                 .userReadPlaybackState,
@@ -167,9 +146,6 @@ final class Spotify: ObservableObject {
             ]
         )!
           
-        // You can open the URL however you like. For example, you could open
-        // it in a web view instead of the browser.
-        // See https://developer.apple.com/documentation/webkit/wkwebview
         UIApplication.shared.open(url)
     }
       

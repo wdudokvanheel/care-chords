@@ -5,7 +5,7 @@ enum HTTPMethod: String {
     case POST
 }
 
-enum NetworkService {
+class NetworkService {
     static func sendRequest<T: Encodable>(
         with object: T?,
         to url: String,

@@ -1,27 +1,45 @@
+import AVKit
 import Combine
 
 class AudioPlayerViewModel: ObservableObject {
-    let spotify: Spotify
-    
     @Published var music: MusicController = .init()
-    @Published var controller: AudioController = .init()
+    @Published var controller: AudioOutputController = .init()
+    @Published var gstreamer: GStreamerController = .init()
+
+    let spotify: SpotifyController
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(spotify: Spotify){
+    init(spotify: SpotifyController) {
         self.spotify = spotify
+
+        controller.$currentOutput
+            .sink(receiveValue: onOutputChange)
+            .store(in: &cancellables)
     }
-    
+
+    func onOutputChange(port: AVAudioSession.Port) {
+        print("Output changed to \(port) XX")
+        switch port {
+        case .builtInSpeaker:
+            gstreamer.pause()
+        case .bluetoothA2DP, .bluetoothLE, .bluetoothHFP:
+            gstreamer.play()
+        default:
+            break
+        }
+    }
+
     func toggleOutput() {
-        switch controller.state {
+        switch gstreamer.state {
         case .playing:
-            controller.pause()
+            gstreamer.pause()
         case .paused:
-            controller.play()
+            gstreamer.play()
         case .initializing:
             break
         case .ready:
-            controller.play()
+            gstreamer.play()
         }
     }
 

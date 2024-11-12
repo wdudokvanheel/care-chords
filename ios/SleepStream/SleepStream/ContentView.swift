@@ -1,10 +1,10 @@
 import SwiftUI
 
 struct ContentView: View {
-    @ObservedObject var camViewController:CameraViewController
+    @ObservedObject var camViewController:CameraController
     
     init() {
-        self.camViewController = CameraViewController(camUIView: UIView())
+        self.camViewController = CameraController(camUIView: UIView())
     }
     
     func play_stream(){
@@ -44,7 +44,7 @@ struct ContentView: View {
 
 
 struct CameraContainerView:View{
-    @ObservedObject var camContainerViewController:CameraViewController
+    @ObservedObject var camContainerViewController:CameraController
     var body: some View{
         Group{
             if camContainerViewController.gstBackend != nil{
@@ -61,7 +61,7 @@ struct CameraContainerView:View{
 
 
 struct GStreamerStatusMessageView: View{
-    @ObservedObject var camContainerViewController:CameraViewController
+    @ObservedObject var camContainerViewController:CameraController
     var body: some View{
         if self.camContainerViewController.gStreamerInitializationStatus, let msg = self.camContainerViewController.messageFromGstBackend{
             Text(msg)

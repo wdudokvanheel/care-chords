@@ -11,13 +11,13 @@
 		2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */; };
 		2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6702CE0B2F20073A036 /* AudioState.swift */; };
 		2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6732CE0B9380073A036 /* MusicController.swift */; };
+		2B35E86D2CE363B5000FC2D5 /* GStreamerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B35E86C2CE363B4000FC2D5 /* GStreamerController.swift */; };
 		2B48C3192CE250BD00AB08D9 /* SpotifyAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 2B48C3182CE250BD00AB08D9 /* SpotifyAPI */; };
-		2B48C31C2CE2510D00AB08D9 /* Spotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B48C31B2CE2510D00AB08D9 /* Spotify.swift */; };
+		2B48C31C2CE2510D00AB08D9 /* SpotifyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */; };
 		2B48C31F2CE2516700AB08D9 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 2B48C31E2CE2516700AB08D9 /* KeychainAccess */; };
 		2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */; };
 		2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9082CDA2A3100734789 /* ContentView.swift */; };
 		2B49A90B2CDA2A3300734789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B49A90A2CDA2A3300734789 /* Assets.xcassets */; };
-		2B49A90E2CDA2A3300734789 /* Preview Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B49A90D2CDA2A3300734789 /* Preview Assets.xcassets */; };
 		2B49A9162CDA2A8500734789 /* GStreamer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A9152CDA2A8500734789 /* GStreamer.framework */; };
 		2B49A9172CDA2A8500734789 /* GStreamer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A9152CDA2A8500734789 /* GStreamer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		2B49A91D2CDA2AF200734789 /* libiconv.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */; };
@@ -25,10 +25,10 @@
 		2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */; };
 		2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */; };
 		2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A962CDA4985007D56F7 /* CameraView.swift */; };
-		2BF07A992CDA4986007D56F7 /* CameraViewController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A972CDA4986007D56F7 /* CameraViewController.swift */; };
+		2BF07A992CDA4986007D56F7 /* CameraController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A972CDA4986007D56F7 /* CameraController.swift */; };
 		2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */; };
 		2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */; };
-		2BF07AA02CDA6C2C007D56F7 /* AudioController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */; };
+		2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */; };
 /* End PBXBuildFile section */
 
 /* Begin PBXCopyFilesBuildPhase section */
@@ -50,12 +50,12 @@
 		2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerViewModel.swift; sourceTree = "<group>"; };
 		2B0AE6702CE0B2F20073A036 /* AudioState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioState.swift; sourceTree = "<group>"; };
 		2B0AE6732CE0B9380073A036 /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
-		2B48C31B2CE2510D00AB08D9 /* Spotify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spotify.swift; sourceTree = "<group>"; };
+		2B35E86C2CE363B4000FC2D5 /* GStreamerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GStreamerController.swift; sourceTree = "<group>"; };
+		2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyController.swift; sourceTree = "<group>"; };
 		2B49A9032CDA2A3100734789 /* SleepStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStreamApp.swift; sourceTree = "<group>"; };
 		2B49A9082CDA2A3100734789 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2B49A90A2CDA2A3300734789 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		2B49A90D2CDA2A3300734789 /* Preview Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = "Preview Assets.xcassets"; sourceTree = "<group>"; };
 		2B49A9152CDA2A8500734789 /* GStreamer.framework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.framework; name = GStreamer.framework; path = ../../../../Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework; sourceTree = "<group>"; };
 		2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libiconv.2.tbd; path = usr/lib/libiconv.2.tbd; sourceTree = SDKROOT; };
 		2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SleepStream-Bridging-Header.h"; sourceTree = "<group>"; };
@@ -65,11 +65,11 @@
 		2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GStreamerVideoBackend.h; sourceTree = "<group>"; };
 		2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GStreamerBackendDelegate.swift; sourceTree = "<group>"; };
 		2BF07A962CDA4985007D56F7 /* CameraView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
-		2BF07A972CDA4986007D56F7 /* CameraViewController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraViewController.swift; sourceTree = "<group>"; };
+		2BF07A972CDA4986007D56F7 /* CameraController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraController.swift; sourceTree = "<group>"; };
 		2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GStreamerAudioBackend.h; sourceTree = "<group>"; };
 		2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GStreamerAudioBackend.m; sourceTree = "<group>"; };
 		2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
-		2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioController.swift; sourceTree = "<group>"; };
+		2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioOutputController.swift; sourceTree = "<group>"; };
 		2BF07AA12CDA6FD1007D56F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
 
@@ -104,6 +104,17 @@
 			path = GStreamer;
 			sourceTree = "<group>";
 		};
+		2B35E86B2CE362F5000FC2D5 /* Controller */ = {
+			isa = PBXGroup;
+			children = (
+				2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */,
+				2B35E86C2CE363B4000FC2D5 /* GStreamerController.swift */,
+				2B0AE6732CE0B9380073A036 /* MusicController.swift */,
+				2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */,
+			);
+			path = Controller;
+			sourceTree = "<group>";
+		};
 		2B49A8FA2CDA2A3100734789 = {
 			isa = PBXGroup;
 			children = (
@@ -124,30 +135,19 @@
 		2B49A9052CDA2A3100734789 /* SleepStream */ = {
 			isa = PBXGroup;
 			children = (
+				2B35E86B2CE362F5000FC2D5 /* Controller */,
 				2B0AE66F2CE0B24B0073A036 /* GStreamer */,
-				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
-				2BF07A9F2CDA6C2C007D56F7 /* AudioController.swift */,
+				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
 				2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */,
 				2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */,
+				2BF07A972CDA4986007D56F7 /* CameraController.swift */,
 				2BF07A962CDA4985007D56F7 /* CameraView.swift */,
-				2BF07A972CDA4986007D56F7 /* CameraViewController.swift */,
 				2B49A9082CDA2A3100734789 /* ContentView.swift */,
 				2B0AE66A2CDFBD420073A036 /* NetworkService.swift */,
-				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
+				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
 				2B49A90A2CDA2A3300734789 /* Assets.xcassets */,
-				2B49A90C2CDA2A3300734789 /* Preview Content */,
-				2B0AE6732CE0B9380073A036 /* MusicController.swift */,
-				2B48C31B2CE2510D00AB08D9 /* Spotify.swift */,
 			);
 			path = SleepStream;
-			sourceTree = "<group>";
-		};
-		2B49A90C2CDA2A3300734789 /* Preview Content */ = {
-			isa = PBXGroup;
-			children = (
-				2B49A90D2CDA2A3300734789 /* Preview Assets.xcassets */,
-			);
-			path = "Preview Content";
 			sourceTree = "<group>";
 		};
 		2B49A9142CDA2A8500734789 /* Frameworks */ = {
@@ -227,7 +227,6 @@
 			isa = PBXResourcesBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
-				2B49A90E2CDA2A3300734789 /* Preview Assets.xcassets in Resources */,
 				2B49A90B2CDA2A3300734789 /* Assets.xcassets in Resources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -240,19 +239,20 @@
 			buildActionMask = 2147483647;
 			files = (
 				2B0AE66B2CDFBD420073A036 /* NetworkService.swift in Sources */,
-				2BF07AA02CDA6C2C007D56F7 /* AudioController.swift in Sources */,
+				2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */,
+				2B35E86D2CE363B5000FC2D5 /* GStreamerController.swift in Sources */,
 				2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */,
 				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
 				2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */,
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
-				2B48C31C2CE2510D00AB08D9 /* Spotify.swift in Sources */,
+				2B48C31C2CE2510D00AB08D9 /* SpotifyController.swift in Sources */,
 				2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */,
 				2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */,
 				2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */,
 				2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */,
 				2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
-				2BF07A992CDA4986007D56F7 /* CameraViewController.swift in Sources */,
+				2BF07A992CDA4986007D56F7 /* CameraController.swift in Sources */,
 				2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -387,7 +387,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"SleepStream/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = L23NTUN6KV;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
@@ -461,7 +461,7 @@
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
 				CURRENT_PROJECT_VERSION = 1;
-				DEVELOPMENT_ASSET_PATHS = "\"SleepStream/Preview Content\"";
+				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = L23NTUN6KV;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (

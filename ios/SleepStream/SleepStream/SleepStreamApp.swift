@@ -14,7 +14,7 @@ struct SleepStreamApp: App {
         gst_ios_init()
         print("Init gst done")
 
-        let spotify: Spotify = .init()
+        let spotify: SpotifyController = .init()
         audioViewModel = .init(spotify: spotify)
     }
 
