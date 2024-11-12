@@ -10,6 +10,7 @@ use pipeline::StreamPipeline;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::{Arc, Mutex};
+use std::thread::sleep;
 use std::time::Duration;
 use tokio;
 use tokio::time;
@@ -112,8 +113,10 @@ fn with_volume(
 
 async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(uri) = body.get("uri").and_then(|t| t.as_str()) {
-        spotify::playback(uri);
         transfer_playback();
+        sleep(Duration::from_millis(500));
+        spotify::playback(uri);
+
         return Ok(warp::reply::with_status(
             warp::reply::json(&serde_json::json!({ "status": "ok" })),
             StatusCode::OK,
@@ -127,9 +130,13 @@ async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::
 }
 
 async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
-    if let Some(state) = body.get("state").and_then(|t| t.as_str()) {
+    if let Some(state) = body.get("action").and_then(|t| t.as_str()) {
         match state.to_lowercase().as_str() {
-            "play" => spotify::send_spotify_message("Play"),
+            "play" => {
+                transfer_playback();
+                sleep(Duration::from_millis(500));
+                spotify::send_spotify_message("Play");
+            }
             "pause" => spotify::send_spotify_message("Pause"),
             "next" => spotify::send_spotify_message("Next"),
             "previous" => spotify::send_spotify_message("Previous"),
@@ -139,7 +146,10 @@ async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::R
         // Get the current state after handling the control request
         let playing = is_spotify_playing();
         let music = spotify::get_spotify_metadata();
-        let current_state = PlayerStateDto { playing, metadata: music };
+        let current_state = PlayerStateDto {
+            playing,
+            metadata: music,
+        };
 
         return Ok(warp::reply::with_status(
             warp::reply::json(&current_state),
@@ -156,7 +166,10 @@ async fn handle_control_request(body: Value) -> Result<impl warp::Reply, warp::R
 async fn handle_state_request() -> Result<impl warp::Reply, warp::Rejection> {
     let playing = is_spotify_playing();
     let music = spotify::get_spotify_metadata();
-    let state = PlayerStateDto { playing, metadata: music };
+    let state = PlayerStateDto {
+        playing,
+        metadata: music,
+    };
 
     Ok(warp::reply::with_status(
         warp::reply::json(&state),
