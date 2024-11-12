@@ -11,6 +11,9 @@
 		2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */; };
 		2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6702CE0B2F20073A036 /* AudioState.swift */; };
 		2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6732CE0B9380073A036 /* MusicController.swift */; };
+		2B48C3192CE250BD00AB08D9 /* SpotifyAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 2B48C3182CE250BD00AB08D9 /* SpotifyAPI */; };
+		2B48C31C2CE2510D00AB08D9 /* Spotify.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B48C31B2CE2510D00AB08D9 /* Spotify.swift */; };
+		2B48C31F2CE2516700AB08D9 /* KeychainAccess in Frameworks */ = {isa = PBXBuildFile; productRef = 2B48C31E2CE2516700AB08D9 /* KeychainAccess */; };
 		2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */; };
 		2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9082CDA2A3100734789 /* ContentView.swift */; };
 		2B49A90B2CDA2A3300734789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B49A90A2CDA2A3300734789 /* Assets.xcassets */; };
@@ -47,6 +50,7 @@
 		2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerViewModel.swift; sourceTree = "<group>"; };
 		2B0AE6702CE0B2F20073A036 /* AudioState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioState.swift; sourceTree = "<group>"; };
 		2B0AE6732CE0B9380073A036 /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
+		2B48C31B2CE2510D00AB08D9 /* Spotify.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Spotify.swift; sourceTree = "<group>"; };
 		2B49A9032CDA2A3100734789 /* SleepStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStreamApp.swift; sourceTree = "<group>"; };
 		2B49A9082CDA2A3100734789 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
@@ -74,7 +78,9 @@
 			isa = PBXFrameworksBuildPhase;
 			buildActionMask = 2147483647;
 			files = (
+				2B48C31F2CE2516700AB08D9 /* KeychainAccess in Frameworks */,
 				2B49A91D2CDA2AF200734789 /* libiconv.2.tbd in Frameworks */,
+				2B48C3192CE250BD00AB08D9 /* SpotifyAPI in Frameworks */,
 				2B49A9162CDA2A8500734789 /* GStreamer.framework in Frameworks */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
@@ -131,6 +137,7 @@
 				2B49A90A2CDA2A3300734789 /* Assets.xcassets */,
 				2B49A90C2CDA2A3300734789 /* Preview Content */,
 				2B0AE6732CE0B9380073A036 /* MusicController.swift */,
+				2B48C31B2CE2510D00AB08D9 /* Spotify.swift */,
 			);
 			path = SleepStream;
 			sourceTree = "<group>";
@@ -169,6 +176,10 @@
 			dependencies = (
 			);
 			name = SleepStream;
+			packageProductDependencies = (
+				2B48C3182CE250BD00AB08D9 /* SpotifyAPI */,
+				2B48C31E2CE2516700AB08D9 /* KeychainAccess */,
+			);
 			productName = SleepStream;
 			productReference = 2B49A9032CDA2A3100734789 /* SleepStream.app */;
 			productType = "com.apple.product-type.application";
@@ -198,6 +209,10 @@
 				Base,
 			);
 			mainGroup = 2B49A8FA2CDA2A3100734789;
+			packageReferences = (
+				2B48C3172CE250BD00AB08D9 /* XCRemoteSwiftPackageReference "SpotifyAPI" */,
+				2B48C31D2CE2516700AB08D9 /* XCRemoteSwiftPackageReference "KeychainAccess" */,
+			);
 			productRefGroup = 2B49A9042CDA2A3100734789 /* Products */;
 			projectDirPath = "";
 			projectRoot = "";
@@ -230,6 +245,7 @@
 				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
 				2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */,
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
+				2B48C31C2CE2510D00AB08D9 /* Spotify.swift in Sources */,
 				2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */,
 				2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */,
 				2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */,
@@ -499,6 +515,38 @@
 			defaultConfigurationName = Release;
 		};
 /* End XCConfigurationList section */
+
+/* Begin XCRemoteSwiftPackageReference section */
+		2B48C3172CE250BD00AB08D9 /* XCRemoteSwiftPackageReference "SpotifyAPI" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/Peter-Schorn/SpotifyAPI";
+			requirement = {
+				kind = upToNextMajorVersion;
+				minimumVersion = 3.0.3;
+			};
+		};
+		2B48C31D2CE2516700AB08D9 /* XCRemoteSwiftPackageReference "KeychainAccess" */ = {
+			isa = XCRemoteSwiftPackageReference;
+			repositoryURL = "https://github.com/kishikawakatsumi/KeychainAccess";
+			requirement = {
+				branch = master;
+				kind = branch;
+			};
+		};
+/* End XCRemoteSwiftPackageReference section */
+
+/* Begin XCSwiftPackageProductDependency section */
+		2B48C3182CE250BD00AB08D9 /* SpotifyAPI */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2B48C3172CE250BD00AB08D9 /* XCRemoteSwiftPackageReference "SpotifyAPI" */;
+			productName = SpotifyAPI;
+		};
+		2B48C31E2CE2516700AB08D9 /* KeychainAccess */ = {
+			isa = XCSwiftPackageProductDependency;
+			package = 2B48C31D2CE2516700AB08D9 /* XCRemoteSwiftPackageReference "KeychainAccess" */;
+			productName = KeychainAccess;
+		};
+/* End XCSwiftPackageProductDependency section */
 	};
 	rootObject = 2B49A8FB2CDA2A3100734789 /* Project object */;
 }

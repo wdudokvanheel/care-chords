@@ -74,6 +74,9 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     if(gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
         [self setUIMessage:"Failed to set pipeline to paused"];
     }
+    else{
+        gst_element_seek(pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
+    }
 }
 
 -(void) destroy

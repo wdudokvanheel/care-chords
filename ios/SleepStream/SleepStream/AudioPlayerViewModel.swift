@@ -1,17 +1,18 @@
 import Combine
 
 class AudioPlayerViewModel: ObservableObject {
+    let spotify: Spotify
+    
     @Published var music: MusicController = .init()
     @Published var controller: AudioController = .init()
-    @Published var playlists: [Playlist] = [
-        Playlist("CBL & Rain", "04qC7znZ4eWnTVezaEBOF7"),
-        Playlist("Handpan", "0XszLZdqIrit8epvbcEe61"),
-        Playlist("Fantasy & Rain", "46ZaYOSrlpvO1qjB1ezofY"),
-    ]
-    
+
     private var cancellables = Set<AnyCancellable>()
 
-    func togglePlayState() {
+    init(spotify: Spotify){
+        self.spotify = spotify
+    }
+    
+    func toggleOutput() {
         switch controller.state {
         case .playing:
             controller.pause()
@@ -25,7 +26,7 @@ class AudioPlayerViewModel: ObservableObject {
     }
 
     func selectPlaylist(playlist: Playlist) {
-        let request = PlaybackRequest(uri: "playlist:\(playlist.uri)")
+        let request = PlaybackRequestDto(uri: playlist.uri)
         NetworkService.sendRequest(with: request, to: "http://10.0.0.153:7755/play", method: .POST).sink(receiveCompletion: { completion in
             switch completion {
             case .failure(let error):

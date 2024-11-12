@@ -14,6 +14,7 @@ struct MusicMetadata: Decodable {
 }
 
 class MusicController: ObservableObject {
+    @Published var updateStatus = true
     @Published var status: MusicStatus = .init(playing: false, metadata: nil)
 
     private var cancellables = Set<AnyCancellable>()
@@ -71,7 +72,7 @@ class MusicController: ObservableObject {
     private func controlPlayer(_ action: String) {
         // The URL for the backend API
         let url = "http://10.0.0.153:7755/control"
-        let request = ActionRequest(action: action)
+        let request = ActionRequestDto(action: action)
         
         NetworkService.sendRequest(with: request, to: url, method: .POST)
             .decode(type: MusicStatus.self, decoder: JSONDecoder())
@@ -91,6 +92,10 @@ class MusicController: ObservableObject {
     }
 
     func statusUpdate() {
+        if !updateStatus {
+            return
+        }
+        
         // The URL for the backend API
         let url = "http://10.0.0.153:7755/status"
         NetworkService.sendRequest(with: EmptyBody?(nil), to: url, method: .GET)

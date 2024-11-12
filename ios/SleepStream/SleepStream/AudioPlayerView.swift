@@ -1,30 +1,13 @@
 import SwiftUI
 
 struct AudioPlayerView: View {
-    @StateObject private var model = AudioPlayerViewModel()
+    @EnvironmentObject private var model: AudioPlayerViewModel
 
     var body: some View {
         VStack {
-            ControllerStateView(controller: model.controller)
-
-            HStack {
-                ForEach(model.playlists) { playlist in
-                    Button(action: {
-                        model.selectPlaylist(playlist: playlist)
-                    }) {
-                        Text(playlist.name)
-                            .foregroundColor(.white)
-                    }
-                    .padding(.all, 8)
-                    .background {
-                        RoundedRectangle(cornerRadius: 8.0)
-                            .foregroundColor(.indigo)
-                    }
-                }
-            }
+            ControllerStateView(controller: model.controller, toggleOutput: model.toggleOutput)
+            SpotifyView(spotify: model.spotify, playlistSelect: model.selectPlaylist)
             Spacer()
-            PlayPauseButton(audioState: model.controller.state, action: model.togglePlayState)
-                .buttonStyle(.borderedProminent)
 
             MusicStateView(controller: model.music)
         }
@@ -43,13 +26,17 @@ struct AudioPlayerView: View {
 
 struct ControllerStateView: View {
     @ObservedObject var controller: AudioController
+    let toggleOutput: () -> Void
 
     var body: some View {
         VStack {
-            Text("Audio state: \(controller.state.description)")
-            Text("Output: \(controller.currentOutput)")
-            Text("Gstreamer message: \(controller.backendMessage)")
+            AudioOutputButton(audioState: controller.state, action: toggleOutput)
+//
+//            Text("Audio state: \(controller.state.description)")
+//            Text("Output: \(controller.currentOutput)")
+//            Text("Gstreamer message: \(controller.backendMessage)")
         }
+        .padding()
     }
 }
 
@@ -62,6 +49,7 @@ struct MusicStateView: View {
                 if let metadata = controller.status.metadata {
                     if let url = URL(string: metadata.artwork_url) {
                         RemoteImageView(imageUrl: url)
+                            .padding(.top, 8)
                     }
 
                     Text(metadata.title)
@@ -125,7 +113,6 @@ struct MusicStateView: View {
             .padding(.bottom)
         }
         .frame(maxWidth: .infinity)
-        .padding()
         .background(
             LinearGradient(
                 gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
@@ -165,19 +152,18 @@ struct RemoteImageView: View {
             }
         }
         .clipShape(RoundedRectangle(cornerRadius: 8.0))
-        .overlay(
-            RoundedRectangle(cornerRadius: 8.0, style: .continuous)
-                .stroke(Color.black, lineWidth: 1)
-        )
-//        .frame(width: 200, height: 200) // Adjust the frame as needed
+//        .overlay(
+//            RoundedRectangle(cornerRadius: 8.0, style: .continuous)
+//                .stroke(Color.black, lineWidth: 1)
+//        )
     }
 }
 
-struct ActionRequest: Encodable {
+struct ActionRequestDto: Encodable {
     let action: String
 }
 
-struct PlaybackRequest: Encodable {
+struct PlaybackRequestDto: Encodable {
     let uri: String
 }
 
@@ -185,10 +171,12 @@ struct Playlist: Identifiable {
     let id = UUID()
     let name: String
     let uri: String
+    let image: URL?
 
-    init(_ name: String, _ uri: String) {
+    init(_ name: String, _ uri: String, _ image: URL? = nil) {
         self.name = name
         self.uri = uri
+        self.image = image
     }
 }
 
@@ -197,6 +185,88 @@ extension Color {
     static let darkerBlue = Color(red: 0.03, green: 0.1, blue: 0.2) // Darker blue
     static let darkForestGreen = Color(red: 0.0, green: 0.27, blue: 0.13)
     static let lightForestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
+    static let moonWhite = Color(red: 0.92, green: 0.92, blue: 0.88)
+}
+
+struct SpotifyView: View {
+    @ObservedObject var spotify: Spotify
+    let playlistSelect: (Playlist) -> Void
+
+    private let playlistSize: CGFloat = 110.0
+    var body: some View {
+        if !spotify.isAuthorized {
+            Button("Login with Spotify") {
+                spotify.authorize()
+            }
+            .buttonStyle(.borderedProminent)
+        }
+        else {
+            VStack {
+                VStack {
+                    ScrollView {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: playlistSize, maximum: playlistSize))], spacing: 8.0) {
+                            ForEach(spotify.playlists) { playlist in
+                                Button(action: {
+                                    self.playlistSelect(playlist)
+                                }) {
+                                    VStack(spacing: 0) {
+                                        if let img = playlist.image {
+                                            RemoteImageView(imageUrl: img)
+                                        }
+                                        Text(playlist.name)
+                                            .foregroundColor(.white)
+                                            .font(.caption)
+                                            .fontWeight(.light)
+                                            .lineLimit(1)
+                                            .multilineTextAlignment(.center)
+                                            .padding(0)
+                                    }
+                                    .padding(0)
+                                }
+                                .padding(.all, 0)
+                                .frame(width: playlistSize, height: playlistSize)
+                            }
+                        }
+                        .padding(.all, 0)
+                    }
+                    .padding(.horizontal, 4)
+                    .padding(.vertical, 12)
+                }
+                .padding(.all, 0)
+            }
+            .background(
+                LinearGradient(
+                    gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
+                    startPoint: .top,
+                    endPoint: .bottom
+                )
+                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+            )
+            .overlay(
+                RoundedRectangle(cornerRadius: 20, style: .continuous)
+                    .stroke(Color.black.opacity(0.8), lineWidth: 2)
+            )
+            .frame(maxWidth: .infinity)
+            .padding()
+        }
+    }
+}
+
+struct AudioOutputButton: View {
+    var audioState: AudioState
+    let action: () -> Void
+
+    var body: some View {
+        HStack {
+            Spacer()
+            Button(action: action) {
+                Image(systemName: audioState == .playing ? "speaker.wave.2" : "speaker.slash.fill")
+                    .symbolRenderingMode(.palette)
+                    .foregroundStyle(Color.moonWhite, Color.moonWhite, Color.moonWhite)
+                    .font(.system(size: 32))
+            }
+        }
+    }
 }
 
 struct PlayPauseButton: View {
