@@ -3,6 +3,7 @@ use gstreamer::prelude::{ElementExt, ElementExtManual, GObjectExtManualGst, GstB
 use gstreamer::{init, Bus, Caps, Element, ElementFactory, Pipeline, State, StateChangeSuccess};
 use gstreamer_rtsp::RTSPLowerTrans;
 
+#[allow(dead_code)]
 pub struct StreamPipeline {
     pub pipeline: Pipeline,
     pub livestream: LivestreamElements,
