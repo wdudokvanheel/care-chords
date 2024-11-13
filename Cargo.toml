@@ -8,12 +8,10 @@ gstreamer = "0.23.2"  # or latest version
 gstreamer-audio = "0.23.2"
 gstreamer-rtsp-server = "0.23.2"
 gstreamer-rtsp = "0.23.2"
-gstreamer-app = "0.23.2"
 anyhow = "1.0.89"
 tokio = { version = "1.40.0", features = ["full"] }
 serde_json = "1.0.132"
 warp = "0.3.7"
-time = "0.3.36"
 dbus = "0.9.7"
 serde = { version = "1.0.210", features = ["derive"] }
 

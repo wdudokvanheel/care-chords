@@ -231,7 +231,7 @@ async fn handle_playback_request(
     if let Some(uri) = body.get("uri").and_then(|t| t.as_str()) {
         {
             let spotify = spotify_client.lock().await;
-            if(!spotify.is_playing()) {
+            if (!spotify.is_selected_playback()) {
                 spotify.transfer_audio_playback();
                 tokio::time::sleep(Duration::from_millis(1000)).await;
             }
@@ -260,9 +260,11 @@ async fn handle_control_request(
             let spotify = spotify_client.lock().await;
             match state.to_lowercase().as_str() {
                 "play" => {
+                    if (!spotify.is_selected_playback()) {
+                        spotify.transfer_audio_playback();
+                        tokio::time::sleep(Duration::from_millis(1000)).await;
+                    }
                     spotify.send_player_message("Play");
-                    sleep(Duration::from_millis(500));
-                    spotify.transfer_audio_playback();
                 }
                 "pause" => spotify.send_player_message("Pause"),
                 "next" => spotify.send_player_message("Next"),

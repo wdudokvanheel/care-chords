@@ -121,6 +121,28 @@ impl SpotifyDBusClient {
         false
     }
 
+    pub fn is_selected_playback(&self) -> bool {
+        let playback_status_msg = Message::new_method_call(
+            &self.spotify_dest,
+            "/org/mpris/MediaPlayer2",
+            "org.freedesktop.DBus.Properties",
+            "Get",
+        )
+            .expect("Failed to create method call")
+            .append2("org.mpris.MediaPlayer2.Player", "PlaybackStatus");
+
+        let response = self
+            .conn
+            .send_with_reply_and_block(playback_status_msg, Duration::from_millis(5000))
+            .expect("Failed to send message to dbus");
+
+        if let Some(variant) = response.get1::<Variant<&str>>() {
+            return variant.0 == "Playing" || variant.0 == "Paused";
+        }
+
+        false
+    }
+
     pub fn get_current_song_metadata(&self) -> Option<MusicMetadata> {
         let metadata_msg = Message::new_method_call(
             &self.spotify_dest,
