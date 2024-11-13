@@ -1,7 +1,7 @@
 mod pipeline;
 mod spotify;
 
-use crate::spotify::{is_spotify_playing, transfer_playback, MusicMetadata};
+use crate::spotify::{MusicMetadata, SpotifyDBusClient};
 use anyhow::Error;
 use gstreamer as gst;
 use gstreamer::prelude::*;
@@ -10,11 +10,12 @@ use gstreamer_rtsp_server::prelude::RTSPMediaExt;
 use pipeline::StreamPipeline;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
-use std::sync::{Arc, Mutex};
+use std::sync::Arc;
 use std::thread::sleep;
 use std::time::{Duration, Instant};
 use tokio;
 use tokio::sync::watch;
+use tokio::sync::Mutex;
 use tokio::time;
 
 use warp::http::StatusCode;
@@ -30,43 +31,44 @@ async fn main() -> Result<(), Error> {
         .get_bus()
         .expect("Pipeline without bus. Shouldn't happen!");
 
-    let pipeline_clone = gst_pipeline.pipeline.clone();
     tokio::spawn(async move {
-        handle_gst_bus_messages(bus, pipeline_clone.into()).await;
+        handle_gst_bus_messages(bus, gst_pipeline.pipeline.clone().into()).await;
     });
+
+    let spotify_client = Arc::new(Mutex::new(
+        SpotifyDBusClient::new().expect("Failed to connect to Spotify D-Bus"),
+    ));
 
     let (sleep_timer_tx, sleep_timer_rx) = watch::channel::<Option<Instant>>(None);
     let sleep_start_time = Arc::new(Mutex::new(None));
     let music_volume = Arc::new(Mutex::new(gst_pipeline.music.volume.clone()));
-
-    // Spawn a separate task that listens to the sleep timer channel
-    let music_volume_clone = music_volume.clone();
-    tokio::spawn(async move {
-        monitor_sleep_timer(sleep_timer_rx, music_volume_clone).await;
-    });
 
     let sleep_route = warp::path("sleep")
         .and(warp::post())
         .and(warp::body::json())
         .and(with_sleep_sender(sleep_timer_tx.clone()))
         .and(with_sleep_time(sleep_start_time.clone()))
+        .and(with_spotify_client(spotify_client.clone()))
         .and_then(handle_sleep_request);
 
     let control_route = warp::path("control")
         .and(warp::post())
         .and(warp::body::json())
         .and(with_sleep_time(sleep_start_time.clone()))
+        .and(with_spotify_client(spotify_client.clone()))
         .and_then(handle_control_request);
 
     let playback_route = warp::path("play")
         .and(warp::post())
         .and(warp::body::json())
+        .and(with_spotify_client(spotify_client.clone()))
         .and_then(handle_playback_request);
 
     // Update the state route to pass the sleep_start_time
     let state_route = warp::path("status")
         .and(warp::get())
         .and(with_sleep_time(sleep_start_time.clone()))
+        .and(with_spotify_client(spotify_client.clone()))
         .and_then(handle_state_request);
 
     // Update the routes to include the new /state route
@@ -75,10 +77,18 @@ async fn main() -> Result<(), Error> {
         .or(playback_route)
         .or(state_route);
 
+    // Spawn web server
     tokio::spawn(async move {
         println!("Starting server @ :7755");
         warp::serve(routes).run(([0, 0, 0, 0], 7755)).await;
     });
+
+    // Spawn a separate task that listens to the sleep timer channel
+    {
+        tokio::spawn(async move {
+            monitor_sleep_timer(sleep_timer_rx, music_volume.clone(), spotify_client.clone()).await;
+        });
+    }
 
     // Keep the runtime alive
     tokio::signal::ctrl_c()
@@ -94,9 +104,11 @@ struct PlayerStateDto {
     metadata: Option<MusicMetadata>,
     sleep_timer: Option<u64>,
 }
+
 async fn monitor_sleep_timer(
     mut sleep_timer_rx: watch::Receiver<Option<Instant>>,
     music_volume: Arc<Mutex<gst::Element>>,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) {
     while sleep_timer_rx.changed().await.is_ok() {
         let sleep_end_time = sleep_timer_rx.borrow().clone();
@@ -125,7 +137,7 @@ async fn monitor_sleep_timer(
                     let volume_level = 1.0 - (step as f64 * 0.01);
 
                     {
-                        let mut music_volume = music_volume.lock().unwrap();
+                        let music_volume = music_volume.lock().await;
                         music_volume.set_property("volume", volume_level);
                     }
 
@@ -134,7 +146,7 @@ async fn monitor_sleep_timer(
                     // Check if the sleep timer was updated during reduction
                     if sleep_timer_rx.borrow().clone() != Some(end_time) {
                         // If the timer was canceled or changed, restore the volume immediately
-                        let mut music_volume = music_volume.lock().unwrap();
+                        let music_volume = music_volume.lock().await;
                         music_volume.set_property("volume", 1.0);
                         println!("Volume restoration due to new timer");
                         break;
@@ -145,11 +157,11 @@ async fn monitor_sleep_timer(
                 if sleep_timer_rx.borrow().clone() == Some(end_time) {
                     time::sleep(Duration::from_secs(1)).await;
                     println!("Pausing Spotify playback");
-                    spotify::send_spotify_message("Pause");
+                    spotify_client.lock().await.send_player_message("Pause");
 
                     // Wait for 5 seconds before restoring volume to 1.0
                     time::sleep(Duration::from_secs(5)).await;
-                    let mut music_volume = music_volume.lock().unwrap();
+                    let music_volume = music_volume.lock().await;
                     music_volume.set_property("volume", 1.0);
                     println!("Volume restored after playback pause");
                 }
@@ -204,11 +216,27 @@ fn with_sleep_time(
     warp::any().map(move || sleep_start_time.clone())
 }
 
-async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::Rejection> {
+// Utility function to create Warp filter for Arc<Mutex<SpotifyDBusClient>>
+fn with_spotify_client(
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
+) -> impl Filter<Extract = (Arc<Mutex<SpotifyDBusClient>>,), Error = std::convert::Infallible> + Clone
+{
+    warp::any().map(move || spotify_client.clone())
+}
+
+async fn handle_playback_request(
+    body: Value,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(uri) = body.get("uri").and_then(|t| t.as_str()) {
-        transfer_playback();
-        sleep(Duration::from_millis(500));
-        spotify::playback(uri);
+        {
+            let spotify = spotify_client.lock().await;
+            if(!spotify.is_playing()) {
+                spotify.transfer_audio_playback();
+                tokio::time::sleep(Duration::from_millis(1000)).await;
+            }
+            spotify.play_uri(uri);
+        }
 
         return Ok(warp::reply::with_status(
             warp::reply::json(&serde_json::json!({ "status": "ok" })),
@@ -225,21 +253,25 @@ async fn handle_playback_request(body: Value) -> Result<impl warp::Reply, warp::
 async fn handle_control_request(
     body: Value,
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(state) = body.get("action").and_then(|t| t.as_str()) {
-        match state.to_lowercase().as_str() {
-            "play" => {
-                transfer_playback();
-                sleep(Duration::from_millis(500));
-                spotify::send_spotify_message("Play");
+        {
+            let spotify = spotify_client.lock().await;
+            match state.to_lowercase().as_str() {
+                "play" => {
+                    spotify.send_player_message("Play");
+                    sleep(Duration::from_millis(500));
+                    spotify.transfer_audio_playback();
+                }
+                "pause" => spotify.send_player_message("Pause"),
+                "next" => spotify.send_player_message("Next"),
+                "previous" => spotify.send_player_message("Previous"),
+                _ => {}
             }
-            "pause" => spotify::send_spotify_message("Pause"),
-            "next" => spotify::send_spotify_message("Next"),
-            "previous" => spotify::send_spotify_message("Previous"),
-            _ => {}
         }
 
-        let state = create_playerstate_dto(sleep_start_time).await;
+        let state = create_playerstate_dto(sleep_start_time, spotify_client).await;
 
         return Ok(warp::reply::with_status(
             warp::reply::json(&state),
@@ -255,8 +287,9 @@ async fn handle_control_request(
 
 async fn handle_state_request(
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
-    let state = create_playerstate_dto(sleep_start_time).await;
+    let state = create_playerstate_dto(sleep_start_time, spotify_client).await;
 
     Ok(warp::reply::with_status(
         warp::reply::json(&state),
@@ -264,16 +297,22 @@ async fn handle_state_request(
     ))
 }
 
-
 async fn create_playerstate_dto(
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) -> PlayerStateDto {
-    let playing = is_spotify_playing();
-    let music = spotify::get_spotify_metadata();
+    let mut playing = false;
+    let mut music = None;
+
+    {
+        let spotify = spotify_client.lock().await;
+        playing = spotify.is_playing();
+        music = spotify.get_current_song_metadata();
+    }
 
     // Calculate remaining sleep time if the timer is active
     let sleep_time_left = {
-        let lock = sleep_start_time.lock().unwrap();
+        let lock = sleep_start_time.lock().await;
         if let Some(end_time) = *lock {
             let now = Instant::now();
             if now < end_time {
@@ -297,16 +336,20 @@ async fn handle_sleep_request(
     body: Value,
     sleep_tx: watch::Sender<Option<Instant>>,
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(sleep_timer) = body.get("timer").and_then(|t| t.as_u64()) {
-        if !spotify::is_spotify_playing() {
-            spotify::send_spotify_message("Play");
+        {
+            let spotify = spotify_client.lock().await;
+            if !spotify.is_playing() {
+                spotify.send_player_message("Play");
+            }
         }
 
         let end_time = Instant::now() + Duration::from_secs(sleep_timer);
 
         // Update sleep_start_time to the new end time
-        let mut start_time_lock = sleep_start_time.lock().unwrap();
+        let mut start_time_lock = sleep_start_time.lock().await;
         *start_time_lock = Some(end_time);
 
         // Send the new end time to the channel, canceling the old timer
@@ -322,38 +365,4 @@ async fn handle_sleep_request(
         warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
         StatusCode::BAD_REQUEST,
     ))
-}
-
-async fn handle_volume_reduction(sleep_timer: u64, music_volume: Arc<Mutex<gst::Element>>) {
-    println!("Starting sleep timer in {} seconds", sleep_timer);
-
-    // Wait for the specified timer duration
-    time::sleep(Duration::from_secs(sleep_timer)).await;
-
-    println!("Starting volume decrease");
-
-    // Gradually reduce the volume over interval
-    let mut interval = time::interval(Duration::from_millis(500));
-    for step in 0..=100 {
-        let volume_level = 1.0 - (step as f64 * 0.01);
-        {
-            let music_volume = music_volume.lock().unwrap();
-            music_volume.set_property("volume", volume_level);
-        }
-        interval.tick().await;
-    }
-
-    // Wait for 1 second before executing the bash script
-    time::sleep(Duration::from_secs(1)).await;
-    println!("Pausing Spotify playback");
-    spotify::send_spotify_message("Pause");
-
-    // Wait for 5 seconds before restoring the volume back to 1.0
-    time::sleep(Duration::from_secs(5)).await;
-    {
-        let music_volume = music_volume.lock().unwrap();
-        music_volume.set_property("volume", 1.0);
-    }
-
-    println!("Volume restored");
 }

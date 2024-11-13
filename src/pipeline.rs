@@ -68,7 +68,7 @@ impl LivestreamElements {
 
         dsp.set_property("echo-cancel", &false);
         dsp.set_property("noise-suppression", &true);
-        dsp.set_property_from_str("noise-suppression-level", "high");
+        dsp.set_property_from_str("noise-suppression-level", "very-high");
         dsp.set_property("voice-detection", &true);
         dsp.set_property("extended-filter", &true);
 
@@ -77,7 +77,7 @@ impl LivestreamElements {
 
         buffer.set_property("max-size-buffers", &0u32);
         buffer.set_property("max-size-bytes", &0u32);
-        buffer.set_property("max-size-time", &(300_000_000u64));
+        buffer.set_property("max-size-time", &(900_000_000u64));
 
         cap_filter.set_property(
             "caps",
@@ -200,11 +200,11 @@ pub struct CommonElements {
 
 impl CommonElements {
     fn new() -> Result<Self, Error> {
-        let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("audio_mixer"))
+        let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("AudioMixer"))
             .expect("Could not create audio_mixer element.");
-        let aac_encoder = ElementFactory::make_with_name("avenc_aac", Some("aac_encoder"))
+        let aac_encoder = ElementFactory::make_with_name("avenc_aac", Some("CommonEncoder"))
             .expect("Could not create aac_encoder element.");
-        let stereo_filter = ElementFactory::make_with_name("capsfilter", Some("stereo_filter"))
+        let stereo_filter = ElementFactory::make_with_name("capsfilter", Some("CommonStereoFilter"))
             .expect("Could not create stereo_filter element.");
         let mp4_mux = ElementFactory::make_with_name("mp4mux", Some("mp4_mux"))
             .expect("Could not create mp4_mux element.");
