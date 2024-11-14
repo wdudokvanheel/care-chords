@@ -6,6 +6,7 @@ import SwiftUI
 class GStreamerController: GStreamerBackendDelegate, ObservableObject {
     @Published var state: AudioState = .initializing
     @Published var backendMessage: String = ""
+    @Published var backendError: Bool = false
 
     private var gstBackend: GStreamerAudioBackend?
 
@@ -34,7 +35,7 @@ class GStreamerController: GStreamerBackendDelegate, ObservableObject {
             self.backendMessage = message
         }
     }
-
+    
     func gstreamerAudioState(state newstate: AudioState) {
         DispatchQueue.main.async {
             self.state = newstate

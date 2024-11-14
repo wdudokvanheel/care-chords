@@ -43,6 +43,10 @@ class AudioPlayerViewModel: ObservableObject {
         }
     }
 
+    func startSleepTimer(seconds: Int){
+        self.music.startSleepTimer(seconds)
+    }
+    
     func selectPlaylist(playlist: Playlist) {
         let request = PlaybackRequestDto(uri: playlist.uri)
         NetworkService.sendRequest(with: request, to: "http://10.0.0.153:7755/play", method: .POST).sink(receiveCompletion: { completion in

@@ -5,6 +5,7 @@ import SwiftUI
 struct MusicStatus: Decodable {
     let playing: Bool
     let metadata: MusicMetadata?
+    let sleep_timer: Int?
 }
 
 struct MusicMetadata: Decodable {
@@ -15,7 +16,7 @@ struct MusicMetadata: Decodable {
 
 class MusicController: ObservableObject {
     @Published var updateStatus = true
-    @Published var status: MusicStatus = .init(playing: false, metadata: nil)
+    @Published var status: MusicStatus = .init(playing: false, metadata: nil, sleep_timer: nil)
 
     private var cancellables = Set<AnyCancellable>()
     private var statusTimer: DispatchSourceTimer?
@@ -68,9 +69,29 @@ class MusicController: ObservableObject {
     func previous() {
         controlPlayer("previous")
     }
+    
+    func startSleepTimer(_ seconds: Int){
+        let url = "http://10.0.0.153:7755/sleep"
+        let request = SleepTimerRequestDto(timer: seconds)
+        
+        NetworkService.sendRequest(with: request, to: url, method: .POST)
+            .decode(type: MusicStatus.self, decoder: JSONDecoder())
+            .sink(receiveCompletion: { completion in
+                switch completion {
+                case .failure(let error):
+                    print("Error: \(error.localizedDescription)")
+                case .finished:
+                    break
+                }
+            }, receiveValue: { [weak self] data in
+                DispatchQueue.main.async {
+                    self?.status = data
+                }
+            })
+            .store(in: &cancellables)
+    }
 
     private func controlPlayer(_ action: String) {
-        // The URL for the backend API
         let url = "http://10.0.0.153:7755/control"
         let request = ActionRequestDto(action: action)
         
@@ -96,7 +117,6 @@ class MusicController: ObservableObject {
             return
         }
         
-        // The URL for the backend API
         let url = "http://10.0.0.153:7755/status"
         NetworkService.sendRequest(with: EmptyBody?(nil), to: url, method: .GET)
             .decode(type: MusicStatus.self, decoder: JSONDecoder())

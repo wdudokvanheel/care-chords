@@ -5,11 +5,17 @@ struct AudioPlayerView: View {
 
     var body: some View {
         VStack {
-            ControllerStateView(controller: model.gstreamer, toggleOutput: model.toggleOutput)
             SpotifyView(spotify: model.spotify, playlistSelect: model.selectPlaylist)
+                .frame(maxHeight: UIScreen.main.bounds.height * 0.5)
             Spacer()
 
             MusicStateView(controller: model.music)
+            HStack {
+                SleepTimerView(controller: model.music, startSleepTimer: model.startSleepTimer)
+                ControllerStateView(controller: model.gstreamer, toggleOutput: model.toggleOutput)
+            }
+            .frame(minHeight: 75)
+            .padding(.horizontal)
         }
         .background(
             LinearGradient(
@@ -29,14 +35,47 @@ struct ControllerStateView: View {
     let toggleOutput: () -> Void
 
     var body: some View {
-        VStack {
-            AudioOutputStatusButton(audioState: controller.state, action: toggleOutput)
+        AudioOutputStatusButton(audioState: controller.state, action: toggleOutput)
 //
 //            Text("Audio state: \(controller.state.description)")
 //            Text("Output: \(controller.currentOutput)")
 //            Text("Gstreamer message: \(controller.backendMessage)")
+    }
+}
+
+struct SleepTimerView: View {
+    @ObservedObject var controller: MusicController
+    let startSleepTimer: (Int) -> Void
+
+    var body: some View {
+        Menu {
+            if controller.status.sleep_timer != nil {
+                Button("Cancel Timer") { startSleepTimer(0) }
+            }
+
+            Button("10 min") { startSleepTimer(10 * 60) }
+            Button("15 min") { startSleepTimer(15 * 60) }
+            Button("20 min") { startSleepTimer(20 * 60) }
+            Button("25 min") { startSleepTimer(25 * 60) }
+            Button("30 min") { startSleepTimer(30 * 60) }
+        } label: {
+            if let timer = controller.status.sleep_timer {
+                VStack(spacing: 0) {
+                    Image(systemName: "timer")
+                        .foregroundColor(.indigo)
+                        .font(.system(size: 32))
+                    Text("\(Int(floor(Double(timer) / 60.0) + 1)) min")
+                        .foregroundStyle(.white)
+                        .font(.system(size: 10))
+                        .fontWeight(.thin)
+                }
+            }
+            else {
+                Image(systemName: "timer")
+                    .foregroundColor(.white.opacity(0.3))
+                    .font(.system(size: 32))
+            }
         }
-        .padding()
     }
 }
 
@@ -45,12 +84,13 @@ struct MusicStateView: View {
 
     var body: some View {
         VStack {
-            VStack {
-                if let metadata = controller.status.metadata {
-                    if let url = URL(string: metadata.artwork_url) {
-                        RemoteImageView(imageUrl: url)
-                            .padding(.top, 8)
-                    }
+            if let metadata = controller.status.metadata {
+
+                VStack {
+                    //                    if let url = URL(string: metadata.artwork_url) {
+                    //                        RemoteImageView(imageUrl: url)
+                    //                            .padding(.top, 8)
+                    //                    }
 
                     Text(metadata.title)
                         .foregroundStyle(.white)
@@ -62,6 +102,7 @@ struct MusicStateView: View {
                         .opacity(0.9)
                         .fontWeight(.light)
                 }
+                .padding(.top, 7)
             }
             HStack {
                 Spacer()
@@ -115,7 +156,7 @@ struct MusicStateView: View {
         .frame(maxWidth: .infinity)
         .background(
             LinearGradient(
-                gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
+                gradient: Gradient(colors: [.black.opacity(0.3), .black.opacity(0.6)]),
                 startPoint: .top,
                 endPoint: .bottom
             )
@@ -123,9 +164,9 @@ struct MusicStateView: View {
         )
         .overlay(
             RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.black.opacity(0.8), lineWidth: 2)
+                .stroke(Color.white.opacity(0.1), lineWidth: 2)
         )
-        .shadow(color: Color.lightForestGreen.opacity(0.2), radius: 10, x: 0, y: 0)
+//        .shadow(color: Color.lightForestGreen.opacity(0.2), radius: 10, x: 0, y: 0)
         .padding()
     }
 }
@@ -167,6 +208,10 @@ struct PlaybackRequestDto: Encodable {
     let uri: String
 }
 
+struct SleepTimerRequestDto: Encodable {
+    let timer: Int
+}
+
 struct Playlist: Identifiable {
     let id = UUID()
     let name: String
@@ -186,6 +231,46 @@ extension Color {
     static let darkForestGreen = Color(red: 0.0, green: 0.27, blue: 0.13)
     static let lightForestGreen = Color(red: 0.13, green: 0.55, blue: 0.13)
     static let moonWhite = Color(red: 0.92, green: 0.92, blue: 0.88)
+}
+
+extension Color {
+    init(hex: String) {
+        let hex = hex.trimmingCharacters(in: .whitespacesAndNewlines)
+        let scanner = Scanner(string: hex)
+
+        // Remove `#` if present
+        if hex.hasPrefix("#") {
+            scanner.currentIndex = hex.index(after: hex.startIndex)
+        }
+
+        var rgbValue: UInt64 = 0
+        scanner.scanHexInt64(&rgbValue)
+
+        let r, g, b, a: Double
+        if hex.count == 6 {
+            // RGB (24-bit)
+            r = Double((rgbValue & 0xFF0000) >> 16) / 255.0
+            g = Double((rgbValue & 0x00FF00) >> 8) / 255.0
+            b = Double(rgbValue & 0x0000FF) / 255.0
+            a = 1.0
+        }
+        else if hex.count == 8 {
+            // RGBA (32-bit)
+            r = Double((rgbValue & 0xFF000000) >> 24) / 255.0
+            g = Double((rgbValue & 0x00FF0000) >> 16) / 255.0
+            b = Double((rgbValue & 0x0000FF00) >> 8) / 255.0
+            a = Double(rgbValue & 0x000000FF) / 255.0
+        }
+        else {
+            // Default to white if the format is incorrect
+            r = 1.0
+            g = 1.0
+            b = 1.0
+            a = 1.0
+        }
+
+        self.init(.sRGB, red: r, green: g, blue: b, opacity: a)
+    }
 }
 
 struct SpotifyView: View {
@@ -236,7 +321,7 @@ struct SpotifyView: View {
             }
             .background(
                 LinearGradient(
-                    gradient: Gradient(colors: [.lightForestGreen, .darkForestGreen]),
+                    gradient: Gradient(colors: [.black.opacity(0.3), .black.opacity(0.6)]),
                     startPoint: .top,
                     endPoint: .bottom
                 )
@@ -244,7 +329,7 @@ struct SpotifyView: View {
             )
             .overlay(
                 RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.black.opacity(0.8), lineWidth: 2)
+                    .stroke(Color.white.opacity(0.1), lineWidth: 2)
             )
             .frame(maxWidth: .infinity)
             .padding()

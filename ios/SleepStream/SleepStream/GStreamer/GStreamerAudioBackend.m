@@ -57,8 +57,9 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void) run_app_pipeline_threaded
 {
-    [self run_app_pipeline];
-    return;
+    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
+           [self run_app_pipeline];
+       });
 }
 
 -(void) play
@@ -95,7 +96,9 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     NSString *messagString = [NSString stringWithUTF8String:message];
     if(ui_delegate)
     {
-        [ui_delegate gstreamerMessageWithMessage:messagString];
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self->ui_delegate gstreamerMessageWithMessage:messagString];
+        });
     }
 }
 
@@ -128,31 +131,39 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBacken
     GstState old_state, new_state, pending_state;
     gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
 
-    /* Only pay attention to messages coming from the pipeline, not its children */
     if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
         printf("State changed from %s to %s\n", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
 
         switch (new_state) {
             case GST_STATE_PLAYING:
                 if (self->ui_delegate) {
-                    [self->ui_delegate gstreamerAudioStateWithState:AudioStatePlaying];
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self->ui_delegate gstreamerAudioStateWithState:AudioStatePlaying];
+                    });
                 }
                 break;
 
             case GST_STATE_PAUSED:
                 if (self->ui_delegate) {
-                    [self->ui_delegate gstreamerAudioStateWithState:(AudioState)AudioStatePaused];
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self->ui_delegate gstreamerAudioStateWithState:AudioStatePaused];
+                    });
                 }
                 break;
 
             case GST_STATE_READY:
                 if (self->ui_delegate) {
-                    [self->ui_delegate gstreamerAudioStateWithState:(AudioState)AudioStateReady];
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self->ui_delegate gstreamerAudioStateWithState:AudioStateReady];
+                    });
                 }
                 break;
+
             case GST_STATE_NULL:
                 if (self->ui_delegate) {
-                    [self->ui_delegate gstreamerAudioStateWithState:(AudioState)AudioStateInitializing];
+                    dispatch_async(dispatch_get_main_queue(), ^{
+                        [self->ui_delegate gstreamerAudioStateWithState:AudioStateInitializing];
+                    });
                 }
                 break;
 
@@ -160,8 +171,8 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBacken
                 break;
         }
     }
-    // TODO Check state of audio sink to know actual playing state?
 }
+
 
 /* Check if all conditions are met to report GStreamer as initialized.
  * These conditions will change depending on the application */
