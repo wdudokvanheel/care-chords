@@ -32,6 +32,7 @@
 		2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A91F2CDA2B1300734789 /* gst_ios_init.m */; };
 		2BDAEF712CE7616C0075CC11 /* ClearBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF702CE7616C0075CC11 /* ClearBackground.swift */; };
 		2BDAEF732CE76D750075CC11 /* TabPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF722CE76D750075CC11 /* TabPanel.swift */; };
+		2BDAEF752CE76EF60075CC11 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF742CE76EF60075CC11 /* NowPlayingView.swift */; };
 		2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */; };
 		2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */; };
 		2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A962CDA4985007D56F7 /* CameraView.swift */; };
@@ -81,6 +82,7 @@
 		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gst_ios_init.h; sourceTree = "<group>"; };
 		2BDAEF702CE7616C0075CC11 /* ClearBackground.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ClearBackground.swift; sourceTree = "<group>"; };
 		2BDAEF722CE76D750075CC11 /* TabPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabPanel.swift; sourceTree = "<group>"; };
+		2BDAEF742CE76EF60075CC11 /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
 		2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GStreamerVideoBackend.m; sourceTree = "<group>"; };
 		2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GStreamerVideoBackend.h; sourceTree = "<group>"; };
 		2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GStreamerBackendDelegate.swift; sourceTree = "<group>"; };
@@ -170,6 +172,7 @@
 			children = (
 				2B1D17772CE63378001B6147 /* MusicControlsView.swift */,
 				2B1D177C2CE6341A001B6147 /* PlaylistView.swift */,
+				2BDAEF742CE76EF60075CC11 /* NowPlayingView.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -317,6 +320,7 @@
 				2B1D177F2CE634AD001B6147 /* Models.swift in Sources */,
 				2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */,
 				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
+				2BDAEF752CE76EF60075CC11 /* NowPlayingView.swift in Sources */,
 				2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */,
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
 				2B48C31C2CE2510D00AB08D9 /* SpotifyController.swift in Sources */,
@@ -523,7 +527,7 @@
 					"-framework",
 					IOSurface,
 				);
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.SleepStream;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.CareChords;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "SleepStream/GStreamer/SleepStream-Bridging-Header.h";
@@ -564,7 +568,7 @@
 				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
 				MARKETING_VERSION = 1.0;
 				OTHER_LDFLAGS = x;
-				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.SleepStream;
+				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.CareChords;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
 				SWIFT_OBJC_BRIDGING_HEADER = "SleepStream/GStreamer/SleepStream-Bridging-Header.h";

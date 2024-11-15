@@ -11,27 +11,6 @@ struct MusicControlsView: View {
 
     var body: some View {
         VStack {
-//            if let metadata = controller.status.metadata {
-//
-//                VStack {
-//                    //                    if let url = URL(string: metadata.artwork_url) {
-//                    //                        RemoteImageView(imageUrl: url)
-//                    //                            .padding(.top, 8)
-//                    //                    }
-//
-//                    Text(metadata.title)
-//                        .foregroundStyle(.white)
-//                        .fontWeight(.bold)
-//                        .multilineTextAlignment(.center)
-//                        .lineLimit(1)
-//                    Text(metadata.artist)
-//                        .foregroundStyle(.white)
-//                        .opacity(0.9)
-//                        .fontWeight(.light)
-//                }
-//                .padding(.top, 7)
-//            }
-
             HStack(alignment: .top) {
                 VStack {
                     MuteButton(audioState: gstreamerController.state, action: toggleMute)

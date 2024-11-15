@@ -32,9 +32,11 @@ struct TabPanel: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            tabs[selectedTab].view
 
-            Spacer(minLength: 10)
+            tabs[selectedTab].view
+                .edgesIgnoringSafeArea(.init())
+
+            Spacer(minLength: 0)
 
             HStack {
                 ForEach(tabs.indices, id: \.self) { index in
@@ -44,30 +46,36 @@ struct TabPanel: View {
                         VStack {
                             Text(tabs[index].title)
                                 .font(.headline)
+                                .fontWeight(selectedTab == index ? .regular : .thin)
                                 .foregroundColor(selectedTab == index ? .orange : .white)
+                                .animation(.none)
                         }
                         .frame(maxWidth: .infinity)
                     }
                 }
             }
             .padding()
-            .background(.white.opacity(0.1))
+            .background(Color.darkerBlue)
         }
-        .background(
-            LinearGradient(
-                gradient: Gradient(colors: [.white.opacity(0.3), .white.opacity(0.1)]),
-                startPoint: .top,
-                endPoint: .bottom
-            )
-            .opacity(0.3)
-            .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
+        .background(Color.black.opacity(0.5)
+            .edgesIgnoringSafeArea(.top)
         )
-        .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-        .overlay(
-            RoundedRectangle(cornerRadius: 20, style: .continuous)
-                .stroke(Color.white.opacity(0.2), lineWidth: 2)
-        )
+//        .background(
+//            VisualEffect(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
+//                .ignoresSafeArea()
+//        )
+//        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
+//        .overlay(
+//            RoundedRectangle(cornerRadius: 8, style: .continuous)
+//                .stroke(Color.darkerBlue, lineWidth: 2)
+//        )
+        .shadow(radius: 8)
         .frame(maxWidth: .infinity)
-        .padding(.bottom)
     }
+}
+
+struct VisualEffect: UIViewRepresentable {
+    var effect: UIVisualEffect?
+    func makeUIView(context: UIViewRepresentableContext<Self>) -> UIVisualEffectView { UIVisualEffectView() }
+    func updateUIView(_ uiView: UIVisualEffectView, context: UIViewRepresentableContext<Self>) { uiView.effect = effect }
 }

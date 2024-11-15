@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SpotifyView: View {
+struct PlaylistSelectorView: View {
     @ObservedObject var spotify: SpotifyController
     let playlistSelect: (Playlist) -> Void
 
@@ -24,6 +24,7 @@ struct SpotifyView: View {
                                     VStack(spacing: 0) {
                                         if let img = playlist.image {
                                             RemoteImageView(imageUrl: img)
+                                                .clipShape(RoundedRectangle(cornerRadius: 4))
                                         }
                                         Text(playlist.name)
                                             .foregroundColor(.white)
@@ -39,7 +40,8 @@ struct SpotifyView: View {
                                 .frame(width: playlistSize, height: playlistSize)
                             }
                         }
-                        .padding(0)
+                        .padding(.vertical, 8)
+                        .padding(.horizontal, 0)
                     }
                 }
                 .padding(0)

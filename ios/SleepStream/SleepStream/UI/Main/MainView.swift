@@ -7,23 +7,25 @@ struct MainView: View {
         VStack {
             TabPanel {
                 Tab(title: "Now playing") {
-                    VStack {
-                        Text("Now playing")
-                    }
+                    NowPlayingView(controller: model.music)
                 }
                 Tab(title: "Playlists") {
-                    SpotifyView(spotify: model.spotify, playlistSelect: model.selectPlaylist)
+                    PlaylistSelectorView(spotify: model.spotify, playlistSelect: model.selectPlaylist)
                 }
             }
-            .padding()
+            .padding(0)
 
-            Spacer(minLength: 50)
+            Spacer(minLength: 30)
 
             MusicControlsView(musicController: model.music, gstreamerController: model.gstreamer, toggleMute: model.toggleOutput, startSleepTimer: model.startSleepTimer)
         }
+        .padding(0)
+        .shadow(radius: 4)
         .background(
-            Color.appBackground
-                .edgesIgnoringSafeArea(.all)
+            Image("Background")
+                .resizable() 
+                .scaledToFill()
+                .ignoresSafeArea()
         )
         .onAppear(perform: model.onAppear)
         .onDisappear(perform: model.onDisappear)
