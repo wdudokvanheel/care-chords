@@ -35,7 +35,7 @@ class GStreamerController: GStreamerBackendDelegate, ObservableObject {
             self.backendMessage = message
         }
     }
-    
+
     func gstreamerAudioState(state newstate: AudioState) {
         DispatchQueue.main.async {
             self.state = newstate

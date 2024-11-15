@@ -1,5 +1,17 @@
 import Combine
 
+struct ActionRequestDto: Encodable {
+    let action: String
+}
+
+struct PlaybackRequestDto: Encodable {
+    let uri: String
+}
+
+struct SleepTimerRequestDto: Encodable {
+    let timer: Int
+}
+
 enum HTTPMethod: String {
     case GET
     case POST

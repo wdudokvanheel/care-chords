@@ -9,10 +9,7 @@ struct SleepStreamApp: App {
     init() {
         setenv("GST_DEBUG", "4", 1)
         setenv("GST_DEBUG_NO_COLOR", "1", 1)
-
-        print("Init gst")
         gst_ios_init()
-        print("Init gst done")
 
         let spotify: SpotifyController = .init()
         audioViewModel = .init(spotify: spotify)
@@ -20,12 +17,13 @@ struct SleepStreamApp: App {
 
     var body: some Scene {
         WindowGroup {
-            AudioPlayerView()
+            MainView()
                 .environmentObject(audioViewModel)
                 .onOpenURL(perform: handleURL(_:))
         }
     }
 
+    // TODO: Move to SpotifyController
     func handleURL(_ url: URL) {
         let spotify = audioViewModel.spotify
         guard url.scheme == spotify.loginCallbackURL.scheme else {
