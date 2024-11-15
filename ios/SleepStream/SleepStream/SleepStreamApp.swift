@@ -9,7 +9,7 @@ struct SleepStreamApp: App {
     init() {
         setenv("GST_DEBUG", "4", 1)
         setenv("GST_DEBUG_NO_COLOR", "1", 1)
-        gst_ios_init()
+//        gst_ios_init()
 
         let spotify: SpotifyController = .init()
         audioViewModel = .init(spotify: spotify)

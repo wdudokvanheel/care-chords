@@ -7,7 +7,7 @@ struct SpotifyView: View {
     private let playlistSize: CGFloat = 110.0
     var body: some View {
         if !spotify.isAuthorized {
-            Button("Login with Spotify") {
+            Button("Login with Spotify to view your playlsits") {
                 spotify.authorize()
             }
             .buttonStyle(.borderedProminent)
@@ -35,31 +35,15 @@ struct SpotifyView: View {
                                     }
                                     .padding(0)
                                 }
-                                .padding(.all, 0)
+                                .padding(0)
                                 .frame(width: playlistSize, height: playlistSize)
                             }
                         }
-                        .padding(.all, 0)
+                        .padding(0)
                     }
-                    .padding(.horizontal, 4)
-                    .padding(.vertical, 12)
                 }
-                .padding(.all, 0)
+                .padding(0)
             }
-            .background(
-                LinearGradient(
-                    gradient: Gradient(colors: [.black.opacity(0.3), .black.opacity(0.6)]),
-                    startPoint: .top,
-                    endPoint: .bottom
-                )
-                .clipShape(RoundedRectangle(cornerRadius: 20, style: .continuous))
-            )
-            .overlay(
-                RoundedRectangle(cornerRadius: 20, style: .continuous)
-                    .stroke(Color.white.opacity(0.1), lineWidth: 2)
-            )
-            .frame(maxWidth: .infinity)
-            .padding()
         }
     }
 }
