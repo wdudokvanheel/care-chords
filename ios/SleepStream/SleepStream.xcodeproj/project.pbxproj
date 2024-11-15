@@ -11,6 +11,14 @@
 		2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */; };
 		2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6702CE0B2F20073A036 /* AudioState.swift */; };
 		2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6732CE0B9380073A036 /* MusicController.swift */; };
+		2B1D17762CE63347001B6147 /* SleepTimerButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D17752CE63347001B6147 /* SleepTimerButton.swift */; };
+		2B1D17782CE63378001B6147 /* MusicControlsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D17772CE63378001B6147 /* MusicControlsView.swift */; };
+		2B1D177B2CE633C8001B6147 /* RemoteImage.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D177A2CE633C8001B6147 /* RemoteImage.swift */; };
+		2B1D177D2CE6341A001B6147 /* PlaylistView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D177C2CE6341A001B6147 /* PlaylistView.swift */; };
+		2B1D177F2CE634AD001B6147 /* Models.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D177E2CE634AD001B6147 /* Models.swift */; };
+		2B1D17812CE634CC001B6147 /* Color.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D17802CE634CC001B6147 /* Color.swift */; };
+		2B1D17842CE74333001B6147 /* AudioOutputIcon.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D17832CE74333001B6147 /* AudioOutputIcon.swift */; };
+		2B1D17862CE754B8001B6147 /* MuteButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B1D17852CE754B8001B6147 /* MuteButton.swift */; };
 		2B35E86D2CE363B5000FC2D5 /* GStreamerController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B35E86C2CE363B4000FC2D5 /* GStreamerController.swift */; };
 		2B48C3192CE250BD00AB08D9 /* SpotifyAPI in Frameworks */ = {isa = PBXBuildFile; productRef = 2B48C3182CE250BD00AB08D9 /* SpotifyAPI */; };
 		2B48C31C2CE2510D00AB08D9 /* SpotifyController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */; };
@@ -27,7 +35,7 @@
 		2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A962CDA4985007D56F7 /* CameraView.swift */; };
 		2BF07A992CDA4986007D56F7 /* CameraController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A972CDA4986007D56F7 /* CameraController.swift */; };
 		2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */; };
-		2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */; };
+		2BF07A9E2CDA6B46007D56F7 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* MainView.swift */; };
 		2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */; };
 /* End PBXBuildFile section */
 
@@ -50,6 +58,14 @@
 		2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerViewModel.swift; sourceTree = "<group>"; };
 		2B0AE6702CE0B2F20073A036 /* AudioState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioState.swift; sourceTree = "<group>"; };
 		2B0AE6732CE0B9380073A036 /* MusicController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicController.swift; sourceTree = "<group>"; };
+		2B1D17752CE63347001B6147 /* SleepTimerButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepTimerButton.swift; sourceTree = "<group>"; };
+		2B1D17772CE63378001B6147 /* MusicControlsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MusicControlsView.swift; sourceTree = "<group>"; };
+		2B1D177A2CE633C8001B6147 /* RemoteImage.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RemoteImage.swift; sourceTree = "<group>"; };
+		2B1D177C2CE6341A001B6147 /* PlaylistView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistView.swift; sourceTree = "<group>"; };
+		2B1D177E2CE634AD001B6147 /* Models.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Models.swift; sourceTree = "<group>"; };
+		2B1D17802CE634CC001B6147 /* Color.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = Color.swift; sourceTree = "<group>"; };
+		2B1D17832CE74333001B6147 /* AudioOutputIcon.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioOutputIcon.swift; sourceTree = "<group>"; };
+		2B1D17852CE754B8001B6147 /* MuteButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuteButton.swift; sourceTree = "<group>"; };
 		2B35E86C2CE363B4000FC2D5 /* GStreamerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GStreamerController.swift; sourceTree = "<group>"; };
 		2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyController.swift; sourceTree = "<group>"; };
 		2B49A9032CDA2A3100734789 /* SleepStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
@@ -68,7 +84,7 @@
 		2BF07A972CDA4986007D56F7 /* CameraController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraController.swift; sourceTree = "<group>"; };
 		2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GStreamerAudioBackend.h; sourceTree = "<group>"; };
 		2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GStreamerAudioBackend.m; sourceTree = "<group>"; };
-		2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioPlayerView.swift; sourceTree = "<group>"; };
+		2BF07A9D2CDA6B46007D56F7 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
 		2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioOutputController.swift; sourceTree = "<group>"; };
 		2BF07AA12CDA6FD1007D56F7 /* Info.plist */ = {isa = PBXFileReference; lastKnownFileType = text.plist; path = Info.plist; sourceTree = "<group>"; };
 /* End PBXFileReference section */
@@ -104,7 +120,55 @@
 			path = GStreamer;
 			sourceTree = "<group>";
 		};
-		2B35E86B2CE362F5000FC2D5 /* Controller */ = {
+		2B1D17722CE632F1001B6147 /* UI */ = {
+			isa = PBXGroup;
+			children = (
+				2B1D17792CE63393001B6147 /* Common */,
+				2B1D17732CE63305001B6147 /* Main */,
+			);
+			path = UI;
+			sourceTree = "<group>";
+		};
+		2B1D17732CE63305001B6147 /* Main */ = {
+			isa = PBXGroup;
+			children = (
+				2B1D17822CE63504001B6147 /* Features */,
+				2B1D17742CE63337001B6147 /* Components */,
+				2BF07A9D2CDA6B46007D56F7 /* MainView.swift */,
+				2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */,
+			);
+			path = Main;
+			sourceTree = "<group>";
+		};
+		2B1D17742CE63337001B6147 /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				2B1D17752CE63347001B6147 /* SleepTimerButton.swift */,
+				2B1D17832CE74333001B6147 /* AudioOutputIcon.swift */,
+				2B1D17852CE754B8001B6147 /* MuteButton.swift */,
+			);
+			path = Components;
+			sourceTree = "<group>";
+		};
+		2B1D17792CE63393001B6147 /* Common */ = {
+			isa = PBXGroup;
+			children = (
+				2B1D177A2CE633C8001B6147 /* RemoteImage.swift */,
+				2B1D17802CE634CC001B6147 /* Color.swift */,
+			);
+			path = Common;
+			sourceTree = "<group>";
+		};
+		2B1D17822CE63504001B6147 /* Features */ = {
+			isa = PBXGroup;
+			children = (
+				2B1D17772CE63378001B6147 /* MusicControlsView.swift */,
+				2B1D177C2CE6341A001B6147 /* PlaylistView.swift */,
+			);
+			path = Features;
+			sourceTree = "<group>";
+		};
+		2B35E86B2CE362F5000FC2D5 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
 				2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */,
@@ -112,7 +176,7 @@
 				2B0AE6732CE0B9380073A036 /* MusicController.swift */,
 				2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */,
 			);
-			path = Controller;
+			path = Controllers;
 			sourceTree = "<group>";
 		};
 		2B49A8FA2CDA2A3100734789 = {
@@ -135,17 +199,17 @@
 		2B49A9052CDA2A3100734789 /* SleepStream */ = {
 			isa = PBXGroup;
 			children = (
-				2B35E86B2CE362F5000FC2D5 /* Controller */,
+				2B35E86B2CE362F5000FC2D5 /* Controllers */,
 				2B0AE66F2CE0B24B0073A036 /* GStreamer */,
+				2B1D17722CE632F1001B6147 /* UI */,
 				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
-				2BF07A9D2CDA6B46007D56F7 /* AudioPlayerView.swift */,
-				2B0AE66D2CDFBDBB0073A036 /* AudioPlayerViewModel.swift */,
 				2BF07A972CDA4986007D56F7 /* CameraController.swift */,
 				2BF07A962CDA4985007D56F7 /* CameraView.swift */,
 				2B49A9082CDA2A3100734789 /* ContentView.swift */,
 				2B0AE66A2CDFBD420073A036 /* NetworkService.swift */,
 				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
 				2B49A90A2CDA2A3300734789 /* Assets.xcassets */,
+				2B1D177E2CE634AD001B6147 /* Models.swift */,
 			);
 			path = SleepStream;
 			sourceTree = "<group>";
@@ -239,21 +303,29 @@
 			buildActionMask = 2147483647;
 			files = (
 				2B0AE66B2CDFBD420073A036 /* NetworkService.swift in Sources */,
+				2B1D17762CE63347001B6147 /* SleepTimerButton.swift in Sources */,
+				2B1D17782CE63378001B6147 /* MusicControlsView.swift in Sources */,
 				2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */,
 				2B35E86D2CE363B5000FC2D5 /* GStreamerController.swift in Sources */,
+				2B1D177B2CE633C8001B6147 /* RemoteImage.swift in Sources */,
+				2B1D177F2CE634AD001B6147 /* Models.swift in Sources */,
 				2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */,
 				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
 				2B0AE66E2CDFBDBB0073A036 /* AudioPlayerViewModel.swift in Sources */,
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
 				2B48C31C2CE2510D00AB08D9 /* SpotifyController.swift in Sources */,
 				2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */,
+				2B1D17812CE634CC001B6147 /* Color.swift in Sources */,
 				2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */,
 				2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */,
-				2BF07A9E2CDA6B46007D56F7 /* AudioPlayerView.swift in Sources */,
+				2B1D177D2CE6341A001B6147 /* PlaylistView.swift in Sources */,
+				2BF07A9E2CDA6B46007D56F7 /* MainView.swift in Sources */,
+				2B1D17862CE754B8001B6147 /* MuteButton.swift in Sources */,
 				2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
 				2BF07A992CDA4986007D56F7 /* CameraController.swift in Sources */,
 				2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */,
+				2B1D17842CE74333001B6147 /* AudioOutputIcon.swift in Sources */,
 			);
 			runOnlyForDeploymentPostprocessing = 0;
 		};

@@ -16,21 +16,18 @@ struct SleepTimerView: View {
             Button("25 min") { startSleepTimer(25 * 60) }
             Button("30 min") { startSleepTimer(30 * 60) }
         } label: {
-            if let timer = controller.status.sleep_timer {
-                VStack(spacing: 0) {
-                    Image(systemName: "timer")
-                        .foregroundColor(.indigo)
-                        .font(.system(size: 32))
+            VStack(spacing: 0) {
+                Image(systemName: "timer")
+                    .foregroundColor(controller.status.sleep_timer == nil ? Color.sleepTimerInactiveButton : Color.sleepTimerActiveButton)
+                    .font(.system(size: 32))
+                    .animation(Animation.easeInOut(duration: 0.4), value: controller.status.sleep_timer)
+                if let timer = controller.status.sleep_timer {
                     Text("\(Int(floor(Double(timer) / 60.0) + 1)) min")
-                        .foregroundStyle(.white)
+                        .foregroundStyle(Color.sleepTimerLabel)
                         .font(.system(size: 10))
                         .fontWeight(.thin)
                 }
-            }
-            else {
-                Image(systemName: "timer")
-                    .foregroundColor(.white.opacity(0.3))
-                    .font(.system(size: 32))
+                Spacer()
             }
         }
     }

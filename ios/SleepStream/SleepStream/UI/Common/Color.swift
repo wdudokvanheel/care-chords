@@ -1,6 +1,25 @@
 import SwiftUI
 
 extension Color {
+    static let appBackground = LinearGradient(
+        gradient: Gradient(colors: [Color.darkerBlue, Color.veryDarkBlue]),
+        startPoint: .top,
+        endPoint: .bottom
+    )
+    
+    static let playButtonActive = Color.orange
+    static let playButtonActiveLabel = Color.white
+    static let playButtonInactive = Color.white
+    static let playButtonInactiveLabel = Color.black
+    static let prevNextButton = Color.white
+    
+    static let sleepTimerInactiveButton = Color.white.opacity(0.3)
+    static let sleepTimerActiveButton = Color.orange
+    static let sleepTimerLabel = Color.white.opacity(0.8)
+    
+    static let muteButtonActive = Color.orange
+    static let muteButtonInactive = Color.white.opacity(0.3)
+
     static let veryDarkBlue = Color(red: 0.02, green: 0.08, blue: 0.15) // Very dark blue
     static let darkerBlue = Color(red: 0.03, green: 0.1, blue: 0.2) // Darker blue
     static let darkForestGreen = Color(red: 0.0, green: 0.27, blue: 0.13)
