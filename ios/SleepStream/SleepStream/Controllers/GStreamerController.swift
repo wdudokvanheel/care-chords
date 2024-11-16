@@ -15,7 +15,7 @@ class GStreamerController: GStreamerBackendDelegate, ObservableObject {
 
         let queue = DispatchQueue(label: "gstreamer_audio_queue")
         queue.async {
-//            self.gstBackend?.run_app_pipeline_threaded()
+            self.gstBackend?.run_app_pipeline_threaded()
         }
     }
 

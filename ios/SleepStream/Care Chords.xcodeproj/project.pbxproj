@@ -27,7 +27,6 @@
 		2B49A9092CDA2A3100734789 /* ContentView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A9082CDA2A3100734789 /* ContentView.swift */; };
 		2B49A90B2CDA2A3300734789 /* Assets.xcassets in Resources */ = {isa = PBXBuildFile; fileRef = 2B49A90A2CDA2A3300734789 /* Assets.xcassets */; };
 		2B49A9162CDA2A8500734789 /* GStreamer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A9152CDA2A8500734789 /* GStreamer.framework */; };
-		2B49A9172CDA2A8500734789 /* GStreamer.framework in Embed Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A9152CDA2A8500734789 /* GStreamer.framework */; settings = {ATTRIBUTES = (CodeSignOnCopy, RemoveHeadersOnCopy, ); }; };
 		2B49A91D2CDA2AF200734789 /* libiconv.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */; };
 		2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A91F2CDA2B1300734789 /* gst_ios_init.m */; };
 		2BDAEF712CE7616C0075CC11 /* ClearBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF702CE7616C0075CC11 /* ClearBackground.swift */; };
@@ -41,20 +40,6 @@
 		2BF07A9E2CDA6B46007D56F7 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* MainView.swift */; };
 		2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */; };
 /* End PBXBuildFile section */
-
-/* Begin PBXCopyFilesBuildPhase section */
-		2B49A9182CDA2A8500734789 /* Embed Frameworks */ = {
-			isa = PBXCopyFilesBuildPhase;
-			buildActionMask = 2147483647;
-			dstPath = "";
-			dstSubfolderSpec = 10;
-			files = (
-				2B49A9172CDA2A8500734789 /* GStreamer.framework in Embed Frameworks */,
-			);
-			name = "Embed Frameworks";
-			runOnlyForDeploymentPostprocessing = 0;
-		};
-/* End PBXCopyFilesBuildPhase section */
 
 /* Begin PBXFileReference section */
 		2B0AE66A2CDFBD420073A036 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
@@ -71,7 +56,7 @@
 		2B1D17852CE754B8001B6147 /* MuteButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MuteButton.swift; sourceTree = "<group>"; };
 		2B35E86C2CE363B4000FC2D5 /* GStreamerController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = GStreamerController.swift; sourceTree = "<group>"; };
 		2B48C31B2CE2510D00AB08D9 /* SpotifyController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SpotifyController.swift; sourceTree = "<group>"; };
-		2B49A9032CDA2A3100734789 /* SleepStream.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = SleepStream.app; sourceTree = BUILT_PRODUCTS_DIR; };
+		2B49A9032CDA2A3100734789 /* Care Chords.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Care Chords.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStreamApp.swift; sourceTree = "<group>"; };
 		2B49A9082CDA2A3100734789 /* ContentView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ContentView.swift; sourceTree = "<group>"; };
 		2B49A90A2CDA2A3300734789 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
@@ -200,7 +185,7 @@
 		2B49A9042CDA2A3100734789 /* Products */ = {
 			isa = PBXGroup;
 			children = (
-				2B49A9032CDA2A3100734789 /* SleepStream.app */,
+				2B49A9032CDA2A3100734789 /* Care Chords.app */,
 			);
 			name = Products;
 			sourceTree = "<group>";
@@ -235,26 +220,25 @@
 /* End PBXGroup section */
 
 /* Begin PBXNativeTarget section */
-		2B49A9022CDA2A3100734789 /* SleepStream */ = {
+		2B49A9022CDA2A3100734789 /* Care Chords */ = {
 			isa = PBXNativeTarget;
-			buildConfigurationList = 2B49A9112CDA2A3300734789 /* Build configuration list for PBXNativeTarget "SleepStream" */;
+			buildConfigurationList = 2B49A9112CDA2A3300734789 /* Build configuration list for PBXNativeTarget "Care Chords" */;
 			buildPhases = (
 				2B49A8FF2CDA2A3100734789 /* Sources */,
 				2B49A9002CDA2A3100734789 /* Frameworks */,
 				2B49A9012CDA2A3100734789 /* Resources */,
-				2B49A9182CDA2A8500734789 /* Embed Frameworks */,
 			);
 			buildRules = (
 			);
 			dependencies = (
 			);
-			name = SleepStream;
+			name = "Care Chords";
 			packageProductDependencies = (
 				2B48C3182CE250BD00AB08D9 /* SpotifyAPI */,
 				2B48C31E2CE2516700AB08D9 /* KeychainAccess */,
 			);
 			productName = SleepStream;
-			productReference = 2B49A9032CDA2A3100734789 /* SleepStream.app */;
+			productReference = 2B49A9032CDA2A3100734789 /* Care Chords.app */;
 			productType = "com.apple.product-type.application";
 		};
 /* End PBXNativeTarget section */
@@ -273,7 +257,7 @@
 					};
 				};
 			};
-			buildConfigurationList = 2B49A8FE2CDA2A3100734789 /* Build configuration list for PBXProject "SleepStream" */;
+			buildConfigurationList = 2B49A8FE2CDA2A3100734789 /* Build configuration list for PBXProject "Care Chords" */;
 			compatibilityVersion = "Xcode 14.0";
 			developmentRegion = en;
 			hasScannedForEncodings = 0;
@@ -290,7 +274,7 @@
 			projectDirPath = "";
 			projectRoot = "";
 			targets = (
-				2B49A9022CDA2A3100734789 /* SleepStream */,
+				2B49A9022CDA2A3100734789 /* Care Chords */,
 			);
 		};
 /* End PBXProject section */
@@ -482,6 +466,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers;
 				INFOPLIST_FILE = SleepStream/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Care Chords";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -547,6 +532,7 @@
 				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = L23NTUN6KV;
+				ENABLE_ONLY_ACTIVE_RESOURCES = YES;
 				ENABLE_PREVIEWS = YES;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
@@ -556,6 +542,7 @@
 				GENERATE_INFOPLIST_FILE = YES;
 				HEADER_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers;
 				INFOPLIST_FILE = SleepStream/Info.plist;
+				INFOPLIST_KEY_CFBundleDisplayName = "Care Chords";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
 				INFOPLIST_KEY_UIApplicationSupportsIndirectInputEvents = YES;
 				INFOPLIST_KEY_UILaunchScreen_Generation = YES;
@@ -567,7 +554,40 @@
 				);
 				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
 				MARKETING_VERSION = 1.0;
-				OTHER_LDFLAGS = x;
+				OTHER_LDFLAGS = (
+					"-lresolv",
+					"-lc++",
+					"-framework",
+					CoreFoundation,
+					"-framework",
+					Foundation,
+					"-framework",
+					AVFoundation,
+					"-framework",
+					CoreMedia,
+					"-framework",
+					CoreVideo,
+					"-framework",
+					CoreAudio,
+					"-framework",
+					AudioToolbox,
+					"-framework",
+					OpenGLES,
+					"-framework",
+					AssetsLibrary,
+					"-framework",
+					QuartzCore,
+					"-framework",
+					AssetsLibrary,
+					"-weak_framework",
+					VideoToolBox,
+					"-framework",
+					CoreText,
+					"-framework",
+					Metal,
+					"-framework",
+					IOSurface,
+				);
 				PRODUCT_BUNDLE_IDENTIFIER = com.bitechular.CareChords;
 				PRODUCT_NAME = "$(TARGET_NAME)";
 				SWIFT_EMIT_LOC_STRINGS = YES;
@@ -580,7 +600,7 @@
 /* End XCBuildConfiguration section */
 
 /* Begin XCConfigurationList section */
-		2B49A8FE2CDA2A3100734789 /* Build configuration list for PBXProject "SleepStream" */ = {
+		2B49A8FE2CDA2A3100734789 /* Build configuration list for PBXProject "Care Chords" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2B49A90F2CDA2A3300734789 /* Debug */,
@@ -589,7 +609,7 @@
 			defaultConfigurationIsVisible = 0;
 			defaultConfigurationName = Release;
 		};
-		2B49A9112CDA2A3300734789 /* Build configuration list for PBXNativeTarget "SleepStream" */ = {
+		2B49A9112CDA2A3300734789 /* Build configuration list for PBXNativeTarget "Care Chords" */ = {
 			isa = XCConfigurationList;
 			buildConfigurations = (
 				2B49A9122CDA2A3300734789 /* Debug */,

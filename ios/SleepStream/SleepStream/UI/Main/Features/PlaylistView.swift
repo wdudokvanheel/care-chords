@@ -16,7 +16,7 @@ struct PlaylistSelectorView: View {
             VStack {
                 VStack {
                     ScrollView {
-                        LazyVGrid(columns: [GridItem(.adaptive(minimum: playlistSize, maximum: playlistSize))], spacing: 8.0) {
+                        LazyVGrid(columns: [GridItem(.adaptive(minimum: playlistSize, maximum: 200))], spacing: 8.0) {
                             ForEach(spotify.playlists) { playlist in
                                 Button(action: {
                                     self.playlistSelect(playlist)
@@ -27,7 +27,7 @@ struct PlaylistSelectorView: View {
                                                 .clipShape(RoundedRectangle(cornerRadius: 4))
                                         }
                                         Text(playlist.name)
-                                            .foregroundColor(.white)
+                                            .foregroundColor(.white.opacity(0.8))
                                             .font(.caption)
                                             .fontWeight(.light)
                                             .lineLimit(1)

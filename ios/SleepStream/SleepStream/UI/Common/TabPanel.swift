@@ -55,7 +55,7 @@ struct TabPanel: View {
                 }
             }
             .padding()
-            .background(Color.darkerBlue)
+            .background(Color.darkerBlue.opacity(0.8))
         }
         .background(Color.black.opacity(0.5)
             .edgesIgnoringSafeArea(.top)

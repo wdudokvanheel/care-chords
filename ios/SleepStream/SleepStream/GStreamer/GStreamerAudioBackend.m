@@ -10,7 +10,7 @@
 GST_DEBUG_CATEGORY_STATIC (debug_category);
 #define GST_CAT_DEFAULT debug_category
 
-#import "SleepStream-Swift.h"
+#import "Care_Chords-Swift.h"
 
 @interface GStreamerAudioBackend()
 -(void)setUIMessage:(gchar*) message;
