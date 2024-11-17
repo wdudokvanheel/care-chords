@@ -15,7 +15,7 @@ struct MusicMetadata: Decodable {
 }
 
 class MusicController: ObservableObject {
-    @Published var updateStatus = true
+    @Published var updateStatus = false
     @Published var status: MusicStatus = .init(playing: false, metadata: nil, sleep_timer: nil)
 
     private var cancellables = Set<AnyCancellable>()

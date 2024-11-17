@@ -3,7 +3,7 @@ import SwiftUI
 
 @main
 struct SleepStreamApp: App {
-    var audioViewModel: AudioPlayerViewModel
+    var audioViewModel: ViewModel
     @State private var cancellables: Set<AnyCancellable> = []
 
     init() {

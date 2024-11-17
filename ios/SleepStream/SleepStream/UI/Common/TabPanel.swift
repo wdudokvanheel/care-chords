@@ -33,8 +33,17 @@ struct TabPanel: View {
     var body: some View {
         VStack(spacing: 0) {
 
-            tabs[selectedTab].view
-                .edgesIgnoringSafeArea(.init())
+            ZStack{
+                tabs[selectedTab].view
+                    .edgesIgnoringSafeArea(.init())
+                VStack{
+                    Spacer()
+                    Rectangle()
+                        .foregroundStyle(LinearGradient(colors: [Color.black.opacity(0), Color.black.opacity(0.6)], startPoint: .top, endPoint: .bottom))
+                        .frame(maxWidth: .infinity, maxHeight: 6)
+                }
+                .allowsHitTesting(false)
+            }
 
             Spacer(minLength: 0)
 
@@ -60,18 +69,15 @@ struct TabPanel: View {
         .background(Color.black.opacity(0.5)
             .edgesIgnoringSafeArea(.top)
         )
-//        .background(
-//            VisualEffect(effect: UIBlurEffect(style: .systemUltraThinMaterialDark))
-//                .ignoresSafeArea()
-//        )
-//        .clipShape(RoundedRectangle(cornerRadius: 8, style: .continuous))
-//        .overlay(
-//            RoundedRectangle(cornerRadius: 8, style: .continuous)
-//                .stroke(Color.darkerBlue, lineWidth: 2)
-//        )
         .shadow(radius: 8)
         .frame(maxWidth: .infinity)
     }
+    
+//    func selectTab(id: Int){
+//        DispatchQueue.main.async {
+//            self.selectedTab = id
+//        }
+//    }
 }
 
 struct VisualEffect: UIViewRepresentable {

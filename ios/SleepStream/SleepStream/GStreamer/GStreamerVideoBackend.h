@@ -14,6 +14,11 @@
 -(void) pause;
 
 -(void) run_app_pipeline_threaded;
+
+-(void)stopAndCleanup;
+
+-(void)setWindow:(UIView *)video_view;
+
 @end
 
 #endif

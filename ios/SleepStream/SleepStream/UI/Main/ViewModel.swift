@@ -1,10 +1,11 @@
 import AVKit
 import Combine
 
-class AudioPlayerViewModel: ObservableObject {
+class ViewModel: ObservableObject {
     @Published var music: MusicController = .init()
-    @Published var controller: AudioOutputController = .init()
+    @Published var audioOutput: AudioOutputController = .init()
     @Published var gstreamer: GStreamerController = .init()
+    @Published var video: CameraController = .init()
 
     let spotify: SpotifyController
 
@@ -13,13 +14,17 @@ class AudioPlayerViewModel: ObservableObject {
     init(spotify: SpotifyController) {
         self.spotify = spotify
 
-        controller.$currentOutput
+        audioOutput.$currentOutput
             .sink(receiveValue: onOutputChange)
             .store(in: &cancellables)
     }
 
+    func newVideo(){
+//        self.video = .init()
+//        self.video.initBackend()
+    }
+    
     func onOutputChange(port: AVAudioSession.Port) {
-        print("Output changed to \(port) XX")
         switch port {
         case .builtInSpeaker:
             gstreamer.pause()
@@ -63,10 +68,10 @@ class AudioPlayerViewModel: ObservableObject {
     }
 
     func onAppear() {
-        controller.startMonitoringAudioRoute()
+        audioOutput.startMonitoringAudioRoute()
     }
 
     func onDisappear() {
-        controller.stopMonitoringAudioRoute()
+        audioOutput.stopMonitoringAudioRoute()
     }
 }

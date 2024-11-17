@@ -11,29 +11,29 @@ import UIKit
     }
     
     var gstBackend: GStreamerVideoBackend?
-    var camUIView: UIView
+    @Published
+    var camUIView: UIView = UIView()
     
     @Published
     var gStreamerInitializationStatus: Bool = false
     @Published
     var messageFromGstBackend: String?
     
-    init(camUIView: UIView) {
-        self.camUIView = camUIView
-    }
-    
     func initBackend() {
         self.gstBackend = GStreamerVideoBackend(self, videoView: self.camUIView)
         let queue = DispatchQueue(label: "run_app_q")
         queue.async {
-            self.gstBackend?.run_app_pipeline_threaded()
+//            print("STARTING VIDEO BACKEND XXX")
+//            self.gstBackend?.run_app_pipeline_threaded()
         }
     }
     
     func play() {
         if self.gstBackend == nil {
+            print("XX NIL BACKEND")
             self.initBackend()
         }
+        print("XX GO PLAY CONTROLLER")
         self.gstBackend!.play()
     }
     
