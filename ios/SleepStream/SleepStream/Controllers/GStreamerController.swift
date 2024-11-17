@@ -3,7 +3,7 @@ import Foundation
 import os
 import SwiftUI
 
-class GStreamerController: GStreamerBackendDelegate, ObservableObject {
+class GStreamerController: GStreamerAudioBackendDelegate, ObservableObject {
     @Published var state: AudioState = .initializing
     @Published var backendMessage: String = ""
     @Published var backendError: Bool = false
@@ -15,8 +15,7 @@ class GStreamerController: GStreamerBackendDelegate, ObservableObject {
 
         let queue = DispatchQueue(label: "gstreamer_audio_queue")
         queue.async {
-            // TODO: ENABLE
-//            self.gstBackend?.run_app_pipeline_threaded()
+            self.gstBackend?.run_app_pipeline_threaded()
         }
     }
 

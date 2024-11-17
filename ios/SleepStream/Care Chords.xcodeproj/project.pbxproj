@@ -31,14 +31,14 @@
 		2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A91F2CDA2B1300734789 /* gst_ios_init.m */; };
 		2BB24D002CE8CAD800786E1C /* RoundedCornerRectangle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24CFF2CE8CAD800786E1C /* RoundedCornerRectangle.swift */; };
 		2BB24D022CE8CB1000786E1C /* Path.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24D012CE8CB1000786E1C /* Path.swift */; };
-		2BB24D042CE8D26300786E1C /* VideoFeedView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24D032CE8D26300786E1C /* VideoFeedView.swift */; };
+		2BB24D042CE8D26300786E1C /* LiveStreamView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24D032CE8D26300786E1C /* LiveStreamView.swift */; };
 		2BDAEF712CE7616C0075CC11 /* ClearBackground.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF702CE7616C0075CC11 /* ClearBackground.swift */; };
 		2BDAEF732CE76D750075CC11 /* TabPanel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF722CE76D750075CC11 /* TabPanel.swift */; };
 		2BDAEF752CE76EF60075CC11 /* NowPlayingView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BDAEF742CE76EF60075CC11 /* NowPlayingView.swift */; };
 		2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */; };
 		2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */; };
-		2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A962CDA4985007D56F7 /* CameraView.swift */; };
-		2BF07A992CDA4986007D56F7 /* CameraController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A972CDA4986007D56F7 /* CameraController.swift */; };
+		2BF07A982CDA4986007D56F7 /* UIViewWrapper.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A962CDA4985007D56F7 /* UIViewWrapper.swift */; };
+		2BF07A992CDA4986007D56F7 /* LiveStreamController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A972CDA4986007D56F7 /* LiveStreamController.swift */; };
 		2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */; };
 		2BF07A9E2CDA6B46007D56F7 /* MainView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9D2CDA6B46007D56F7 /* MainView.swift */; };
 		2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */; };
@@ -70,15 +70,15 @@
 		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gst_ios_init.h; sourceTree = "<group>"; };
 		2BB24CFF2CE8CAD800786E1C /* RoundedCornerRectangle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundedCornerRectangle.swift; sourceTree = "<group>"; };
 		2BB24D012CE8CB1000786E1C /* Path.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Path.swift; sourceTree = "<group>"; };
-		2BB24D032CE8D26300786E1C /* VideoFeedView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoFeedView.swift; sourceTree = "<group>"; };
+		2BB24D032CE8D26300786E1C /* LiveStreamView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = LiveStreamView.swift; sourceTree = "<group>"; };
 		2BDAEF702CE7616C0075CC11 /* ClearBackground.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = ClearBackground.swift; sourceTree = "<group>"; };
 		2BDAEF722CE76D750075CC11 /* TabPanel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = TabPanel.swift; sourceTree = "<group>"; };
 		2BDAEF742CE76EF60075CC11 /* NowPlayingView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NowPlayingView.swift; sourceTree = "<group>"; };
 		2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = GStreamerVideoBackend.m; sourceTree = "<group>"; };
 		2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = GStreamerVideoBackend.h; sourceTree = "<group>"; };
 		2BF07A932CDA497F007D56F7 /* GStreamerBackendDelegate.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = GStreamerBackendDelegate.swift; sourceTree = "<group>"; };
-		2BF07A962CDA4985007D56F7 /* CameraView.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraView.swift; sourceTree = "<group>"; };
-		2BF07A972CDA4986007D56F7 /* CameraController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = CameraController.swift; sourceTree = "<group>"; };
+		2BF07A962CDA4985007D56F7 /* UIViewWrapper.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = UIViewWrapper.swift; sourceTree = "<group>"; };
+		2BF07A972CDA4986007D56F7 /* LiveStreamController.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = LiveStreamController.swift; sourceTree = "<group>"; };
 		2BF07A9A2CDA6A88007D56F7 /* GStreamerAudioBackend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GStreamerAudioBackend.h; sourceTree = "<group>"; };
 		2BF07A9B2CDA6AA0007D56F7 /* GStreamerAudioBackend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GStreamerAudioBackend.m; sourceTree = "<group>"; };
 		2BF07A9D2CDA6B46007D56F7 /* MainView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = MainView.swift; sourceTree = "<group>"; };
@@ -163,10 +163,10 @@
 		2B1D17822CE63504001B6147 /* Features */ = {
 			isa = PBXGroup;
 			children = (
+				2BB24D032CE8D26300786E1C /* LiveStreamView.swift */,
 				2B1D17772CE63378001B6147 /* MusicControlsView.swift */,
-				2B1D177C2CE6341A001B6147 /* PlaylistView.swift */,
 				2BDAEF742CE76EF60075CC11 /* NowPlayingView.swift */,
-				2BB24D032CE8D26300786E1C /* VideoFeedView.swift */,
+				2B1D177C2CE6341A001B6147 /* PlaylistView.swift */,
 			);
 			path = Features;
 			sourceTree = "<group>";
@@ -206,8 +206,8 @@
 				2B0AE66F2CE0B24B0073A036 /* GStreamer */,
 				2B1D17722CE632F1001B6147 /* UI */,
 				2BF07AA12CDA6FD1007D56F7 /* Info.plist */,
-				2BF07A972CDA4986007D56F7 /* CameraController.swift */,
-				2BF07A962CDA4985007D56F7 /* CameraView.swift */,
+				2BF07A972CDA4986007D56F7 /* LiveStreamController.swift */,
+				2BF07A962CDA4985007D56F7 /* UIViewWrapper.swift */,
 				2B49A9082CDA2A3100734789 /* ContentView.swift */,
 				2B0AE66A2CDFBD420073A036 /* NetworkService.swift */,
 				2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */,
@@ -314,7 +314,7 @@
 				2B1D177B2CE633C8001B6147 /* RemoteImage.swift in Sources */,
 				2B1D177F2CE634AD001B6147 /* Models.swift in Sources */,
 				2BF07A952CDA497F007D56F7 /* GStreamerBackendDelegate.swift in Sources */,
-				2BB24D042CE8D26300786E1C /* VideoFeedView.swift in Sources */,
+				2BB24D042CE8D26300786E1C /* LiveStreamView.swift in Sources */,
 				2BF07A942CDA497F007D56F7 /* GStreamerVideoBackend.m in Sources */,
 				2BDAEF752CE76EF60075CC11 /* NowPlayingView.swift in Sources */,
 				2B0AE66E2CDFBDBB0073A036 /* ViewModel.swift in Sources */,
@@ -328,10 +328,10 @@
 				2B1D177D2CE6341A001B6147 /* PlaylistView.swift in Sources */,
 				2BF07A9E2CDA6B46007D56F7 /* MainView.swift in Sources */,
 				2B1D17862CE754B8001B6147 /* MuteButton.swift in Sources */,
-				2BF07A982CDA4986007D56F7 /* CameraView.swift in Sources */,
+				2BF07A982CDA4986007D56F7 /* UIViewWrapper.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
 				2BDAEF732CE76D750075CC11 /* TabPanel.swift in Sources */,
-				2BF07A992CDA4986007D56F7 /* CameraController.swift in Sources */,
+				2BF07A992CDA4986007D56F7 /* LiveStreamController.swift in Sources */,
 				2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */,
 				2B1D17842CE74333001B6147 /* AudioOutputIcon.swift in Sources */,
 			);

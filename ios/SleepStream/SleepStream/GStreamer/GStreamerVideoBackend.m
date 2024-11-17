@@ -22,7 +22,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 @end
 
 @implementation GStreamerVideoBackend {
-    id<GStreamerBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
+    id<GStreamerVideoBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
     GstElement *pipeline;      /* The running pipeline */
     GstElement *video_sink;    /* The video sink element which receives XOverlay commands */
     GMainContext *context;     /* GLib context used to run the main loop */
@@ -52,7 +52,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 {
     if (self = [super init])
     {
-        self->ui_delegate = (id<GStreamerBackendDelegate>)uiDelegate;
+        self->ui_delegate = (id<GStreamerVideoBackendDelegate>)uiDelegate;
         self->ui_video_view = video_view;
 
         GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
@@ -78,51 +78,16 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void) play
 {
-    printf("PLAY PLAY ONH XXXX\n");
     if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        printf("play ONH FAILLL EPIC XXXX\n");
-        [self setUIMessage:"Failed to set pipeline to playing XXXX"];
+        [self setUIMessage:"Failed to set pipeline to playing"];
         return;
     }
-    printf("POST PLAY XXX");
-    //        // Flush the pipeline to discard any buffered data
-//             gst_element_send_event(pipeline, gst_event_new_flush_start());
-//             gst_element_send_event(pipeline, gst_event_new_flush_stop(FALSE));
-
-            printf("POIST FLUSH XXX");
-
-    // Start the pipeline
-//    gst_element_set_state(pipeline, GST_STATE_PLAYING);
-    // Perform a seek to the live position
-//    gst_element_seek(pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
-
-//    gboolean result = gst_element_seek(pipeline,
-//                                       1.0,                  // playback rate
-//                                       GST_FORMAT_TIME,      // format: time
-//                                       GST_SEEK_FLAG_FLUSH | GST_SEEK_FLAG_ACCURATE, // flush current buffers
-//                                       GST_SEEK_TYPE_END,    // seek to the live position
-//                                       0,                    // start position (not used)
-//                                       GST_SEEK_TYPE_NONE,   // end position (not used)
-//                                       GST_CLOCK_TIME_NONE); // position to seek (end of the stream)
-//
-//    if (!result) {
-//        printf("Failed to seek to the live position XXXX\n");
-//        [self setUIMessage:"Failed to seek to the live position XXXX"];
-//    } else {
-//        printf("Seek to live position succeeded XXXX\n");
-//    }
 }
 
 -(void) pause
 {
     if(gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
         [self setUIMessage:"Failed to set pipeline to paused"];
-        printf("PAUSING ONH FAILLL EPIC XXXX\n");
-    }
-    else{
-        // WOrks with audio
-//        gst_element_seek(pipeline, 1.0, GST_FORMAT_TIME, GST_SEEK_FLAG_FLUSH, GST_SEEK_TYPE_SET, 0, GST_SEEK_TYPE_NONE, GST_CLOCK_TIME_NONE);
-        printf("ready XXX");
     }
 }
 
@@ -177,9 +142,9 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerVideoBacken
     GstState old_state, new_state, pending_state;
     gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
 
-//    if (new_state == GST_STATE_READY){
-//        [self play];
-//    }
+    if (new_state == GST_STATE_READY){
+        [self play];
+    }
     
     /* Only pay attention to messages coming from the pipeline, not its children */
     if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
@@ -230,11 +195,8 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     // In on_pad_added, print the caps for debugging
     GstCaps *caps2 = gst_pad_get_current_caps(new_pad);
     gchar *caps_str = gst_caps_to_string(caps2);
-    NSLog(@"New pad caps: %s XX", caps_str);
     g_free(caps_str);
     gst_caps_unref(caps2);
-
-    printf("Received new pad '%s' from '%s':\n", new_pad_type, GST_ELEMENT_NAME(src));
 
     if (g_str_has_prefix(new_pad_type, "application/x-rtp")) {
         /* Check if it's video */
@@ -294,10 +256,6 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     int screenWidth = screenRect.size.width * screenScale;
     int screenHeight = screenRect.size.height * screenScale;
     
-    printf("XXX screenWidth %d \n", screenWidth);
-    printf("XXX screenHeig %d \n", screenHeight);
-    printf("XXX screenScale %f \n", screenScale);
-    
     g_object_set(self->rtspsrc,
                  "location", "rtsp://10.0.0.12:8554/camera.rlc_520a_clear",
                  "protocols", GST_RTSP_LOWER_TRANS_TCP,
@@ -313,7 +271,6 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     
 
     //g_object_set(self->queue, "max-size-time", (guint64)500000000, NULL);
-//    g_object_set(self->queue, "leaky", 2, NULL); // 0: no leaking, 1: upstream, 2: downstream
     
     self->capsfilter = gst_element_factory_make("capsfilter", "capsfilter");
     g_object_set(self->capsfilter, "caps", caps, NULL);
@@ -325,10 +282,6 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
         g_free(message);
         return;
     }
-
-    /* Set element properties */
-//    g_object_set(self->rtspsrc, "location", "rtsp://10.0.0.12:8554/camera.rlc_520a_clear", NULL);
-//    g_object_set(self->rtspsrc, "protocols", GST_RTSP_LOWER_TRANS_TCP, NULL);
 
     /* Add elements to the pipeline */
     gst_bin_add_many(GST_BIN(pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videoconvert,
@@ -370,21 +323,18 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     gst_object_unref (bus);
 
     /* Create a GLib Main Loop and set it to run */
-    printf("\nEntering main loop..XXX.\n");
     main_loop = g_main_loop_new (context, FALSE);
     [self check_initialization_complete];
     g_main_loop_run (main_loop);
-    GST_DEBUG ("Exited main loop XXX");
     
+    // Clean up all resources
     dispatch_async(dispatch_get_main_queue(), ^{
-        gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(self->video_sink), 0);
         // Remove all subviews
         NSArray *subviews = [self->ui_video_view subviews];
         for (UIView *subview in subviews) {
             [subview removeFromSuperview];
         }
     });
-    
     
     g_main_loop_unref (main_loop);
     main_loop = NULL;
@@ -393,18 +343,13 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
         g_main_context_unref(context);
         context = NULL;
     }
-    else{
-        printf("XX PIPELINE ERROR \n");
-    }
-   
+    
     if (pipeline) {
         gst_element_set_state(pipeline, GST_STATE_NULL);
         gst_object_unref(pipeline);
         pipeline = NULL;
     }
-    else{
-        printf("XX PIPELINE ERROR \n");
-    }
+    
     return;
 }
 

@@ -5,7 +5,7 @@ class ViewModel: ObservableObject {
     @Published var music: MusicController = .init()
     @Published var audioOutput: AudioOutputController = .init()
     @Published var gstreamer: GStreamerController = .init()
-    @Published var video: CameraController = .init()
+    @Published var video: LiveStreamController = .init()
 
     let spotify: SpotifyController
 
@@ -19,11 +19,6 @@ class ViewModel: ObservableObject {
             .store(in: &cancellables)
     }
 
-    func newVideo(){
-//        self.video = .init()
-//        self.video.initBackend()
-    }
-    
     func onOutputChange(port: AVAudioSession.Port) {
         switch port {
         case .builtInSpeaker:
@@ -48,10 +43,10 @@ class ViewModel: ObservableObject {
         }
     }
 
-    func startSleepTimer(seconds: Int){
-        self.music.startSleepTimer(seconds)
+    func startSleepTimer(seconds: Int) {
+        music.startSleepTimer(seconds)
     }
-    
+
     func selectPlaylist(playlist: Playlist) {
         let request = PlaybackRequestDto(uri: playlist.uri)
         NetworkService.sendRequest(with: request, to: "http://10.0.0.153:7755/play", method: .POST).sink(receiveCompletion: { completion in

@@ -19,7 +19,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 @end
 
 @implementation GStreamerAudioBackend {
-    id<GStreamerBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
+    id<GStreamerAudioBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
     GstElement *pipeline;      /* The running pipeline */
     GMainContext *context;     /* GLib context used to run the main loop */
     GMainLoop *main_loop;      /* GLib main loop */
@@ -46,7 +46,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 {
     if (self = [super init])
     {
-        self->ui_delegate = (id<GStreamerBackendDelegate>)uiDelegate;
+        self->ui_delegate = (id<GStreamerAudioBackendDelegate>)uiDelegate;
 
         GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
         gst_debug_set_threshold_for_name("SleepStreamer", GST_LEVEL_TRACE);
