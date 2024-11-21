@@ -2,6 +2,7 @@ use anyhow::Error;
 use gstreamer::prelude::{ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, ObjectExt, PadExt};
 use gstreamer::{init, Bus, Caps, Element, ElementFactory, Pipeline, State, StateChangeSuccess};
 use gstreamer_rtsp::RTSPLowerTrans;
+use log::error;
 
 #[allow(dead_code)]
 pub struct StreamPipeline {
@@ -301,7 +302,7 @@ impl StreamPipeline {
                         .static_pad("sink")
                         .expect("Failed to get sink pad");
                     if let Err(err) = src_pad.link(&sink_pad) {
-                        eprintln!("Failed to link livestream_source audio: {}", err);
+                        error!("Failed to link livestream_source audio: {}", err);
                     }
                 }
             }
@@ -314,7 +315,7 @@ impl StreamPipeline {
                 .expect("Failed to get sink pad from livestream_queue");
 
             if let Err(err) = src_pad.link(&sink_pad) {
-                eprintln!("Failed to link livestream_decoder to livestream_queue: {}", err);
+                error!("Failed to link livestream_decoder to livestream_queue: {}", err);
             }
         });
 

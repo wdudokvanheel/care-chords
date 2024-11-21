@@ -5,6 +5,7 @@ use dbus::strings::Interface;
 use dbus::strings::Member;
 use dbus::Error;
 use dbus_tokio::connection;
+use log::{debug, error, warn};
 use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use std::time::Duration;
@@ -30,6 +31,7 @@ impl SpotifyDBusClient {
 
         tokio::spawn(async {
             let err = resource.await;
+            log::error!("Lost connection to D-Bus: {}", err);
             panic!("Lost connection to D-Bus: {}", err);
         });
 
@@ -64,7 +66,7 @@ impl SpotifyDBusClient {
     }
 
     pub async fn send_player_message(&mut self, message: &str) {
-        println!("Sending spotify message: {}", message);
+        debug!("Sending spotify message: {}", message);
 
         let _: Result<(), _> = self
             .spotify_method_with_retry(
@@ -77,7 +79,7 @@ impl SpotifyDBusClient {
     }
 
     pub async fn transfer_audio_playback(&mut self) {
-        println!("Transferring Spotify playback to local device");
+        debug!("Transferring Spotify playback to local device");
 
         let _: Result<(), _> = self
             .spotify_method_with_retry(
@@ -105,7 +107,7 @@ impl SpotifyDBusClient {
         match result {
             Ok((variant,)) => variant.0 == "Playing",
             Err(err) => {
-                eprintln!("Error checking playback status: {:?}", err);
+                error!("Error checking playback status: {:?}", err);
                 false
             }
         }
@@ -127,7 +129,7 @@ impl SpotifyDBusClient {
         match result {
             Ok((variant,)) => variant.0 == "Playing" || variant.0 == "Paused",
             Err(err) => {
-                eprintln!("Error checking playback status: {:?}", err);
+                error!("Error checking playback status: {:?}", err);
                 false
             }
         }
@@ -173,16 +175,16 @@ impl SpotifyDBusClient {
                     });
                 }
             } else {
-                eprintln!("Failed to cast metadata_variant to PropMap");
+                error!("Failed to cast metadata_variant to PropMap");
             }
-            eprintln!("Failed to get metadata")
+            error!("Failed to get metadata")
         }
 
         None
     }
 
     pub async fn play_uri(&mut self, uri: &str) {
-        println!("Requesting playback of {}", uri);
+        debug!("Requesting playback of {}", uri);
 
         let playlist_uri = if !uri.starts_with("spotify:") {
             format!("spotify:{}", uri)
@@ -230,7 +232,7 @@ impl SpotifyDBusClient {
             match result {
                 Ok(res) => return Ok(res),
                 Err(err) => {
-                    eprintln!("Error calling method: {:?} retrying in 1 second", err);
+                    warn!("Error calling method: {:?} retrying in 1 second", err);
                     if retries < METHOD_CALL_MAX_RETRIES {
                         retries += 1;
 
@@ -240,15 +242,12 @@ impl SpotifyDBusClient {
                                 self.spotify_destination = new_dest;
                             }
                             Err(update_err) => {
-                                eprintln!(
-                                    "Failed to update Spotify destination during retry: {:?}",
-                                    update_err
-                                );
+                                error!("Failed to update Spotify destination: {:?}", update_err);
                             }
                         }
 
                         tokio::time::sleep(Duration::from_millis(1000)).await;
-                        println!("Retrying method call (attempt {})", retries + 1);
+                        debug!("Retrying method call (attempt {})", retries + 1);
                     } else {
                         return Err(err);
                     }

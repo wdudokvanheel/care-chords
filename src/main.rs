@@ -16,6 +16,11 @@ use tokio::time;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
+    simple_logger::SimpleLogger::new().with_colors(true)
+        .with_module_level("warp", log::LevelFilter::Warn)
+        .with_module_level("hyper", log::LevelFilter::Warn)
+        .with_level(log::LevelFilter::Debug).init()?;
+
     let gst_pipeline = StreamPipeline::new()?;
     gst_pipeline.set_state(gst::State::Playing)?;
 
@@ -72,13 +77,13 @@ async fn monitor_sleep_timer(
 
             let duration_until_end = end_time - now;
 
-            println!("Starting sleep timer, will end at {:?}", end_time);
+            log::debug!("Starting sleep timer, will end at {:?}", end_time);
             time::sleep(duration_until_end).await;
 
             // Check if the sleep timer hasn't been updated again
             if sleep_timer_rx.borrow().clone() == Some(end_time) {
                 // Proceed with volume reduction
-                println!("Starting volume decrease");
+                log::debug!("Starting volume decrease");
 
                 let mut interval = time::interval(Duration::from_millis(500));
                 for step in 0..=100 {
@@ -96,7 +101,7 @@ async fn monitor_sleep_timer(
                         // If the timer was canceled or changed, restore the volume immediately
                         let music_volume = music_volume.lock().await;
                         music_volume.set_property("volume", 1.0);
-                        println!("Volume restoration due to new timer");
+                        log::debug!("Volume restoration due to new timer");
                         break;
                     }
                 }
@@ -104,14 +109,14 @@ async fn monitor_sleep_timer(
                 // If volume reduction completed without interruption, pause playback
                 if sleep_timer_rx.borrow().clone() == Some(end_time) {
                     time::sleep(Duration::from_secs(1)).await;
-                    println!("Pausing Spotify playback");
+                    log::debug!("Pausing Spotify playback");
                     spotify_client.lock().await.send_player_message("Pause").await;
 
                     // Wait for 5 seconds before restoring volume to 1.0
                     time::sleep(Duration::from_secs(5)).await;
                     let music_volume = music_volume.lock().await;
                     music_volume.set_property("volume", 1.0);
-                    println!("Volume restored after playback pause");
+                    log::debug!("Volume restored after playback pause");
                 }
             }
         }
@@ -122,11 +127,11 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
     for msg in bus.iter_timed(gst::ClockTime::NONE) {
         match msg.view() {
             gst::MessageView::Eos(..) => {
-                println!("End of stream reached");
+                log::error!("End of stream reached");
                 break;
             }
             gst::MessageView::Error(err) => {
-                eprintln!(
+                log::error!(
                     "Error from {}: {}",
                     err.src()
                         .map(|s| s.path_string())
@@ -141,6 +146,6 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
 
     // Clean up the pipeline
     if let Err(e) = pipeline.set_state(gst::State::Null) {
-        eprintln!("Failed to set pipeline state to Null: {}", e);
+        log::error!("Failed to set pipeline state to Null: {}", e);
     }
 }

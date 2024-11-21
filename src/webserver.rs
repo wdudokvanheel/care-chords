@@ -62,7 +62,7 @@ pub fn start_server(
     spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) {
     tokio::spawn(async move {
-        println!("Starting server @ :7755");
+        log::info!("Starting server @ :7755");
         let routes = create_routes(sleep_timer_tx, sleep_start_time, spotify_client);
         warp::serve(routes).run(([0, 0, 0, 0], 7755)).await;
     });
