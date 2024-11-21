@@ -1,11 +1,21 @@
-use dbus::arg::messageitem::MessageItem;
-use dbus::arg::{RefArg, Variant};
-use dbus::blocking::BlockingSender;
-use dbus::blocking::Connection;
-use dbus::Message;
+use dbus::arg::{cast, AppendAll, PropMap, ReadAll, RefArg, Variant};
+use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
+use dbus::nonblock::{Proxy, SyncConnection};
+use dbus::strings::Interface;
+use dbus::strings::Member;
+use dbus::Error;
+use dbus_tokio::connection;
 use serde::{Deserialize, Serialize};
-use std::collections::HashMap;
+use std::sync::Arc;
 use std::time::Duration;
+
+const DBUS_TIMEOUT: Duration = Duration::from_secs(2);
+const METHOD_CALL_MAX_RETRIES: usize = 3;
+
+pub struct SpotifyDBusClient {
+    dbus_connection: Arc<SyncConnection>,
+    spotify_destination: String,
+}
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct MusicMetadata {
@@ -14,67 +24,164 @@ pub struct MusicMetadata {
     artwork_url: String,
 }
 
-pub struct SpotifyDBusClient {
-    conn: Connection,
-    spotify_dest: String,
-}
-
 impl SpotifyDBusClient {
-    pub fn new() -> Option<Self> {
-        let conn = Connection::new_session().expect("Failed to create a dbus connection");
+    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+        let (resource, connection) = connection::new_session_sync()?;
 
-        let proxy = conn.with_proxy(
+        tokio::spawn(async {
+            let err = resource.await;
+            panic!("Lost connection to D-Bus: {}", err);
+        });
+
+        let spotify_destination = Self::find_spotify_destination(connection.clone()).await?;
+
+        Ok(Self {
+            dbus_connection: connection,
+            spotify_destination,
+        })
+    }
+
+    async fn find_spotify_destination(
+        connection: Arc<SyncConnection>,
+    ) -> Result<String, Box<dyn std::error::Error>> {
+        let proxy = Proxy::new(
             "org.freedesktop.DBus",
             "/org/freedesktop/DBus",
-            Duration::from_millis(5000),
+            DBUS_TIMEOUT,
+            connection,
         );
+
         let (names,): (Vec<String>,) = proxy
             .method_call("org.freedesktop.DBus", "ListNames", ())
-            .expect("Failed to list dbus names");
+            .await
+            .expect("Failed to call DBus list");
 
-        let spotify_dest = names
+        names
             .iter()
             .find(|name| name.contains("org.mpris.MediaPlayer2.spotify"))
-            .map(|s| s.to_string())?;
-
-        Some(Self { conn, spotify_dest })
+            .map(|s| s.to_string())
+            .ok_or_else(|| Box::<dyn std::error::Error>::from("Spotify destination not found"))
     }
 
-    pub fn send_player_message(&self, message: &str) {
+    pub async fn send_player_message(&mut self, message: &str) {
         println!("Sending spotify message: {}", message);
 
-        let pause_msg = Message::new_method_call(
-            &self.spotify_dest,
-            "/org/mpris/MediaPlayer2",
-            "org.mpris.MediaPlayer2.Player",
-            message,
-        )
-            .expect("Failed to call dbus method");
-
-        let _ = self
-            .conn
-            .send_with_reply_and_block(pause_msg, Duration::from_millis(5000))
-            .expect("Failed to send message to dbus");
+        let _: Result<(), _> = self
+            .spotify_method_with_retry(
+                "/org/mpris/MediaPlayer2",
+                "org.mpris.MediaPlayer2.Player",
+                message,
+                (),
+            )
+            .await;
     }
 
-    pub fn transfer_audio_playback(&self) {
+    pub async fn transfer_audio_playback(&mut self) {
         println!("Transferring Spotify playback to local device");
 
-        let transfer_msg = Message::new_method_call(
-            &self.spotify_dest,
-            "/rs/spotifyd/Controls",
-            "rs.spotifyd.Controls",
-            "TransferPlayback",
-        )
-            .expect("Failed to call dbus method");
-
-        let _ = self
-            .conn
-            .send_with_reply_and_block(transfer_msg, Duration::from_millis(5000))
-            .expect("Failed to send message to dbus");
+        let _: Result<(), _> = self
+            .spotify_method_with_retry(
+                "/rs/spotifyd/Controls",
+                "rs.spotifyd.Controls",
+                "TransferPlayback",
+                (),
+            )
+            .await;
     }
 
-    pub fn play_uri(&self, uri: &str) {
+    pub async fn is_playing(&mut self) -> bool {
+        let result: Result<(Variant<String>,), _> = self
+            .spotify_method_with_retry(
+                "/org/mpris/MediaPlayer2",
+                "org.freedesktop.DBus.Properties",
+                "Get",
+                (
+                    "org.mpris.MediaPlayer2.Player".to_string(),
+                    "PlaybackStatus".to_string(),
+                ),
+            )
+            .await;
+
+        match result {
+            Ok((variant,)) => variant.0 == "Playing",
+            Err(err) => {
+                eprintln!("Error checking playback status: {:?}", err);
+                false
+            }
+        }
+    }
+
+    pub async fn is_selected_playback(&mut self) -> bool {
+        let result: Result<(Variant<String>,), _> = self
+            .spotify_method_with_retry(
+                "/org/mpris/MediaPlayer2",
+                "org.freedesktop.DBus.Properties",
+                "Get",
+                (
+                    "org.mpris.MediaPlayer2.Player".to_string(),
+                    "PlaybackStatus".to_string(),
+                ),
+            )
+            .await;
+
+        match result {
+            Ok((variant,)) => variant.0 == "Playing" || variant.0 == "Paused",
+            Err(err) => {
+                eprintln!("Error checking playback status: {:?}", err);
+                false
+            }
+        }
+    }
+
+    pub async fn get_current_song_metadata(&mut self) -> Option<MusicMetadata> {
+        let proxy = Proxy::new(
+            self.spotify_destination.clone(),
+            "/org/mpris/MediaPlayer2",
+            DBUS_TIMEOUT,
+            self.dbus_connection.clone(),
+        );
+
+        if let Some(properties) = proxy.get_all("org.mpris.MediaPlayer2.Player").await.ok() {
+            if let Some(Variant(metadata_variant)) = properties.get("Metadata") {
+                if let Some(metadata_map) = cast::<PropMap>(&*metadata_variant) {
+                    let title = metadata_map
+                        .get("xesam:title")
+                        .and_then(|v| v.0.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    let artwork_url = metadata_map
+                        .get("mpris:artUrl")
+                        .and_then(|v| v.0.as_str())
+                        .unwrap_or("")
+                        .to_string();
+
+                    let artist = metadata_map
+                        .get("xesam:artist")
+                        .and_then(|a| a.0.as_iter())
+                        .map(|iter| {
+                            iter.filter_map(|ref_arg| ref_arg.as_str().map(|s| s.to_string()))
+                                .collect::<Vec<_>>()
+                        })
+                        .unwrap_or_else(Vec::new)
+                        .join(" & ");
+
+                    return Some(MusicMetadata {
+                        artist,
+                        title,
+                        artwork_url,
+                    });
+                }
+            } else {
+                eprintln!("Failed to cast metadata_variant to PropMap");
+            }
+            eprintln!("Failed to get metadata")
+        }
+
+        None
+    }
+
+    pub async fn play_uri(&mut self, uri: &str) {
         println!("Requesting playback of {}", uri);
 
         let playlist_uri = if !uri.starts_with("spotify:") {
@@ -83,116 +190,70 @@ impl SpotifyDBusClient {
             uri.to_string()
         };
 
-        let mut message = Message::new_method_call(
-            &self.spotify_dest,
-            "/org/mpris/MediaPlayer2",
-            "org.mpris.MediaPlayer2.Player",
-            "OpenUri",
-        )
-            .expect("Failed to call dbus method");
-
-        message.append_items(&[MessageItem::Str(playlist_uri.to_string())]);
-
-        let _ = self
-            .conn
-            .send_with_reply_and_block(message, Duration::from_millis(5000))
-            .expect("Failed to send message to dbus");
+        let _: Result<(), _> = self
+            .spotify_method_with_retry(
+                "/org/mpris/MediaPlayer2",
+                "org.mpris.MediaPlayer2.Player",
+                "OpenUri",
+                (playlist_uri,),
+            )
+            .await;
     }
 
-    pub fn is_playing(&self) -> bool {
-        let playback_status_msg = Message::new_method_call(
-            &self.spotify_dest,
-            "/org/mpris/MediaPlayer2",
-            "org.freedesktop.DBus.Properties",
-            "Get",
-        )
-            .expect("Failed to create method call")
-            .append2("org.mpris.MediaPlayer2.Player", "PlaybackStatus");
+    async fn spotify_method_with_retry<'i, 'm, R, A, I, M>(
+        &mut self,
+        path: &str,
+        interface: I,
+        method: M,
+        args: A,
+    ) -> Result<R, Error>
+    where
+        R: 'static + ReadAll,
+        A: AppendAll + Clone,
+        I: Into<Interface<'i>> + Clone,
+        M: Into<Member<'m>> + Clone,
+    {
+        let interface: Interface<'i> = interface.into();
+        let method: Member<'m> = method.into();
+        let mut retries = 0;
 
-        let response = self
-            .conn
-            .send_with_reply_and_block(playback_status_msg, Duration::from_millis(5000))
-            .expect("Failed to send message to dbus");
+        loop {
+            let args_clone = args.clone();
+            let proxy = Proxy::new(
+                self.spotify_destination.clone(),
+                path,
+                DBUS_TIMEOUT,
+                self.dbus_connection.clone(),
+            );
+            let result = proxy.method_call(&interface, &method, args_clone).await;
 
-        if let Some(variant) = response.get1::<Variant<&str>>() {
-            return variant.0 == "Playing";
-        }
+            match result {
+                Ok(res) => return Ok(res),
+                Err(err) => {
+                    eprintln!("Error calling method: {:?} retrying in 1 second", err);
+                    if retries < METHOD_CALL_MAX_RETRIES {
+                        retries += 1;
 
-        false
-    }
-
-    pub fn is_selected_playback(&self) -> bool {
-        let playback_status_msg = Message::new_method_call(
-            &self.spotify_dest,
-            "/org/mpris/MediaPlayer2",
-            "org.freedesktop.DBus.Properties",
-            "Get",
-        )
-            .expect("Failed to create method call")
-            .append2("org.mpris.MediaPlayer2.Player", "PlaybackStatus");
-
-        let response = self
-            .conn
-            .send_with_reply_and_block(playback_status_msg, Duration::from_millis(5000))
-            .expect("Failed to send message to dbus");
-
-        if let Some(variant) = response.get1::<Variant<&str>>() {
-            return variant.0 == "Playing" || variant.0 == "Paused";
-        }
-
-        false
-    }
-
-    pub fn get_current_song_metadata(&self) -> Option<MusicMetadata> {
-        let metadata_msg = Message::new_method_call(
-            &self.spotify_dest,
-            "/org/mpris/MediaPlayer2",
-            "org.freedesktop.DBus.Properties",
-            "Get",
-        )
-            .expect("Failed to create method call")
-            .append2("org.mpris.MediaPlayer2.Player", "Metadata");
-
-        let response = self
-            .conn
-            .send_with_reply_and_block(metadata_msg, Duration::from_millis(5000))
-            .expect("Failed to send message to dbus");
-
-        if let Some(Variant(dict)) = response.get1::<Variant<HashMap<String, Variant<Box<dyn RefArg>>>>>(){
-            let mut artist = String::new();
-            let mut title = String::new();
-            let mut artwork_url = String::new();
-
-            for (key, value) in dict {
-                match key.as_str() {
-                    "xesam:artist" => {
-                        if let Some(artist_vec) = value.0.as_iter() {
-                            if let Some(first_artist) = artist_vec.filter_map(|v| v.as_str()).next() {
-                                artist = first_artist.to_string();
+                        // Update spotify destination in case its PID changed
+                        match Self::find_spotify_destination(self.dbus_connection.clone()).await {
+                            Ok(new_dest) => {
+                                self.spotify_destination = new_dest;
+                            }
+                            Err(update_err) => {
+                                eprintln!(
+                                    "Failed to update Spotify destination during retry: {:?}",
+                                    update_err
+                                );
                             }
                         }
+
+                        tokio::time::sleep(Duration::from_millis(1000)).await;
+                        println!("Retrying method call (attempt {})", retries + 1);
+                    } else {
+                        return Err(err);
                     }
-                    "xesam:title" => {
-                        if let Some(title_str) = value.0.as_str() {
-                            title = title_str.to_string();
-                        }
-                    }
-                    "mpris:artUrl" => {
-                        if let Some(url_str) = value.0.as_str() {
-                            artwork_url = url_str.to_string();
-                        }
-                    }
-                    _ => {}
                 }
             }
-
-            return Some(MusicMetadata {
-                artist,
-                title,
-                artwork_url,
-            });
         }
-
-        None
     }
 }

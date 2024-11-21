@@ -29,7 +29,7 @@ async fn main() -> Result<(), Error> {
     });
 
     let spotify_client = Arc::new(Mutex::new(
-        SpotifyDBusClient::new().expect("Failed to connect to Spotify D-Bus"),
+        SpotifyDBusClient::new().await.expect("Failed to connect to Spotify D-Bus"),
     ));
 
     let (sleep_timer_tx, sleep_timer_rx) = watch::channel::<Option<Instant>>(None);
@@ -73,8 +73,6 @@ async fn monitor_sleep_timer(
             let duration_until_end = end_time - now;
 
             println!("Starting sleep timer, will end at {:?}", end_time);
-
-            // Wait until the end time
             time::sleep(duration_until_end).await;
 
             // Check if the sleep timer hasn't been updated again
@@ -107,7 +105,7 @@ async fn monitor_sleep_timer(
                 if sleep_timer_rx.borrow().clone() == Some(end_time) {
                     time::sleep(Duration::from_secs(1)).await;
                     println!("Pausing Spotify playback");
-                    spotify_client.lock().await.send_player_message("Pause");
+                    spotify_client.lock().await.send_player_message("Pause").await;
 
                     // Wait for 5 seconds before restoring volume to 1.0
                     time::sleep(Duration::from_secs(5)).await;
@@ -140,6 +138,7 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
             _ => (),
         }
     }
+
     // Clean up the pipeline
     if let Err(e) = pipeline.set_state(gst::State::Null) {
         eprintln!("Failed to set pipeline state to Null: {}", e);

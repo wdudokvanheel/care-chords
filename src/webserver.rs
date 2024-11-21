@@ -73,8 +73,8 @@ pub async fn create_playerstate_dto(
     spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) -> PlayerStateDto {
     let (playing, music) = {
-        let spotify = spotify_client.lock().await;
-        (spotify.is_playing(), spotify.get_current_song_metadata())
+        let mut spotify = spotify_client.lock().await;
+        (spotify.is_playing().await, spotify.get_current_song_metadata().await)
     };
 
     // Calculate remaining sleep time if the timer is active
@@ -105,12 +105,12 @@ async fn handle_playback_request(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(uri) = body.get("uri").and_then(|t| t.as_str()) {
         {
-            let spotify = spotify_client.lock().await;
-            if !spotify.is_selected_playback() {
-                spotify.transfer_audio_playback();
-                tokio::time::sleep(Duration::from_millis(1000)).await;
+            let mut spotify = spotify_client.lock().await;
+            if !spotify.is_selected_playback().await {
+                spotify.transfer_audio_playback().await;
+                tokio::time::sleep(Duration::from_millis(1500)).await;
             }
-            spotify.play_uri(uri);
+            spotify.play_uri(uri).await;
         }
 
         return Ok(warp::reply::with_status(
@@ -132,18 +132,18 @@ async fn handle_control_request(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(state) = body.get("action").and_then(|t| t.as_str()) {
         {
-            let spotify = spotify_client.lock().await;
+            let mut spotify = spotify_client.lock().await;
             match state.to_lowercase().as_str() {
                 "play" => {
-                    if !spotify.is_selected_playback() {
-                        spotify.transfer_audio_playback();
-                        tokio::time::sleep(Duration::from_millis(1000)).await;
+                    if !spotify.is_selected_playback().await {
+                        spotify.transfer_audio_playback().await;
+                        tokio::time::sleep(Duration::from_millis(1500)).await;
                     }
-                    spotify.send_player_message("Play");
+                    spotify.send_player_message("Play").await;
                 }
-                "pause" => spotify.send_player_message("Pause"),
-                "next" => spotify.send_player_message("Next"),
-                "previous" => spotify.send_player_message("Previous"),
+                "pause" => spotify.send_player_message("Pause").await,
+                "next" => spotify.send_player_message("Next").await,
+                "previous" => spotify.send_player_message("Previous").await,
                 _ => {}
             }
         }
@@ -182,9 +182,9 @@ async fn handle_sleep_request(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(sleep_timer) = body.get("timer").and_then(|t| t.as_u64()) {
         {
-            let spotify = spotify_client.lock().await;
-            if !spotify.is_playing() {
-                spotify.send_player_message("Play");
+            let mut spotify = spotify_client.lock().await;
+            if !spotify.is_playing().await {
+                spotify.send_player_message("Play").await;
             }
         }
 
