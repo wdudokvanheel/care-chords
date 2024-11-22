@@ -19,6 +19,13 @@ pub struct SpotifyDBusClient {
 }
 
 #[derive(Debug, Serialize, Deserialize)]
+pub struct PlayerStatus {
+    pub playing: bool,
+    pub shuffle: bool,
+    pub metadata: Option<MusicMetadata>,
+}
+
+#[derive(Debug, Serialize, Deserialize)]
 pub struct MusicMetadata {
     artist: String,
     title: String,
@@ -63,6 +70,49 @@ impl SpotifyDBusClient {
             .find(|name| name.contains("org.mpris.MediaPlayer2.spotify"))
             .map(|s| s.to_string())
             .ok_or_else(|| Box::<dyn std::error::Error>::from("Spotify destination not found"))
+    }
+
+    pub async fn status(&mut self) -> Result<PlayerStatus, Box<dyn std::error::Error>> {
+        let proxy = Proxy::new(
+            self.spotify_destination.clone(),
+            "/org/mpris/MediaPlayer2",
+            DBUS_TIMEOUT * 2,
+            self.dbus_connection.clone(),
+        );
+
+        let props = proxy.get_all("org.mpris.MediaPlayer2.Player").await?;
+
+        let playing: bool = props
+            .get("PlaybackStatus")
+            .and_then(|s| s.as_str())
+            .map(|s| s == "Playing")
+            .unwrap_or(false);
+
+        let active: bool = props
+            .get("PlaybackStatus")
+            .and_then(|s| s.as_str())
+            .map(|s| s == "Playing" || s == "Paused")
+            .unwrap_or(false);
+
+        let metadata = if active {
+            Self::extract_metadata(&props)
+        } else {
+            None
+        };
+
+        let shuffle: bool = props
+            .get("Shuffle")
+            .and_then(|s| s.0.as_any().downcast_ref::<bool>())
+            .map(|s| *s)
+            .unwrap_or(false);
+
+        log::trace!("Properties found from dbus spotify: {:?}", &props);
+
+        Ok(PlayerStatus {
+            playing,
+            shuffle,
+            metadata,
+        })
     }
 
     pub async fn send_player_message(&mut self, message: &str) {
@@ -143,44 +193,11 @@ impl SpotifyDBusClient {
             self.dbus_connection.clone(),
         );
 
-        if let Some(properties) = proxy.get_all("org.mpris.MediaPlayer2.Player").await.ok() {
-            if let Some(Variant(metadata_variant)) = properties.get("Metadata") {
-                if let Some(metadata_map) = cast::<PropMap>(&*metadata_variant) {
-                    let title = metadata_map
-                        .get("xesam:title")
-                        .and_then(|v| v.0.as_str())
-                        .unwrap_or("")
-                        .to_string();
-
-                    let artwork_url = metadata_map
-                        .get("mpris:artUrl")
-                        .and_then(|v| v.0.as_str())
-                        .unwrap_or("")
-                        .to_string();
-
-                    let artist = metadata_map
-                        .get("xesam:artist")
-                        .and_then(|a| a.0.as_iter())
-                        .map(|iter| {
-                            iter.filter_map(|ref_arg| ref_arg.as_str().map(|s| s.to_string()))
-                                .collect::<Vec<_>>()
-                        })
-                        .unwrap_or_else(Vec::new)
-                        .join(" & ");
-
-                    return Some(MusicMetadata {
-                        artist,
-                        title,
-                        artwork_url,
-                    });
-                }
-            } else {
-                error!("Failed to cast metadata_variant to PropMap");
-            }
-            error!("Failed to get metadata")
-        }
-
-        None
+        proxy
+            .get_all("org.mpris.MediaPlayer2.Player")
+            .await
+            .ok()
+            .map(|props| Self::extract_metadata(&props))?
     }
 
     pub async fn play_uri(&mut self, uri: &str) {
@@ -254,5 +271,44 @@ impl SpotifyDBusClient {
                 }
             }
         }
+    }
+
+    fn extract_metadata(properties: &PropMap) -> Option<MusicMetadata> {
+        if let Some(Variant(metadata_variant)) = properties.get("Metadata") {
+            if let Some(metadata_map) = cast::<PropMap>(&*metadata_variant) {
+                let title = metadata_map
+                    .get("xesam:title")
+                    .and_then(|v| v.0.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                let artwork_url = metadata_map
+                    .get("mpris:artUrl")
+                    .and_then(|v| v.0.as_str())
+                    .unwrap_or("")
+                    .to_string();
+
+                let artist = metadata_map
+                    .get("xesam:artist")
+                    .and_then(|a| a.0.as_iter())
+                    .map(|iter| {
+                        iter.filter_map(|ref_arg| ref_arg.as_str().map(|s| s.to_string()))
+                            .collect::<Vec<_>>()
+                    })
+                    .unwrap_or_else(Vec::new)
+                    .join(" & ");
+
+                if title.is_empty() || artist.is_empty() {
+                    return None;
+                }
+
+                return Some(MusicMetadata {
+                    artist,
+                    title,
+                    artwork_url,
+                });
+            }
+        }
+        None
     }
 }

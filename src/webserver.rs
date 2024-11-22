@@ -1,5 +1,6 @@
-use crate::spotify::{MusicMetadata, SpotifyDBusClient};
+use crate::spotify::{MusicMetadata, PlayerStatus, SpotifyDBusClient};
 use crate::webserver;
+use dbus::Error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
@@ -12,7 +13,10 @@ use warp::Filter;
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PlayerStateDto {
     playing: bool,
+    shuffle: bool,
+    #[serde(skip_serializing_if = "Option::is_none")]
     metadata: Option<MusicMetadata>,
+    #[serde(skip_serializing_if = "Option::is_none")]
     sleep_timer: Option<u64>,
 }
 
@@ -71,31 +75,34 @@ pub fn start_server(
 pub async fn create_playerstate_dto(
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
     spotify_client: Arc<Mutex<SpotifyDBusClient>>,
-) -> PlayerStateDto {
-    let (playing, music) = {
-        let mut spotify = spotify_client.lock().await;
-        (spotify.is_playing().await, spotify.get_current_song_metadata().await)
-    };
-
+) -> Result<PlayerStateDto, Error> {
     // Calculate remaining sleep time if the timer is active
     let sleep_time_left = {
         let lock = sleep_start_time.lock().await;
-        if let Some(end_time) = *lock {
+        lock.as_ref().and_then(|end_time| {
             let now = Instant::now();
-            if now < end_time {
-                Some((end_time - now).as_secs())
-            } else {
-                None
-            }
-        } else {
-            None
-        }
+            (now < *end_time).then_some((*end_time - now).as_secs())
+        })
     };
 
-    PlayerStateDto {
-        playing,
-        metadata: music,
-        sleep_timer: sleep_time_left,
+    // Fetch player status
+    let player = spotify_client.lock().await.status().await;
+
+    match player {
+        Err(err) => Err(Error::new_custom(
+            "PlayerStateError",
+            &format!("Failed to get status: {}", err),
+        )),
+        Ok(PlayerStatus {
+            playing,
+            shuffle,
+            metadata,
+        }) => Ok(PlayerStateDto {
+            sleep_timer: sleep_time_left,
+            playing,
+            shuffle,
+            metadata,
+        }),
     }
 }
 
@@ -147,19 +154,8 @@ async fn handle_control_request(
                 _ => {}
             }
         }
-
-        let state = webserver::create_playerstate_dto(sleep_start_time, spotify_client).await;
-
-        return Ok(warp::reply::with_status(
-            warp::reply::json(&state),
-            StatusCode::OK,
-        ));
     }
-
-    Ok(warp::reply::with_status(
-        warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
-        StatusCode::BAD_REQUEST,
-    ))
+    handle_state_request(sleep_start_time, spotify_client).await
 }
 
 async fn handle_state_request(
@@ -168,10 +164,16 @@ async fn handle_state_request(
 ) -> Result<impl warp::Reply, warp::Rejection> {
     let state = webserver::create_playerstate_dto(sleep_start_time, spotify_client).await;
 
-    Ok(warp::reply::with_status(
-        warp::reply::json(&state),
-        StatusCode::OK,
-    ))
+    match state {
+        Ok(state) => Ok(warp::reply::with_status(
+            warp::reply::json(&state),
+            StatusCode::OK,
+        )),
+        Err(err) => Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({ "error": "server error" })),
+            StatusCode::SERVICE_UNAVAILABLE,
+        )),
+    }
 }
 
 async fn handle_sleep_request(
