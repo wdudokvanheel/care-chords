@@ -219,6 +219,23 @@ impl SpotifyDBusClient {
             .await;
     }
 
+    pub async fn set_shuffle(&mut self, shuffle: bool) -> Result<(), Box<dyn std::error::Error>> {
+        let proxy = Proxy::new(
+            self.spotify_destination.clone(),
+            "/org/mpris/MediaPlayer2",
+            DBUS_TIMEOUT,
+            self.dbus_connection.clone(),
+        );
+
+        proxy
+            .set("org.mpris.MediaPlayer2.Player", "Shuffle", shuffle)
+            .await
+            .map_err(|err| {
+                error!("Failed to set shuffle: {:?}", err);
+                Box::<dyn std::error::Error>::from("Failed to set shuffle")
+            })
+    }
+
     async fn spotify_method_with_retry<'i, 'm, R, A, I, M>(
         &mut self,
         path: &str,

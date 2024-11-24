@@ -53,10 +53,17 @@ fn create_routes(
         .and(with_spotify_client(spotify_client.clone()))
         .and_then(handle_state_request);
 
+    let shuffle_route = warp::path("shuffle")
+        .and(warp::post())
+        .and(warp::body::json())
+        .and(with_spotify_client(spotify_client.clone()))
+        .and_then(handle_shuffle_request);
+
     sleep_route
         .or(control_route)
         .or(playback_route)
         .or(state_route)
+        .or(shuffle_route)
         .boxed()
 }
 
@@ -90,7 +97,7 @@ pub async fn create_playerstate_dto(
 
     match player {
         Err(err) => Err(Error::new_custom(
-            "PlayerStateError",
+            "com.bitechular.PlayerState",
             &format!("Failed to get status: {}", err),
         )),
         Ok(PlayerStatus {
@@ -203,6 +210,43 @@ async fn handle_sleep_request(
             warp::reply::json(&serde_json::json!({ "status": "timer started" })),
             StatusCode::OK,
         ));
+    }
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
+        StatusCode::BAD_REQUEST,
+    ))
+}
+
+async fn handle_shuffle_request(
+    body: Value,
+    spotify_client: Arc<Mutex<SpotifyDBusClient>>,
+) -> Result<impl warp::Reply, warp::Rejection> {
+    if let Some(shuffle_state) = body.get("shuffle").and_then(|s| s.as_bool()) {
+        {
+            let mut spotify = spotify_client.lock().await;
+            if !spotify.is_selected_playback().await {
+                spotify.transfer_audio_playback().await;
+                tokio::time::sleep(Duration::from_millis(1500)).await;
+            }
+            return match spotify.set_shuffle(shuffle_state).await {
+                Ok(_) => {
+                    Ok(warp::reply::with_status(
+                        warp::reply::json(&serde_json::json!({ "status": "shuffle updated" })),
+                        StatusCode::OK,
+                    ))
+                    
+                    // handle_state_request()
+                }
+                Err(err) => {
+                    log::error!("Error setting shuffle: {:?}", err);
+                    Ok(warp::reply::with_status(
+                        warp::reply::json(&serde_json::json!({ "error": "failed to set shuffle" })),
+                        StatusCode::INTERNAL_SERVER_ERROR,
+                    ))
+                }
+            }
+        }
     }
 
     Ok(warp::reply::with_status(
