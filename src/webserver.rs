@@ -56,6 +56,7 @@ fn create_routes(
     let shuffle_route = warp::path("shuffle")
         .and(warp::post())
         .and(warp::body::json())
+        .and(with_sleep_time(sleep_start_time.clone()))
         .and(with_spotify_client(spotify_client.clone()))
         .and_then(handle_shuffle_request);
 
@@ -220,6 +221,7 @@ async fn handle_sleep_request(
 
 async fn handle_shuffle_request(
     body: Value,
+    sleep_start_time: Arc<Mutex<Option<Instant>>>,
     spotify_client: Arc<Mutex<SpotifyDBusClient>>,
 ) -> Result<impl warp::Reply, warp::Rejection> {
     if let Some(shuffle_state) = body.get("shuffle").and_then(|s| s.as_bool()) {
@@ -229,30 +231,12 @@ async fn handle_shuffle_request(
                 spotify.transfer_audio_playback().await;
                 tokio::time::sleep(Duration::from_millis(1500)).await;
             }
-            return match spotify.set_shuffle(shuffle_state).await {
-                Ok(_) => {
-                    Ok(warp::reply::with_status(
-                        warp::reply::json(&serde_json::json!({ "status": "shuffle updated" })),
-                        StatusCode::OK,
-                    ))
-                    
-                    // handle_state_request()
-                }
-                Err(err) => {
-                    log::error!("Error setting shuffle: {:?}", err);
-                    Ok(warp::reply::with_status(
-                        warp::reply::json(&serde_json::json!({ "error": "failed to set shuffle" })),
-                        StatusCode::INTERNAL_SERVER_ERROR,
-                    ))
-                }
-            }
+
+            let _ = spotify.set_shuffle(shuffle_state).await;
         }
     }
 
-    Ok(warp::reply::with_status(
-        warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
-        StatusCode::BAD_REQUEST,
-    ))
+    handle_state_request(sleep_start_time.clone(), spotify_client.clone()).await
 }
 
 fn with_sleep_sender(
