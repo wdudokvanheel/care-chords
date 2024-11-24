@@ -1,6 +1,7 @@
 use crate::spotify::{MusicMetadata, PlayerStatus, SpotifyDBusClient};
 use crate::webserver;
 use dbus::Error;
+use log::error;
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::sync::Arc;
@@ -232,7 +233,12 @@ async fn handle_shuffle_request(
                 tokio::time::sleep(Duration::from_millis(1500)).await;
             }
 
-            let _ = spotify.set_shuffle(shuffle_state).await;
+            match spotify.set_shuffle(shuffle_state).await {
+                Err(e) => {
+                    error!("Failed to set shuffle state: {}", e);
+                }
+                Ok(_) => {}
+            }
         }
     }
 
