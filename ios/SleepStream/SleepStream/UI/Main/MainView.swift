@@ -7,7 +7,7 @@ struct MainView: View {
         VStack {
             TabPanel {
                 Tab(title: "Camera") {
-            LiveStreamView(controller: model.video)
+                    LiveStreamView(controller: model.video)
                 }
                 Tab(title: "Now playing") {
                     NowPlayingView(controller: model.music)
@@ -20,7 +20,13 @@ struct MainView: View {
 
             Spacer(minLength: 30)
 
-            MusicControlsView(musicController: model.music, gstreamerController: model.gstreamer, toggleMute: model.toggleOutput, startSleepTimer: model.startSleepTimer)
+            MusicControlsView(
+                musicController: model.music,
+                gstreamerController: model.gstreamer,
+                toggleMute: model.toggleOutput,
+                startSleepTimer: model.startSleepTimer,
+                setShuffle: model.setShuffle
+            )
         }
         .padding(0)
         .shadow(radius: 4)

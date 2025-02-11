@@ -80,8 +80,46 @@ impl SpotifyDBusClient {
             self.dbus_connection.clone(),
         );
 
-        let props = proxy.get_all("org.mpris.MediaPlayer2.Player").await?;
+        let props = proxy.get_all("org.mpris.MediaPlayer2.Player").await;
 
+        match props {
+            Ok(props) => {
+                Ok(Self::extract_status(props))
+            }
+            Err(e) => {
+                error!("Error getting playback status: {:?}", e);
+
+                match Self::find_spotify_destination(self.dbus_connection.clone()).await {
+                    Ok(new_dest) => {
+                        self.spotify_destination = new_dest;
+                        let proxy = Proxy::new(
+                            self.spotify_destination.clone(),
+                            "/org/mpris/MediaPlayer2",
+                            DBUS_TIMEOUT * 2,
+                            self.dbus_connection.clone(),
+                        );
+
+                        let props = proxy.get_all("org.mpris.MediaPlayer2.Player").await;
+                        match props {
+                            Ok(props) => {
+                                Ok(Self::extract_status(props))
+                            }
+                            Err(e) => {
+                                Err(Box::new(e).into())
+                            }
+                        }
+                    }
+                    Err(update_err) => {
+                        error!("Failed to update Spotify destination: {:?}", update_err);
+                        // Err(Box::new(std::error::Error::fmt("Failed to update Spotify destination", &mut ())))
+                        // Err(Box::new(update_err))
+                    }
+                }
+            },
+        }
+    }
+
+    fn extract_status(props: PropMap) -> PlayerStatus{
         let playing: bool = props
             .get("PlaybackStatus")
             .and_then(|s| s.as_str())
@@ -108,11 +146,11 @@ impl SpotifyDBusClient {
 
         log::trace!("Properties found from dbus spotify: {:?}", &props);
 
-        Ok(PlayerStatus {
+        PlayerStatus {
             playing,
             shuffle,
             metadata,
-        })
+        }
     }
 
     pub async fn send_player_message(&mut self, message: &str) {

@@ -6,6 +6,7 @@ struct MusicControlsView: View {
 
     let toggleMute: () -> Void
     let startSleepTimer: (Int) -> Void
+    let setShuffle: (Bool) -> Void
 
     @State var isAnimatingPlayButton = false
 
@@ -17,15 +18,11 @@ struct MusicControlsView: View {
                     Spacer()
                 }
                 Spacer()
-                VStack {
-                    SleepTimerView(controller: musicController, startSleepTimer: startSleepTimer)
-                    Spacer()
-                }
             }
             .frame(height: 65)
 
-            
-            HStack {
+            HStack(alignment: .center) {
+                ShuffleButton(controller: musicController, setShuffle: setShuffle)
                 Spacer()
 
                 // Previous Song Button
@@ -37,10 +34,7 @@ struct MusicControlsView: View {
                         .scaledToFit()
                         .frame(width: 32, height: 32)
                         .foregroundColor(Color.prevNextButton)
-                        .padding(.top, 8)
                 }
-                .padding(.trailing, 16)
-
                 Spacer()
 
                 // Play/Pause Button
@@ -89,11 +83,10 @@ struct MusicControlsView: View {
                         .scaledToFit()
                         .frame(width: 32, height: 32)
                         .foregroundColor(Color.prevNextButton)
-                        .padding(.top, 8)
                 }
-                .padding(.leading, 16)
 
                 Spacer()
+                SleepTimerButton(controller: musicController, startSleepTimer: startSleepTimer)
             }
         }
         .frame(maxWidth: .infinity)

@@ -2,10 +2,11 @@ import Combine
 import Foundation
 import SwiftUI
 
-struct MusicStatus: Decodable {
-    let playing: Bool
-    let metadata: MusicMetadata?
+struct PlayerStatus: Decodable {
     let sleep_timer: Int?
+    let playing: Bool
+    let shuffle: Bool
+    let metadata: MusicMetadata?
 }
 
 struct MusicMetadata: Decodable {
@@ -16,7 +17,7 @@ struct MusicMetadata: Decodable {
 
 class MusicController: ObservableObject {
     @Published var updateStatus = true
-    @Published var status: MusicStatus = .init(playing: false, metadata: nil, sleep_timer: nil)
+    @Published var status: PlayerStatus = .init(sleep_timer: nil, playing: false, shuffle: false, metadata: nil)
 
     private var cancellables = Set<AnyCancellable>()
     private var statusTimer: DispatchSourceTimer?
@@ -60,22 +61,25 @@ class MusicController: ObservableObject {
     func play() {
         controlPlayer("play")
     }
+
     func pause() {
         controlPlayer("pause")
     }
+
     func next() {
         controlPlayer("next")
     }
+
     func previous() {
         controlPlayer("previous")
     }
     
-    func startSleepTimer(_ seconds: Int){
-        let url = "http://10.0.0.153:7755/sleep"
-        let request = SleepTimerRequestDto(timer: seconds)
-        
+    func setShuffle(_ shuffle: Bool){
+        let url = "http://10.0.0.153:7755/shuffle"
+        let request = ShuffleRequestDto(shuffle: shuffle)
+
         NetworkService.sendRequest(with: request, to: url, method: .POST)
-            .decode(type: MusicStatus.self, decoder: JSONDecoder())
+            .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { completion in
                 switch completion {
                 case .failure(let error):
@@ -84,9 +88,26 @@ class MusicController: ObservableObject {
                     break
                 }
             }, receiveValue: { [weak self] data in
-                DispatchQueue.main.async {
-                    self?.status = data
+                self?.updateStatusData(data)
+            })
+            .store(in: &cancellables)
+    }
+
+    func startSleepTimer(_ seconds: Int) {
+        let url = "http://10.0.0.153:7755/sleep"
+        let request = SleepTimerRequestDto(timer: seconds)
+
+        NetworkService.sendRequest(with: request, to: url, method: .POST)
+            .decode(type: PlayerStatus.self, decoder: JSONDecoder())
+            .sink(receiveCompletion: { completion in
+                switch completion {
+                case .failure(let error):
+                    print("Error: \(error.localizedDescription)")
+                case .finished:
+                    break
                 }
+            }, receiveValue: { [weak self] data in
+                self?.updateStatusData(data)
             })
             .store(in: &cancellables)
     }
@@ -94,9 +115,9 @@ class MusicController: ObservableObject {
     private func controlPlayer(_ action: String) {
         let url = "http://10.0.0.153:7755/control"
         let request = ActionRequestDto(action: action)
-        
+
         NetworkService.sendRequest(with: request, to: url, method: .POST)
-            .decode(type: MusicStatus.self, decoder: JSONDecoder())
+            .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { completion in
                 switch completion {
                 case .failure(let error):
@@ -105,21 +126,25 @@ class MusicController: ObservableObject {
                     break
                 }
             }, receiveValue: { [weak self] data in
-                DispatchQueue.main.async {
-                    self?.status = data
-                }
+                self?.updateStatusData(data)
             })
             .store(in: &cancellables)
+    }
+
+    func updateStatusData(_ status: PlayerStatus) {
+        DispatchQueue.main.async {
+            self.status = status
+        }
     }
 
     func statusUpdate() {
         if !updateStatus {
             return
         }
-        
+
         let url = "http://10.0.0.153:7755/status"
         NetworkService.sendRequest(with: EmptyBody?(nil), to: url, method: .GET)
-            .decode(type: MusicStatus.self, decoder: JSONDecoder())
+            .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { [weak self] completion in
                 switch completion {
                 case .failure(let error):
@@ -127,10 +152,8 @@ class MusicController: ObservableObject {
                 case .finished:
                     break
                 }
-            }, receiveValue: { [weak self] response in
-                DispatchQueue.main.async {
-                    self?.status = response
-                }
+            }, receiveValue: { [weak self] data in
+                self?.updateStatusData(data)
             })
             .store(in: &cancellables)
     }

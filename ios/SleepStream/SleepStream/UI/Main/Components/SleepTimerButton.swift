@@ -1,6 +1,6 @@
 import SwiftUI
 
-struct SleepTimerView: View {
+struct SleepTimerButton: View {
     @ObservedObject var controller: MusicController
     let startSleepTimer: (Int) -> Void
 
@@ -27,7 +27,6 @@ struct SleepTimerView: View {
                         .font(.system(size: 10))
                         .fontWeight(.thin)
                 }
-                Spacer()
             }
         }
     }

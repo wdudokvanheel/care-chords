@@ -2,19 +2,19 @@ import SwiftUI
 
 struct NowPlayingView: View {
     @ObservedObject var controller: MusicController
-
+    
     var body: some View {
-        if let metadata = controller.status.metadata {
-            VStack {
+        VStack {
+            if let metadata = controller.status.metadata {
                 if let url = URL(string: metadata.artwork_url) {
                     RemoteImageView(imageUrl: url)
                         .clipShape(RoundedRectangle(cornerRadius: 8))
                         .padding([.top, .horizontal])
                 }
-                
+                        
                 Spacer()
-
-                VStack{
+                        
+                VStack {
                     Text(metadata.title)
                         .foregroundStyle(.white)
                         .fontWeight(.bold)
@@ -28,9 +28,17 @@ struct NowPlayingView: View {
                         .fontWeight(.light)
                 }
                 .padding(.bottom, 8)
+                        
+                Spacer()
+            }
+            else {
+                Spacer()
+                
+                Text("Nothing playing right now")
+                    .frame(maxWidth: .infinity, alignment: .center)
+                    .foregroundColor(.white.opacity(0.8))
                 
                 Spacer()
-
             }
         }
     }

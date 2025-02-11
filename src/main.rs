@@ -16,10 +16,12 @@ use tokio::time;
 
 #[tokio::main]
 async fn main() -> Result<(), Error> {
-    simple_logger::SimpleLogger::new().with_colors(true)
+    simple_logger::SimpleLogger::new()
+        .with_colors(true)
         .with_module_level("warp", log::LevelFilter::Warn)
         .with_module_level("hyper", log::LevelFilter::Warn)
-        .with_level(log::LevelFilter::Debug).init()?;
+        .with_level(log::LevelFilter::Debug)
+        .init()?;
 
     let gst_pipeline = StreamPipeline::new()?;
     gst_pipeline.set_state(gst::State::Playing)?;
@@ -34,7 +36,9 @@ async fn main() -> Result<(), Error> {
     });
 
     let spotify_client = Arc::new(Mutex::new(
-        SpotifyDBusClient::new().await.expect("Failed to connect to Spotify D-Bus"),
+        SpotifyDBusClient::new()
+            .await
+            .expect("Failed to connect to Spotify D-Bus"),
     ));
 
     let (sleep_timer_tx, sleep_timer_rx) = watch::channel::<Option<Instant>>(None);
@@ -110,7 +114,11 @@ async fn monitor_sleep_timer(
                 if sleep_timer_rx.borrow().clone() == Some(end_time) {
                     time::sleep(Duration::from_secs(1)).await;
                     log::debug!("Pausing Spotify playback");
-                    spotify_client.lock().await.send_player_message("Pause").await;
+                    spotify_client
+                        .lock()
+                        .await
+                        .send_player_message("Pause")
+                        .await;
 
                     // Wait for 5 seconds before restoring volume to 1.0
                     time::sleep(Duration::from_secs(5)).await;

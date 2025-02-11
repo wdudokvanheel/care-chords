@@ -8,8 +8,9 @@ use std::sync::Arc;
 use std::time::{Duration, Instant};
 use tokio::sync::watch::Sender;
 use tokio::sync::{watch, Mutex};
-use warp::http::StatusCode;
-use warp::Filter;
+use warp::http::{Response, StatusCode};
+use warp::hyper::Body;
+use warp::{Filter, Rejection, Reply};
 
 #[derive(Serialize, Deserialize, Debug)]
 pub struct PlayerStateDto {
@@ -170,18 +171,21 @@ async fn handle_control_request(
 async fn handle_state_request(
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
     spotify_client: Arc<Mutex<SpotifyDBusClient>>,
-) -> Result<impl warp::Reply, warp::Rejection> {
-    let state = webserver::create_playerstate_dto(sleep_start_time, spotify_client).await;
+) -> Result<Response<Body>, Rejection> {
+    let state = create_playerstate_dto(sleep_start_time, spotify_client).await;
 
     match state {
-        Ok(state) => Ok(warp::reply::with_status(
-            warp::reply::json(&state),
-            StatusCode::OK,
-        )),
-        Err(err) => Ok(warp::reply::with_status(
-            warp::reply::json(&serde_json::json!({ "error": "server error" })),
-            StatusCode::SERVICE_UNAVAILABLE,
-        )),
+        Ok(state) => {
+            Ok(warp::reply::with_status(warp::reply::json(&state), StatusCode::OK).into_response())
+        }
+        Err(err) => {
+            error!("Failed to create playerstate: {}", err);
+            Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({ "error": "server error" })),
+                StatusCode::SERVICE_UNAVAILABLE,
+            )
+            .into_response())
+        }
     }
 }
 
@@ -224,7 +228,7 @@ async fn handle_shuffle_request(
     body: Value,
     sleep_start_time: Arc<Mutex<Option<Instant>>>,
     spotify_client: Arc<Mutex<SpotifyDBusClient>>,
-) -> Result<impl warp::Reply, warp::Rejection> {
+) -> Result<Response<Body>, Rejection> {
     if let Some(shuffle_state) = body.get("shuffle").and_then(|s| s.as_bool()) {
         {
             let mut spotify = spotify_client.lock().await;
@@ -236,10 +240,21 @@ async fn handle_shuffle_request(
             match spotify.set_shuffle(shuffle_state).await {
                 Err(e) => {
                     error!("Failed to set shuffle state: {}", e);
+                    return Ok(warp::reply::with_status(
+                        warp::reply::json(&serde_json::json!({ "error": "server error" })),
+                        StatusCode::SERVICE_UNAVAILABLE,
+                    )
+                    .into_response());
                 }
                 Ok(_) => {}
             }
         }
+    } else {
+        return Ok(warp::reply::with_status(
+            warp::reply::json(&serde_json::json!({ "error": "invalid request" })),
+            StatusCode::BAD_REQUEST,
+        )
+        .into_response());
     }
 
     handle_state_request(sleep_start_time.clone(), spotify_client.clone()).await

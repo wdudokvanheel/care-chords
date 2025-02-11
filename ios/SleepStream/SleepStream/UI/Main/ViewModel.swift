@@ -46,6 +46,10 @@ class ViewModel: ObservableObject {
     func startSleepTimer(seconds: Int) {
         music.startSleepTimer(seconds)
     }
+    
+    func setShuffle(shuffle: Bool){
+        music.setShuffle(shuffle)
+    }
 
     func selectPlaylist(playlist: Playlist) {
         let request = PlaybackRequestDto(uri: playlist.uri)

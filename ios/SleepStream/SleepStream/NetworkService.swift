@@ -12,6 +12,10 @@ struct SleepTimerRequestDto: Encodable {
     let timer: Int
 }
 
+struct ShuffleRequestDto: Encodable {
+    let shuffle: Bool
+}
+
 enum HTTPMethod: String {
     case GET
     case POST
