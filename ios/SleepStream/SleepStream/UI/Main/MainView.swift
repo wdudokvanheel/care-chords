@@ -6,7 +6,7 @@ struct MainView: View {
     var body: some View {
         VStack {
             TabPanel {
-                Tab(title: "Camera") {
+                Tab(title: "Monitor") {
                     LiveStreamView(controller: model.video)
                 }
                 Tab(title: "Now playing") {

@@ -8,7 +8,7 @@ struct NowPlayingView: View {
             if let metadata = controller.status.metadata {
                 if let url = URL(string: metadata.artwork_url) {
                     RemoteImageView(imageUrl: url)
-                        .clipShape(RoundedRectangle(cornerRadius: 8))
+//                        .clipShape(RoundedRectangle(cornerRadius: 8))
                         .padding([.top, .horizontal])
                 }
                         
@@ -36,7 +36,7 @@ struct NowPlayingView: View {
                 
                 Text("Nothing playing right now")
                     .frame(maxWidth: .infinity, alignment: .center)
-                    .foregroundColor(.white.opacity(0.8))
+                    .foregroundColor(Color.moonWhite)
                 
                 Spacer()
             }

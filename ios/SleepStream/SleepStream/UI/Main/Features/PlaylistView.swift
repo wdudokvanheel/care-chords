@@ -18,6 +18,9 @@ struct PlaylistSelectorView: View {
                 spotify.authorize()
             }
             .buttonStyle(.borderedProminent)
+            .tint(Color.darkerBlue)
+            .buttonBorderShape(.roundedRectangle(radius: 0))
+            .foregroundColor(Color.moonWhite)
             .padding()
         }
         else {
@@ -44,7 +47,6 @@ struct PlaylistSelectorView: View {
                                             .padding(.vertical, 1)
                                     }
                                     .background(Color.playlistItem)
-                                    .clipShape(RoundedRectangle(cornerRadius: 4))
                                     
                                     .padding(0)
                                 }

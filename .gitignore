@@ -1,3 +1,4 @@
-/target
+backend/target
 .idea/
 .DS_Store
+GStreamer.framework
