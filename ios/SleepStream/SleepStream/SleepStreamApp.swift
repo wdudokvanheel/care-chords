@@ -30,23 +30,14 @@ struct SleepStreamApp: App {
             print("not handling URL: unexpected scheme: '\(url)'")
             return
         }
-
-        // This property is used to display an activity indicator in `LoginView`
-        // indicating that the access and refresh tokens are being retrieved.
         spotify.isRetrievingTokens = true
 
-        // Complete the authorization process by requesting the access and
-        // refresh tokens.
         spotify.api.authorizationManager.requestAccessAndRefreshTokens(
             redirectURIWithQuery: url,
-            // This value must be the same as the one used to create the
-            // authorization URL. Otherwise, an error will be thrown.
             state: spotify.authorizationState
         )
         .receive(on: RunLoop.main)
         .sink(receiveCompletion: { completion in
-            // Whether the request succeeded or not, we need to remove the
-            // activity indicator.
             self.audioViewModel.spotify.isRetrievingTokens = false
 
             if case .failure(let error) = completion {
