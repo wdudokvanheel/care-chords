@@ -1,3 +1,5 @@
+use std::fmt;
+use anyhow::{anyhow, Result};
 use dbus::arg::{cast, AppendAll, PropMap, ReadAll, RefArg, Variant};
 use dbus::nonblock::stdintf::org_freedesktop_dbus::Properties;
 use dbus::nonblock::{Proxy, SyncConnection};
@@ -33,7 +35,7 @@ pub struct MusicMetadata {
 }
 
 impl SpotifyDBusClient {
-    pub async fn new() -> Result<Self, Box<dyn std::error::Error>> {
+    pub async fn new() -> Result<Self> {
         let (resource, connection) = connection::new_session_sync()?;
 
         tokio::spawn(async {
@@ -52,7 +54,7 @@ impl SpotifyDBusClient {
 
     async fn find_spotify_destination(
         connection: Arc<SyncConnection>,
-    ) -> Result<String, Box<dyn std::error::Error>> {
+    ) -> Result<String> {
         let proxy = Proxy::new(
             "org.freedesktop.DBus",
             "/org/freedesktop/DBus",
@@ -69,10 +71,10 @@ impl SpotifyDBusClient {
             .iter()
             .find(|name| name.contains("org.mpris.MediaPlayer2.spotify"))
             .map(|s| s.to_string())
-            .ok_or_else(|| Box::<dyn std::error::Error>::from("Spotify destination not found"))
+            .ok_or_else(|| anyhow!("Spotify destination not found"))
     }
 
-    pub async fn status(&mut self) -> Result<PlayerStatus, Box<dyn std::error::Error>> {
+    pub async fn status(&mut self) -> Result<PlayerStatus> {
         let proxy = Proxy::new(
             self.spotify_destination.clone(),
             "/org/mpris/MediaPlayer2",
@@ -111,8 +113,7 @@ impl SpotifyDBusClient {
                     }
                     Err(update_err) => {
                         error!("Failed to update Spotify destination: {:?}", update_err);
-                        // Err(Box::new(std::error::Error::fmt("Failed to update Spotify destination", &mut ())))
-                        // Err(Box::new(update_err))
+                        Err(anyhow!("Failed to update Spotify destination"))
                     }
                 }
             },
@@ -257,7 +258,7 @@ impl SpotifyDBusClient {
             .await;
     }
 
-    pub async fn set_shuffle(&mut self, shuffle: bool) -> Result<(), Box<dyn std::error::Error>> {
+    pub async fn set_shuffle(&mut self, shuffle: bool) -> Result<()> {
         let proxy = Proxy::new(
             self.spotify_destination.clone(),
             "/org/mpris/MediaPlayer2",
@@ -269,8 +270,7 @@ impl SpotifyDBusClient {
             .set("org.mpris.MediaPlayer2.Player", "Shuffle", shuffle)
             .await
             .map_err(|err| {
-                error!("Failed to set shuffle: {:?}", err);
-                Box::<dyn std::error::Error>::from("Failed to set shuffle")
+                anyhow!("Failed to set shuffle: {:?}", err)
             })
     }
 
@@ -280,7 +280,7 @@ impl SpotifyDBusClient {
         interface: I,
         method: M,
         args: A,
-    ) -> Result<R, Error>
+    ) -> Result<R>
     where
         R: 'static + ReadAll,
         A: AppendAll + Clone,
@@ -321,7 +321,7 @@ impl SpotifyDBusClient {
                         tokio::time::sleep(Duration::from_millis(1000)).await;
                         debug!("Retrying method call (attempt {})", retries + 1);
                     } else {
-                        return Err(err);
+                        return Err(anyhow!(err));
                     }
                 }
             }
