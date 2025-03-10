@@ -171,42 +171,6 @@ impl SpotifyClient {
             .expect("Failed to send player command");
     }
 
-    pub fn start(&self) {
-        let session = self.session.clone();
-        let sender = self.audio_channel_sender.clone();
-
-        tokio::spawn(async move {
-            let plist_uri = SpotifyId::from_uri("spotify:playlist:4k20pM1VwL5FSHQtlOENx5")
-                // let plist_uri = SpotifyId::from_uri("spotify:playlist:123Phuf9VqCgVndrnKBKlN")
-                .expect("Spotify URI could not be parsed.");
-
-            let play_list = Playlist::get(&session, &plist_uri).await.unwrap();
-            println!("Playlist Uri {}", play_list.name());
-
-            let volume_getter = Box::new(NoOpVolume);
-
-            if let Some(sender) = sender {
-                let sink = || Box::new(ChannelSink::new(sender)) as Box<dyn Sink>;
-                // let sink = || audio_backend::find(None).unwrap()(None, Default::default());
-
-                let player_config = PlayerConfig::default();
-
-                let player = Player::new(player_config, (*session).clone(), volume_getter, sink);
-                let mut tracks = play_list.tracks();
-
-                while let Some(first_track_id) = tracks.next() {
-                    let track = Track::get(&session, first_track_id).await.unwrap();
-                    log::info!("Now loading track: {}", track.name);
-                    player.load(*first_track_id, true, 0);
-                    player.await_end_of_track().await;
-                    println!("Track finished");
-                }
-            } else {
-                eprintln!("Not sender for sink");
-            }
-        });
-    }
-
     pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<AudioPacket>> {
         self.audio_channel_receiver.take()
     }

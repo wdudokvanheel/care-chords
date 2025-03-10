@@ -7,11 +7,14 @@ use gstreamer::{
     init, Bus, Caps, ClockTime, Element, ElementFactory, FlowSuccess, Pipeline, State,
     StateChangeSuccess,
 };
-use gstreamer_app::{gst, AppSrc};
+use gstreamer_app::{gst, AppSrc, AppSrcCallbacks};
 use gstreamer_rtsp::RTSPLowerTrans;
 use log::error;
+use std::sync::{Arc, Mutex, Weak};
 use std::thread;
+use std::thread::current;
 use std::time::Duration;
+use futures::lock;
 
 #[allow(dead_code)]
 pub struct StreamPipeline {
@@ -22,12 +25,19 @@ pub struct StreamPipeline {
     pub common: CommonElements,
 }
 
+enum SourceSelector {
+    Silence,
+    Spotify,
+}
+
 pub struct SpotifyElements {
     pub app_source: Element,
+    source: Arc<Mutex<SourceSelector>>,
     audio_convert: Element,
     audio_resample: Element,
     input_selector: Element,
     silent_src: Element,
+    queue: Element,
 }
 
 impl StreamPipeline {
@@ -57,8 +67,13 @@ impl StreamPipeline {
             .expect("Failed to link livestream to audio mixer");
 
         spotify.set_active_appsrc().expect("Failed");
-        spotify.input_selector.link(&common.audio_mixer).expect("Failed to link audio mixer");
+        spotify
+            .input_selector
+            .link(&common.audio_mixer)
+            .expect("Failed to link audio mixer");
         Self::connect_dynamic_pads(&livestream)?;
+
+        spotify.setup_auto_silence_switching(spotify.source.clone());
 
         Ok(Self {
             pipeline,
@@ -140,6 +155,9 @@ impl SpotifyElements {
             .expect("Could not create audiotestsrc element");
         silent_src.set_property_from_str("wave", &"silence");
 
+        let queue = ElementFactory::make_with_name("queue", Some("spotify_queue"))
+            .expect("Could not create livestream_queue element.");
+
         // Set up properties on appsrc.
         let caps = Caps::builder("audio/x-raw")
             .field("format", &"F64LE")
@@ -151,8 +169,10 @@ impl SpotifyElements {
         app_source.set_property("caps", &caps);
         app_source.set_property("is-live", &true);
         app_source.set_property("format", &gstreamer::Format::Time);
-        app_source.set_property("max-bytes", &1024u64);
+        app_source.set_property("max-bytes", &10_000u64);
         app_source.set_property("block", &true);
+
+        queue.set_property("max-size-time", &2_000_000_000u64);
 
         Ok(Self {
             app_source,
@@ -160,6 +180,8 @@ impl SpotifyElements {
             audio_resample,
             input_selector,
             silent_src,
+            queue,
+            source: Arc::new(Mutex::new(SourceSelector::Silence)),
         })
     }
 
@@ -167,6 +189,7 @@ impl SpotifyElements {
         // Add all branch elements to the pipeline.
         pipeline.add_many(&[
             &self.app_source,
+            // &self.queue,
             &self.audio_convert,
             &self.audio_resample,
             &self.input_selector,
@@ -179,42 +202,96 @@ impl SpotifyElements {
         // Link the appsrc branch: appsrc → audioconvert → audioresample.
         gstreamer::Element::link_many(&[
             &self.app_source,
-            &self.audio_convert,
+            // &self.queue,
+           &self.audio_convert,
             &self.audio_resample,
         ])
         .expect("Failed to link appsrc branch");
 
         // The input-selector element has request sink pads (named "sink_%u").
         // Request one sink pad for the appsrc branch...
-        let app_sink_pad = self
-            .input_selector
-            .request_pad_simple("sink_%u")
-            .expect("Failed to get input-selector sink pad for appsrc branch");
-        // ...and one for the silent source.
-        let silent_sink_pad = self
-            .input_selector
-            .request_pad_simple("sink_%u")
-            .expect("Failed to get input-selector sink pad for silent branch");
-
-        // Link the output of the real-data branch (audio_resample's src pad)
-        // to the requested sink pad for the appsrc branch.
-        self.audio_resample
-            .link_pads(Some("src"), &self.input_selector, Some(&*app_sink_pad.name()))
-            .expect("Failed to link appsrc branch to input-selector");
-
-        // Link the silent source to the input-selector.
-        // (audiotestsrc has a fixed src pad so a normal link works)
-        self.silent_src
-            .link(&self.input_selector)
-            .expect("Failed to link silent source to input-selector");
-
-        // Optionally, you can set the active pad.
-        // For example, default to the appsrc branch:
-        self.input_selector
-            .set_property("active-pad", &app_sink_pad);
+        // let app_sink_pad = self
+        //     .input_selector
+        //     .request_pad_simple("sink_%u")
+        //     .expect("Failed to get input-selector sink pad for appsrc branch");
+        // // ...and one for the silent source.
+        // let silent_sink_pad = self
+        //     .input_selector
+        //     .request_pad_simple("sink_%u")
+        //     .expect("Failed to get input-selector sink pad for silent branch");
+        //
+        // // Link the output of the real-data branch (audio_resample's src pad)
+        // // to the requested sink pad for the appsrc branch.
+        // self.audio_resample
+        //     .link_pads(
+        //         Some("src"),
+        //         &self.input_selector,
+        //         Some(&*app_sink_pad.name()),
+        //     )
+        //     .expect("Failed to link appsrc branch to input-selector");
+        //
+        // // Link the silent source to the input-selector.
+        // // (audiotestsrc has a fixed src pad so a normal link works)
+        // self.silent_src
+        //     .link(&self.input_selector)
+        //     .expect("Failed to link silent source to input-selector");
+        //
+        // // Optionally, you can set the active pad.
+        // // For example, default to the appsrc branch:
+        // self.input_selector
+        //     .set_property("active-pad", &app_sink_pad);
 
         // The input-selector's src pad will be linked to the mixer in your main pipeline.
         Ok(())
+    }
+
+    pub fn setup_auto_silence_switching(&self, source_selector: Arc<Mutex<SourceSelector>>) {
+        let app_source = self
+            .app_source
+            .clone()
+            .dynamic_cast::<AppSrc>()
+            .expect("Source element is not an AppSrc!");
+
+        let selector_need = self.input_selector.clone();
+        let selector_enough = self.input_selector.clone();
+
+        let source_selector_need = source_selector.clone();
+        let source_selector_enough = source_selector.clone();
+        //
+        // app_source.set_callbacks(
+        //     AppSrcCallbacks::builder()
+        //         .need_data(move |_appsrc, _length| {
+        //             if let Ok(mut current) = source_selector_need.as_ref().lock(){
+        //                 if matches!(*current, SourceSelector::Spotify){
+        //                     let pads = selector_need.pads();
+        //                         for pad in pads {
+        //                             if pad.name().contains("sink") && pad.name().contains("1") {
+        //                                 log::warn!("Switched to silence");
+        //                                 *current = SourceSelector::Silence;
+        //                                 selector_need.set_property("active-pad", &pad);
+        //                                 break;
+        //                             }
+        //                         }
+        //                 }
+        //             }
+        //         })
+        //         .enough_data(move |_appsrc| {
+        //             if let Ok(mut current) = source_selector_enough.as_ref().lock(){
+        //                 if matches!(*current, SourceSelector::Silence){
+        //                     let pads = selector_enough.pads();
+        //                     for pad in pads {
+        //                         if pad.name().contains("sink") && pad.name().contains("0") {
+        //                             log::warn!("Switched to appsrc");
+        //                             *current = SourceSelector::Spotify;
+        //                             selector_enough.set_property("active-pad", &pad);
+        //                             break;
+        //                         }
+        //                     }
+        //                 }
+        //             }
+        //         })
+        //         .build(),
+        // );
     }
 
     // Optionally, add helper methods to switch the active pad when needed.
@@ -428,6 +505,7 @@ impl MusicElements {
 
 pub struct CommonElements {
     audio_mixer: Element,
+    queue: Element,
     aac_encoder: Element,
     stereo_filter: Element,
     mp4_mux: Element,
@@ -437,6 +515,8 @@ pub struct CommonElements {
 impl CommonElements {
     fn new() -> Result<Self, Error> {
         let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("AudioMixer"))
+            .expect("Could not create audio_mixer element.");
+        let queue = ElementFactory::make_with_name("queue", Some("AudioMixerQueue"))
             .expect("Could not create audio_mixer element.");
         let aac_encoder = ElementFactory::make_with_name("avenc_aac", Some("CommonEncoder"))
             .expect("Could not create aac_encoder element.");
@@ -448,8 +528,13 @@ impl CommonElements {
         let rtsp_sink = ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
             .expect("Could not create rtsp_sink element.");
 
+        let rtsp_sink = ElementFactory::make_with_name("autoaudiosink", Some("rtsp_sink"))
+            .expect("Could not create rtsp_sink element.");
+
+        queue.set_property("max-size-time", &100_000u64);
+
         // mp3_encoder.set_property("bitrate", &320);
-        rtsp_sink.set_property("location", &"rtsp://10.0.0.21:8554/sleep");
+        // rtsp_sink.set_property("location", &"rtsp://10.0.0.21:8554/sleep");
         stereo_filter.set_property(
             "caps",
             &Caps::builder("audio/x-raw").field("channels", &2).build(),
@@ -457,6 +542,7 @@ impl CommonElements {
 
         Ok(Self {
             audio_mixer,
+            queue,
             aac_encoder,
             stereo_filter,
             mp4_mux,
@@ -468,6 +554,7 @@ impl CommonElements {
         pipeline.add_many(&[
             &self.audio_mixer,
             &self.stereo_filter,
+            &self.queue,
             &self.aac_encoder,
             &self.mp4_mux,
             &self.rtsp_sink,
@@ -479,7 +566,8 @@ impl CommonElements {
         Element::link_many(&[
             &self.audio_mixer,
             &self.stereo_filter,
-            &self.aac_encoder,
+            &self.queue,
+            // &self.aac_encoder,
             &self.rtsp_sink,
         ])?;
         Ok(())

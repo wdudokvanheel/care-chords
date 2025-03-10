@@ -46,14 +46,26 @@ impl CareChordsServer {
         sleep(Duration::from_secs(1)).await;
 
         if let Authenticated(spot) = &self.spotify {
-            spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
+            // spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
+            spot.playlist("4Kl21mcSdESNomCLQXO5DP").await;
             // spot.playlist("123Phuf9VqCgVndrnKBKlN").await;
-            sleep(Duration::from_secs(20)).await;
+            sleep(Duration::from_secs(10)).await;
             log::info!("Pause");
             spot.pause().await;
-            // sleep(Duration::from_secs(3)).await;
-            // log::info!("Play");
-            // spot.play().await;
+
+            sleep(Duration::from_secs(5)).await;
+            log::info!("Play");
+            self.pipeline
+                .spotify
+                .app_source
+                .set_state(gst::State::Ready)
+                .unwrap();
+            self.pipeline
+                .spotify
+                .app_source
+                .set_state(gst::State::Playing)
+                .unwrap();
+            spot.play().await;
         }
     }
 

@@ -16,10 +16,12 @@ impl ChannelSink {
 
 impl Sink for ChannelSink {
     fn start(&mut self) -> SinkResult<()> {
+        log::error!("Sink started!");
         Ok(())
     }
 
     fn stop(&mut self) -> SinkResult<()> {
+        log::error!("Sink stopped!!!!!!!!!!!!!!!!!!!!!!!!!");
         Ok(())
     }
 
