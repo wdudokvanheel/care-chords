@@ -2,3 +2,4 @@ backend/target
 .idea/
 .DS_Store
 GStreamer.framework
+backend/cache
