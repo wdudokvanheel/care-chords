@@ -1,5 +1,9 @@
 use anyhow::Error;
-use gstreamer::prelude::{Cast, ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, GstObjectExt, ObjectExt, PadExt, PipelineExt};
+use futures::lock;
+use gstreamer::prelude::{
+    Cast, ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, GstObjectExt,
+    ObjectExt, PadExt, PipelineExt,
+};
 use gstreamer::{
     init, Bus, Caps, ClockTime, Element, ElementFactory, FlowSuccess, Pipeline, State,
     StateChangeSuccess,
@@ -9,9 +13,8 @@ use gstreamer_rtsp::RTSPLowerTrans;
 use log::error;
 use std::sync::{Arc, Mutex, Weak};
 use std::thread;
-use std::thread::current;
+use std::thread::{current, sleep, spawn};
 use std::time::{Duration, Instant};
-use futures::lock;
 
 #[allow(dead_code)]
 pub struct StreamPipeline {
@@ -45,7 +48,7 @@ impl StreamPipeline {
 
         let livestream = LivestreamElements::new()?;
         // let music = MusicElements::new()?;
-        let spotify = SpotifyElements::new()?;
+        let mut spotify = SpotifyElements::new()?;
         let common = CommonElements::new()?;
 
         livestream.add_to_pipeline(&pipeline)?;
@@ -63,14 +66,21 @@ impl StreamPipeline {
             .link(&common.audio_mixer)
             .expect("Failed to link livestream to audio mixer");
 
-        spotify.set_active_appsrc().expect("Failed");
+        // spotify.set_active_appsrc().expect("Failed");
+
         spotify
             .input_selector
             .link(&common.audio_mixer)
             .expect("Failed to link audio mixer");
         Self::connect_dynamic_pads(&livestream)?;
 
-        spotify.setup_auto_silence_switching(spotify.source.clone());
+        // spotify.setup_auto_silence_switching(spotify.source.clone());
+        Self::auto_switch_silence_fallback(
+            &spotify.queue,
+            &spotify.input_selector,
+            &spotify.source,
+        );
+
         pipeline.set_latency(ClockTime::from_mseconds(500));
         Ok(Self {
             pipeline,
@@ -79,6 +89,22 @@ impl StreamPipeline {
             // music,
             common,
         })
+    }
+
+    fn auto_switch_silence_fallback(
+        queue: &Element,
+        input_selector: &Element,
+        source_selector: &Arc<Mutex<SourceSelector>>,
+    ) {
+        // Spawn a thread to monitor the buffer every 100ms.
+        let queue_clone = queue.clone();
+        let input_selector_clone = input_selector.clone();
+        let selector_clone = source_selector.clone();
+
+        spawn(move || loop {
+            monitor_buffer(&queue_clone, &input_selector_clone, &selector_clone);
+            sleep(Duration::from_millis(50));
+        });
     }
 
     fn connect_dynamic_pads(livestream: &LivestreamElements) -> Result<(), Error> {
@@ -137,15 +163,14 @@ pub fn monitor_buffer(
     let max_bytes: u32 = queue.property::<u32>("max-size-bytes");
     let current_bytes: u32 = queue.property::<u32>("current-level-bytes");
 
-    log::info!("current_bytes: {}/{}", current_bytes, max_bytes);
-    // If the buffer is less than 10% full...
+    // log::trace!("current_bytes: {}/{}", current_bytes, max_bytes);
     if current_bytes < max_bytes * 10 / 100 {
         let mut current = source_selector.lock().unwrap();
         if matches!(*current, SourceSelector::Spotify) {
             // Switch to silence branch (typically sink pad "1")
             for pad in input_selector.pads() {
                 if pad.name().contains("sink") && pad.name().contains("1") {
-                    log::warn!("Switching to silence due to low buffer");
+                    log::debug!("Switching to silence due to low buffer");
                     input_selector.set_property("active-pad", &pad);
                     *current = SourceSelector::Silence;
                     break;
@@ -158,7 +183,7 @@ pub fn monitor_buffer(
             // Switch back to Spotify (typically sink pad "0")
             for pad in input_selector.pads() {
                 if pad.name().contains("sink") && pad.name().contains("0") {
-                    log::warn!("Buffer healthy; switching back to appsrc");
+                    log::debug!("Buffer healthy; switching to appsrc");
                     input_selector.set_property("active-pad", &pad);
                     *current = SourceSelector::Spotify;
                     break;
@@ -189,7 +214,7 @@ impl SpotifyElements {
             ElementFactory::make_with_name("input-selector", Some("spotify_selector"))
                 .expect("Could not create input-selector element");
 
-        // Create a silent source (audiotestsrc) set to produce silence.
+        // Create a silent source (audiotestsrc) to produce silence.
         let silent_src = ElementFactory::make_with_name("audiotestsrc", Some("spotify_silent_src"))
             .expect("Could not create audiotestsrc element");
         silent_src.set_property_from_str("wave", &"silence");
@@ -242,7 +267,7 @@ impl SpotifyElements {
         gstreamer::Element::link_many(&[
             &self.app_source,
             &self.queue,
-           &self.audio_convert,
+            &self.audio_convert,
             &self.audio_resample,
         ])
         .expect("Failed to link appsrc branch");

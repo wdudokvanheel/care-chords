@@ -105,17 +105,15 @@ impl SpotifyPlayer {
                         }
                         _ => {}
                     }
-
-                    log::info!("Queue size: {}", self.queue.len());
                 }
 
                 // Librespot events
                 Some(event) = spotify_player_events.recv() => {
-                    log::info!("Received player event: {:?}", event);
+                    log::trace!("Received player event: {:?}", event);
                     match event {
                         PlayerEvent::Playing{ position_ms, .. } => self.set_state(PlayerState::Playing).await,
                         PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(PlayerState::Paused(track_id, position_ms)).await,
-                        // PlayerEvent::Stopped { .. } => self.set_state(PlayerState::Stopped).await,
+                        PlayerEvent::Stopped { .. } => self.set_state(PlayerState::Stopped).await,
                         PlayerEvent::EndOfTrack { .. } => self.play_next_song().await,
                         _ => {}
                     }
