@@ -76,6 +76,7 @@ impl StreamPipeline {
 
         // spotify.setup_auto_silence_switching(spotify.source.clone());
         Self::auto_switch_silence_fallback(
+            &spotify.app_source,
             &spotify.queue,
             &spotify.input_selector,
             &spotify.source,
@@ -92,17 +93,24 @@ impl StreamPipeline {
     }
 
     fn auto_switch_silence_fallback(
+        app_src: &Element,
         queue: &Element,
         input_selector: &Element,
         source_selector: &Arc<Mutex<SourceSelector>>,
     ) {
         // Spawn a thread to monitor the buffer every 100ms.
+        let app_src = app_src.clone();
         let queue_clone = queue.clone();
         let input_selector_clone = input_selector.clone();
         let selector_clone = source_selector.clone();
 
         spawn(move || loop {
-            monitor_buffer(&queue_clone, &input_selector_clone, &selector_clone);
+            monitor_buffer(
+                &app_src,
+                &queue_clone,
+                &input_selector_clone,
+                &selector_clone,
+            );
             sleep(Duration::from_millis(50));
         });
     }
@@ -155,6 +163,7 @@ impl StreamPipeline {
 
 // Example function to monitor buffer fullness
 pub fn monitor_buffer(
+    app_src: &Element,
     queue: &Element,
     input_selector: &Element,
     source_selector: &Arc<Mutex<SourceSelector>>,
@@ -234,9 +243,10 @@ impl SpotifyElements {
         app_source.set_property("is-live", &true);
         app_source.set_property("format", &gstreamer::Format::Time);
         app_source.set_property("max-bytes", &10_000u64);
+        app_source.set_property("do-timestamp", &true);
         app_source.set_property("block", &true);
 
-        queue.set_property("max-size-bytes", &10_000u32);
+        queue.set_property("max-size-bytes", &5_0000u32);
 
         Ok(Self {
             app_source,

@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
+use crate::spotify_sink::SinkEvent;
 
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,
@@ -26,9 +27,10 @@ pub struct UnauthenticatedSpotifyClient {
 pub struct SpotifyClient {
     session: Arc<Session>,
     audio_channel_sender: Option<SyncSender<AudioPacket>>,
-    audio_channel_receiver: Option<std::sync::mpsc::Receiver<AudioPacket>>,
+    audio_channel_receiver: Option<std::sync::mpsc::Receiver<SinkEvent>>,
     player_channel: Sender<PlayerCommand>,
 }
+
 
 impl UnauthenticatedSpotifyClient {
     pub async fn try_cache_authentication_with_discovery_fallback(&self) -> Result<SpotifyClient> {
@@ -60,7 +62,7 @@ impl UnauthenticatedSpotifyClient {
     }
 
     fn from_authenticated_session(session: Session) -> SpotifyClient {
-        let (sender, receiver) = sync_channel::<AudioPacket>(10);
+        let (sender, receiver) = sync_channel::<SinkEvent>(10);
 
         let player = SpotifyPlayer::new(session.clone(), sender);
         let player_channel = player.command_channel();
@@ -141,6 +143,10 @@ impl SpotifyClient {
         }
     }
 
+    pub fn player_channel(&self) -> Sender<PlayerCommand> {
+        self.player_channel.clone()
+    }
+
     pub async fn playlist(&self, playlist: &str) {
         self.player_channel
             .send(PlayerCommand::Playlist(playlist.to_string()))
@@ -162,7 +168,7 @@ impl SpotifyClient {
             .expect("Failed to send player command");
     }
 
-    pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<AudioPacket>> {
+    pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<SinkEvent>> {
         self.audio_channel_receiver.take()
     }
 }

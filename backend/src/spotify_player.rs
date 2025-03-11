@@ -1,4 +1,4 @@
-use crate::spotify_sink::ChannelSink;
+use crate::spotify_sink::{ChannelSink, SinkEvent};
 use librespot_core::{Session, SpotifyId};
 use librespot_metadata::{Metadata, Playlist, Track};
 use librespot_playback::audio_backend::Sink;
@@ -10,13 +10,13 @@ use std::collections::VecDeque;
 use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 use std::time::Duration;
+use gstreamer::event::SinkMessage;
 use tokio::sync::mpsc::{channel, Receiver, Sender, UnboundedReceiver};
 use tokio::time::sleep;
 
 #[derive(Clone, Debug)]
 pub enum PlayerCommand {
     Playlist(String),
-    Forward,
     Play,
     Pause,
 }
@@ -37,7 +37,7 @@ enum PlayerState {
 }
 
 impl SpotifyPlayer {
-    pub fn new(session: Session, audio_sender: SyncSender<AudioPacket>) -> Self {
+    pub fn new(session: Session, audio_sender: SyncSender<SinkEvent>) -> Self {
         let (sender, receiver) = channel::<PlayerCommand>(3);
         let sink = || Box::new(ChannelSink::new(audio_sender)) as Box<dyn Sink>;
         let player_config = PlayerConfig {
@@ -99,8 +99,10 @@ impl SpotifyPlayer {
                         PlayerCommand::Play => {
                             if let PlayerState::Paused(id, position_ms) = self.state {
                                 log::info!("Resuming playback @ {}", position_ms);
-                                self.player.seek(0);
+                                // TODO Emit event to reset app src (set to stopped & play again)
                                 self.player.play();
+                                // self.player.seek(position_ms);
+                                // self.player.load(id, true, position_ms);
                             }
                         }
                         _ => {}

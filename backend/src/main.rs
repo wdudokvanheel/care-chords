@@ -1,3 +1,4 @@
+mod http;
 mod pipeline;
 mod spot;
 mod spotify;
@@ -5,13 +6,20 @@ mod spotify_player;
 mod spotify_sink;
 mod webserver;
 
+use crate::http::start_http_server;
+use crate::pipeline::monitor_buffer;
 use crate::spot::{SpotifyClient, UnauthenticatedSpotifyClient};
 use crate::spotify::SpotifyDBusClient;
+use crate::spotify_sink::SinkEvent;
 use crate::SpotifyState::{Authenticated, Unauthenticated};
 use anyhow::Error;
 use gstreamer as gst;
+use gstreamer::event::{FlushStart, FlushStop};
 use gstreamer::prelude::*;
-use gstreamer::Element;
+use gstreamer::EventType::SegmentDone;
+use gstreamer::{
+    event, ClockTime, Element, Event, EventType, Format, Pipeline, Segment, Structure,
+};
 use gstreamer_app::AppSrc;
 use librespot_playback::decoder::AudioPacket;
 use pipeline::StreamPipeline;
@@ -24,7 +32,7 @@ use tokio::sync::Mutex;
 use tokio::time;
 use tokio::time::sleep;
 use warp::hyper::Client;
-use crate::pipeline::monitor_buffer;
+use warp::path::end;
 
 struct CareChordsServer {
     spotify: SpotifyState,
@@ -41,32 +49,38 @@ impl CareChordsServer {
 
     pub async fn start(&mut self) {
         log::info!("Starting CareChordsServer!");
-        self.start_spotify().await;
         self.start_gstreamer();
+
+        self.start_spotify().await;
+
+        if let Authenticated(spot) = &self.spotify {
+            start_http_server(spot.clone());
+        }
 
         sleep(Duration::from_secs(1)).await;
 
         if let Authenticated(spot) = &self.spotify {
-            spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
-            // spot.playlist("4Kl21mcSdESNomCLQXO5DP").await;
-            // spot.playlist("123Phuf9VqCgVndrnKBKlN").await;
-            sleep(Duration::from_secs(10)).await;
-            log::info!("Pause");
-            spot.pause().await;
-
-            sleep(Duration::from_secs(5)).await;
-            log::info!("Play");
-            self.pipeline
-                .spotify
-                .app_source
-                .set_state(gst::State::Ready)
-                .unwrap();
-            self.pipeline
-                .spotify
-                .app_source
-                .set_state(gst::State::Playing)
-                .unwrap();
-            spot.play().await;
+            // spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
+            // // spot.playlist("4Kl21mcSdESNomCLQXO5DP").await;
+            // // spot.playlist("123Phuf9VqCgVndrnKBKlN").await;
+            // sleep(Duration::from_secs(10)).await;
+            // log::info!("Pause");
+            // spot.pause().await;
+            //
+            // sleep(Duration::from_secs(5)).await;
+            // log::info!("Play");
+            // // self.pipeline
+            // //     .spotify
+            // //     .app_source
+            // //     .set_state(gst::State::Ready)
+            // //     .unwrap();
+            // //
+            // // self.pipeline
+            // //     .spotify
+            // //     .app_source
+            // //     .set_state(gst::State::Playing)
+            // //     .unwrap();
+            // spot.play().await;
         }
     }
 
@@ -81,7 +95,14 @@ impl CareChordsServer {
 
                     let receiver = client.audio_stream_channel().take().unwrap();
                     let app_src = self.pipeline.spotify.app_source.clone();
-                    Self::push_audio_app_src(app_src, receiver);
+                    let pipeline = self.pipeline.pipeline.clone();
+
+                    Self::push_audio_app_src(
+                        pipeline,
+                        app_src,
+                        self.pipeline.spotify.queue.clone(),
+                        receiver,
+                    );
 
                     self.spotify = Authenticated(Arc::new(client));
                 }
@@ -110,67 +131,74 @@ impl CareChordsServer {
     }
 
     // Start a new thread that consumes all audio packets from the receiver and sends it to the app src
-    fn push_audio_app_src(app_src: Element, receiver: Receiver<AudioPacket>) {
+    fn push_audio_app_src(
+        pipeline: Pipeline,
+        app_src: Element,
+        queue: Element,
+        receiver: Receiver<SinkEvent>,
+    ) {
         let app_src = app_src
             .dynamic_cast::<AppSrc>()
             .expect("Source element is not an AppSrc!");
 
         tokio::spawn(async move {
             let mut timestamp: u64 = 0; // cumulative timestamp in nanoseconds
+            let mut last_stopped_time = *pipeline.clock().unwrap().time().unwrap();
 
-            while let Ok(packet) = receiver.recv() {
-                // println!("Got packet");
-                // Extract the f64 samples from the packet.
-                let samples = match packet.samples() {
-                    Ok(s) => s,
-                    Err(err) => {
-                        eprintln!("Error retrieving samples from packet: {:?}", err);
-                        continue;
+            while let Ok(event) = receiver.recv() {
+                match event {
+                    SinkEvent::Start => {
+                        let now: ClockTime = pipeline.clock().unwrap().time().unwrap();
+
+                        timestamp += *now - last_stopped_time;
                     }
-                };
-
-                // Skip empty packets.
-                if samples.is_empty() {
-                    continue;
-                }
-
-                // Calculate the total number of bytes.
-                let byte_len = samples.len() * std::mem::size_of::<f64>();
-                // Create a new buffer for the audio data.
-                let mut buffer = gst::Buffer::with_size(byte_len)
-                    .expect("Failed to allocate buffer for audio data");
-                {
-                    // Get a writable map of the buffer.
-                    let buffer_mut = buffer.get_mut().unwrap();
-                    let mut map = buffer_mut
-                        .map_writable()
-                        .expect("Failed to map buffer writable");
-                    // Safety: samples are stored contiguously in memory.
-                    let sample_bytes = unsafe {
-                        std::slice::from_raw_parts(samples.as_ptr() as *const u8, byte_len)
-                    };
-                    map.copy_from_slice(sample_bytes);
-                }
-
-                // Compute duration based on the number of frames.
-                // Assuming stereo (2 channels): number of frames = samples.len() / 2.
-                let frames = (samples.len() as u64) / 2;
-                // Duration in nanoseconds: (frames / sample_rate) seconds converted to ns.
-                let duration_ns = frames * 1_000_000_000 / 44100;
-                {
-                    let buffer_mut = buffer.get_mut().unwrap();
-                    buffer_mut.set_pts(gst::ClockTime::from_nseconds(timestamp));
-                    buffer_mut.set_duration(gst::ClockTime::from_nseconds(duration_ns));
-                }
-                timestamp += duration_ns;
-
-                // Push the buffer into appsrc.
-                match app_src.push_buffer(buffer) {
-                    Err(err) => {
-                        eprintln!("Failed to push buffer: {:?}", err);
-                        break;
+                    SinkEvent::Stop => {
+                        log::error!("GOT STOP");
+                        last_stopped_time = *pipeline.clock().unwrap().time().unwrap();
                     }
-                    _ => {}
+                    SinkEvent::Packet(samples) => {
+                        // Skip empty packets.
+                        if samples.is_empty() {
+                            continue;
+                        }
+
+                        // Calculate the total number of bytes.
+                        let byte_len = samples.len() * std::mem::size_of::<f64>();
+                        // Create a new buffer for the audio data.
+                        let mut buffer = gst::Buffer::with_size(byte_len)
+                            .expect("Failed to allocate buffer for audio data");
+                        {
+                            // Get a writable map of the buffer.
+                            let buffer_mut = buffer.get_mut().unwrap();
+                            let mut map = buffer_mut
+                                .map_writable()
+                                .expect("Failed to map buffer writable");
+                            // Safety: samples are stored contiguously in memory.
+                            let sample_bytes = unsafe {
+                                std::slice::from_raw_parts(samples.as_ptr() as *const u8, byte_len)
+                            };
+                            map.copy_from_slice(sample_bytes);
+                        }
+
+                        let frames = (samples.len() as u64) / 2;
+                        // Duration in nanoseconds: (frames / sample_rate) seconds converted to ns.
+                        let duration_ns = frames * 1_000_000_000 / 44100;
+                        {
+                            let buffer_mut = buffer.get_mut().unwrap();
+                            buffer_mut.set_pts(gst::ClockTime::from_nseconds(timestamp));
+                            buffer_mut.set_duration(gst::ClockTime::from_nseconds(duration_ns));
+                        }
+                        // log::warn!("Pushed @ {}", timestamp);
+                        timestamp += duration_ns;
+
+                        match app_src.push_buffer(buffer) {
+                            Err(err) => {
+                                eprintln!("Failed to push buffer: {:?}", err);
+                                break;
+                            }
+                            _ => {}
+                        }
+                    }
                 }
             }
 
