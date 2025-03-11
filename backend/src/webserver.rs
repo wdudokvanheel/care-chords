@@ -1,4 +1,4 @@
-use crate::spotify::{MusicMetadata, PlayerStatus, SpotifyDBusClient};
+use crate::spotify_old::{MusicMetadata, PlayerStatus, SpotifyDBusClient};
 use crate::webserver;
 use dbus::Error;
 use log::error;

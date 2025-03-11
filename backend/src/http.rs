@@ -1,5 +1,5 @@
-use crate::spot::SpotifyClient;
-use crate::spotify::SpotifyDBusClient;
+use crate::spotify_client::SpotifyClient;
+use crate::spotify_old::SpotifyDBusClient;
 use crate::spotify_player::PlayerCommand;
 use std::sync::Arc;
 use std::time::Instant;
@@ -12,11 +12,6 @@ use warp::{Filter, Rejection, Reply};
 #[derive(serde::Deserialize)]
 struct PlaylistRequest {
     id: String,
-}
-
-#[derive(serde::Deserialize)]
-struct ControlRequest {
-    action: String,
 }
 
 pub fn start_http_server(spotify: Arc<SpotifyClient>) {
@@ -44,6 +39,11 @@ fn create_routes(
         .and_then(handle_play);
 
     let pause_route = warp::path("pause")
+        .and(warp::post())
+        .and(spotify_filter.clone())
+        .and_then(handle_pause);
+
+    let pause_route = warp::path("next")
         .and(warp::post())
         .and(spotify_filter.clone())
         .and_then(handle_pause);
@@ -82,12 +82,12 @@ async fn handle_play(client: Sender<PlayerCommand>) -> Result<Response<Body>, Re
 
 async fn handle_pause(client: Sender<PlayerCommand>) -> Result<Response<Body>, Rejection> {
     client
-        .send(PlayerCommand::Pause)
+        .send(PlayerCommand::Next)
         .await
         .expect("Failed to send pause command");
 
     Ok(warp::reply::with_status(
-        warp::reply::json(&serde_json::json!({ "status": "paused" })),
+        warp::reply::json(&serde_json::json!({ "status": "success" })),
         StatusCode::OK,
     )
     .into_response())

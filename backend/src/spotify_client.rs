@@ -31,18 +31,16 @@ pub struct SpotifyClient {
     player_channel: Sender<PlayerCommand>,
 }
 
-
 impl UnauthenticatedSpotifyClient {
     pub async fn try_cache_authentication_with_discovery_fallback(&self) -> Result<SpotifyClient> {
         let credentials = self.fetch_credentials_from_cache().await;
 
         match credentials {
             Ok(creds) => {
-                println!("Got sum good creds");
                 Ok(self.authenticate(creds).await?)
             }
             Err(_) => {
-                println!("Failed to get credentials!");
+                log::info!("Failed to load credentials from cache, going in discovery mode");
                 match self.discover_credentials().await {
                     Ok(creds) => self.authenticate(creds).await,
                     Err(e) => Err(anyhow!("Failed to get credentials from discovery: {}", e)),
@@ -81,7 +79,7 @@ impl UnauthenticatedSpotifyClient {
 
     pub async fn fetch_credentials_from_cache(&self) -> Result<Credentials> {
         let path = self.cache_folder.join("credentials.json");
-        println!("Loading cache from: {}", path.display());
+        log::info!("Loading cache from: {}", path.display());
         if !path.exists() {
             return Err(anyhow::anyhow!(format!(
                 "File {} does not exist.",
@@ -109,7 +107,7 @@ impl UnauthenticatedSpotifyClient {
                 .launch()
                 .unwrap();
 
-        println!("Searching for Spotify Connect devices");
+        log::info!("Searching for Spotify Connect devices");
 
         while let Some(credentials) = discovery.next().await {
             let cache = create_spotify_cache();
@@ -119,7 +117,7 @@ impl UnauthenticatedSpotifyClient {
 
             match session.connect(credentials.clone(), true).await {
                 Ok(_) => {
-                    println!(
+                    log::info!(
                         "Found device: {}, saved credentials for {}",
                         session.device_id(),
                         session.username()
@@ -147,26 +145,26 @@ impl SpotifyClient {
         self.player_channel.clone()
     }
 
-    pub async fn playlist(&self, playlist: &str) {
-        self.player_channel
-            .send(PlayerCommand::Playlist(playlist.to_string()))
-            .await
-            .expect("Failed to send player command");
-    }
-
-    pub async fn pause(&self){
-        self.player_channel
-            .send(PlayerCommand::Pause)
-            .await
-            .expect("Failed to send player command");
-    }
-
-    pub async fn play(&self){
-        self.player_channel
-            .send(PlayerCommand::Play)
-            .await
-            .expect("Failed to send player command");
-    }
+    // pub async fn playlist(&self, playlist: &str) {
+    //     self.player_channel
+    //         .send(PlayerCommand::Playlist(playlist.to_string()))
+    //         .await
+    //         .expect("Failed to send player command");
+    // }
+    //
+    // pub async fn pause(&self){
+    //     self.player_channel
+    //         .send(PlayerCommand::Pause)
+    //         .await
+    //         .expect("Failed to send player command");
+    // }
+    //
+    // pub async fn play(&self){
+    //     self.player_channel
+    //         .send(PlayerCommand::Play)
+    //         .await
+    //         .expect("Failed to send player command");
+    // }
 
     pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<SinkEvent>> {
         self.audio_channel_receiver.take()

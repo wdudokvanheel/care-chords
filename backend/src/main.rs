@@ -1,15 +1,14 @@
 mod http;
 mod pipeline;
-mod spot;
-mod spotify;
+mod spotify_client;
+mod spotify_old;
 mod spotify_player;
 mod spotify_sink;
 mod webserver;
 
 use crate::http::start_http_server;
-use crate::pipeline::monitor_buffer;
-use crate::spot::{SpotifyClient, UnauthenticatedSpotifyClient};
-use crate::spotify::SpotifyDBusClient;
+use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
+use crate::spotify_old::SpotifyDBusClient;
 use crate::spotify_sink::SinkEvent;
 use crate::SpotifyState::{Authenticated, Unauthenticated};
 use anyhow::Error;
@@ -22,7 +21,7 @@ use gstreamer::{
 };
 use gstreamer_app::AppSrc;
 use librespot_playback::decoder::AudioPacket;
-use pipeline::StreamPipeline;
+use pipeline::MainPipeline;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
 use std::time::{Duration, Instant};
@@ -36,14 +35,14 @@ use warp::path::end;
 
 struct CareChordsServer {
     spotify: SpotifyState,
-    pipeline: Arc<StreamPipeline>,
+    pipeline: Arc<MainPipeline>,
 }
 
 impl CareChordsServer {
     pub fn new() -> Self {
         Self {
             spotify: Unauthenticated(Arc::new(SpotifyClient::new())),
-            pipeline: Arc::new(StreamPipeline::new().unwrap()),
+            pipeline: Arc::new(MainPipeline::new().unwrap()),
         }
     }
 
@@ -97,12 +96,7 @@ impl CareChordsServer {
                     let app_src = self.pipeline.spotify.app_source.clone();
                     let pipeline = self.pipeline.pipeline.clone();
 
-                    Self::push_audio_app_src(
-                        pipeline,
-                        app_src,
-                        self.pipeline.spotify.queue.clone(),
-                        receiver,
-                    );
+                    Self::push_audio_app_src(pipeline, app_src, receiver);
 
                     self.spotify = Authenticated(Arc::new(client));
                 }
@@ -131,18 +125,13 @@ impl CareChordsServer {
     }
 
     // Start a new thread that consumes all audio packets from the receiver and sends it to the app src
-    fn push_audio_app_src(
-        pipeline: Pipeline,
-        app_src: Element,
-        queue: Element,
-        receiver: Receiver<SinkEvent>,
-    ) {
+    fn push_audio_app_src(pipeline: Pipeline, app_src: Element, receiver: Receiver<SinkEvent>) {
         let app_src = app_src
             .dynamic_cast::<AppSrc>()
             .expect("Source element is not an AppSrc!");
 
         tokio::spawn(async move {
-            let mut timestamp: u64 = 0; // cumulative timestamp in nanoseconds
+            let mut timestamp: u64 = 0;
             let mut last_stopped_time = *pipeline.clock().unwrap().time().unwrap();
 
             while let Ok(event) = receiver.recv() {
@@ -153,7 +142,6 @@ impl CareChordsServer {
                         timestamp += *now - last_stopped_time;
                     }
                     SinkEvent::Stop => {
-                        log::error!("GOT STOP");
                         last_stopped_time = *pipeline.clock().unwrap().time().unwrap();
                     }
                     SinkEvent::Packet(samples) => {
