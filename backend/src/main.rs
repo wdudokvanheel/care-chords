@@ -24,6 +24,7 @@ use tokio::sync::Mutex;
 use tokio::time;
 use tokio::time::sleep;
 use warp::hyper::Client;
+use crate::pipeline::monitor_buffer;
 
 struct CareChordsServer {
     spotify: SpotifyState,
@@ -45,9 +46,23 @@ impl CareChordsServer {
 
         sleep(Duration::from_secs(1)).await;
 
+
+        // Spawn a thread to monitor the buffer every 100ms.
+        {
+            let queue_clone = self.pipeline.spotify.queue.clone();
+            let input_selector_clone = self.pipeline.spotify.input_selector.clone();
+            let selector_clone = self.pipeline.spotify.source.clone();
+            std::thread::spawn(move || {
+                loop {
+                    monitor_buffer(&queue_clone, &input_selector_clone, &selector_clone);
+                    std::thread::sleep(Duration::from_millis(100));
+                }
+            });
+        }
+
         if let Authenticated(spot) = &self.spotify {
-            // spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
-            spot.playlist("4Kl21mcSdESNomCLQXO5DP").await;
+            spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
+            // spot.playlist("4Kl21mcSdESNomCLQXO5DP").await;
             // spot.playlist("123Phuf9VqCgVndrnKBKlN").await;
             sleep(Duration::from_secs(10)).await;
             log::info!("Pause");

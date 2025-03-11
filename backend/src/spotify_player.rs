@@ -40,7 +40,7 @@ impl SpotifyPlayer {
     pub fn new(session: Session, audio_sender: SyncSender<AudioPacket>) -> Self {
         let (sender, receiver) = channel::<PlayerCommand>(3);
         let sink = || Box::new(ChannelSink::new(audio_sender)) as Box<dyn Sink>;
-        let player_config = PlayerConfig{
+        let player_config = PlayerConfig {
             bitrate: Default::default(),
             gapless: true,
             passthrough: true,
@@ -79,7 +79,8 @@ impl SpotifyPlayer {
             self.player.get_player_event_channel();
 
         loop {
-            // Wait for a player command or an event from librespot
+            // Wait for either a player command or an event from librespot
+
             tokio::select! {
                 // Player commands
                 Some(command) = self.command_receiver.recv() => {
@@ -98,21 +99,12 @@ impl SpotifyPlayer {
                         PlayerCommand::Play => {
                             if let PlayerState::Paused(id, position_ms) = self.state {
                                 log::info!("Resuming playback @ {}", position_ms);
-                                // self.player.seek(1);
+                                self.player.seek(0);
                                 self.player.play();
-                                // self.player.load(id, true, 0);
-                                // self.player.seek(1);
-                                // sleep(Duration::from_millis(100 )).await;
-                                // self.player.seek(1);
                             }
                         }
                         _ => {}
                     }
-
-                    // if matches!(self.state, PlayerState::Stopped) && !self.queue.is_empty() {
-                    //     log::error!("AUTOPLAY LETS GO");
-                    //    self.play_next_song().await;
-                    // }
 
                     log::info!("Queue size: {}", self.queue.len());
                 }
@@ -121,13 +113,10 @@ impl SpotifyPlayer {
                 Some(event) = spotify_player_events.recv() => {
                     log::info!("Received player event: {:?}", event);
                     match event {
-                        PlayerEvent::Playing{ position_ms, .. } => {
-                            log::warn!("Playing from : {}", position_ms);
-                            self.set_state(PlayerState::Playing).await},
+                        PlayerEvent::Playing{ position_ms, .. } => self.set_state(PlayerState::Playing).await,
                         PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(PlayerState::Paused(track_id, position_ms)).await,
-                        // PlayerEvent::Stopped { .. } => self.set_state(PlayerState::Stopped).await,
+                        PlayerEvent::Stopped { .. } => self.set_state(PlayerState::Stopped).await,
                         PlayerEvent::EndOfTrack { .. } => self.play_next_song().await,
-                        PlayerEvent::Seeked { position_ms, .. } => log::error!("Seekd to {}", position_ms),
                         _ => {}
                     }
                 }
@@ -142,7 +131,6 @@ impl SpotifyPlayer {
             }
         } else {
             self.set_state(PlayerState::Stopped).await;
-
         }
     }
 

@@ -1,8 +1,5 @@
 use anyhow::Error;
-use gstreamer::prelude::{
-    Cast, ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, GstObjectExt,
-    ObjectExt, PadExt,
-};
+use gstreamer::prelude::{Cast, ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, GstObjectExt, ObjectExt, PadExt, PipelineExt};
 use gstreamer::{
     init, Bus, Caps, ClockTime, Element, ElementFactory, FlowSuccess, Pipeline, State,
     StateChangeSuccess,
@@ -13,7 +10,7 @@ use log::error;
 use std::sync::{Arc, Mutex, Weak};
 use std::thread;
 use std::thread::current;
-use std::time::Duration;
+use std::time::{Duration, Instant};
 use futures::lock;
 
 #[allow(dead_code)]
@@ -25,19 +22,19 @@ pub struct StreamPipeline {
     pub common: CommonElements,
 }
 
-enum SourceSelector {
+pub enum SourceSelector {
     Silence,
     Spotify,
 }
 
 pub struct SpotifyElements {
     pub app_source: Element,
-    source: Arc<Mutex<SourceSelector>>,
+    pub(crate) source: Arc<Mutex<SourceSelector>>,
     audio_convert: Element,
     audio_resample: Element,
-    input_selector: Element,
+    pub(crate) input_selector: Element,
     silent_src: Element,
-    queue: Element,
+    pub(crate) queue: Element,
 }
 
 impl StreamPipeline {
@@ -74,7 +71,7 @@ impl StreamPipeline {
         Self::connect_dynamic_pads(&livestream)?;
 
         spotify.setup_auto_silence_switching(spotify.source.clone());
-
+        pipeline.set_latency(ClockTime::from_mseconds(500));
         Ok(Self {
             pipeline,
             livestream,
@@ -129,6 +126,47 @@ impl StreamPipeline {
         self.pipeline.bus()
     }
 }
+
+// Example function to monitor buffer fullness
+pub fn monitor_buffer(
+    queue: &Element,
+    input_selector: &Element,
+    source_selector: &Arc<Mutex<SourceSelector>>,
+) {
+    // Get the max and current bytes (assuming these properties exist and are readable)
+    let max_bytes: u32 = queue.property::<u32>("max-size-bytes");
+    let current_bytes: u32 = queue.property::<u32>("current-level-bytes");
+
+    // If the buffer is less than 10% full...
+    if current_bytes < max_bytes * 10 / 100 {
+        let mut current = source_selector.lock().unwrap();
+        if matches!(*current, SourceSelector::Spotify) {
+            // Switch to silence branch (typically sink pad "1")
+            for pad in input_selector.pads() {
+                if pad.name().contains("sink") && pad.name().contains("1") {
+                    log::warn!("Switching to silence due to low buffer");
+                    input_selector.set_property("active-pad", &pad);
+                    *current = SourceSelector::Silence;
+                    break;
+                }
+            }
+        }
+    } else if current_bytes == max_bytes {
+        let mut current = source_selector.lock().unwrap();
+        if matches!(*current, SourceSelector::Silence) {
+            // Switch back to Spotify (typically sink pad "0")
+            for pad in input_selector.pads() {
+                if pad.name().contains("sink") && pad.name().contains("0") {
+                    log::warn!("Buffer healthy; switching back to appsrc");
+                    input_selector.set_property("active-pad", &pad);
+                    *current = SourceSelector::Spotify;
+                    break;
+                }
+            }
+        }
+    }
+}
+
 impl SpotifyElements {
     pub fn new() -> Result<Self, Error> {
         // Create the appsrc element
@@ -172,7 +210,7 @@ impl SpotifyElements {
         app_source.set_property("max-bytes", &10_000u64);
         app_source.set_property("block", &true);
 
-        queue.set_property("max-size-time", &2_000_000_000u64);
+        queue.set_property("max-size-bytes", &10_000u32);
 
         Ok(Self {
             app_source,
@@ -189,7 +227,7 @@ impl SpotifyElements {
         // Add all branch elements to the pipeline.
         pipeline.add_many(&[
             &self.app_source,
-            // &self.queue,
+            &self.queue,
             &self.audio_convert,
             &self.audio_resample,
             &self.input_selector,
@@ -202,7 +240,7 @@ impl SpotifyElements {
         // Link the appsrc branch: appsrc → audioconvert → audioresample.
         gstreamer::Element::link_many(&[
             &self.app_source,
-            // &self.queue,
+            &self.queue,
            &self.audio_convert,
             &self.audio_resample,
         ])
@@ -210,36 +248,36 @@ impl SpotifyElements {
 
         // The input-selector element has request sink pads (named "sink_%u").
         // Request one sink pad for the appsrc branch...
-        // let app_sink_pad = self
-        //     .input_selector
-        //     .request_pad_simple("sink_%u")
-        //     .expect("Failed to get input-selector sink pad for appsrc branch");
-        // // ...and one for the silent source.
-        // let silent_sink_pad = self
-        //     .input_selector
-        //     .request_pad_simple("sink_%u")
-        //     .expect("Failed to get input-selector sink pad for silent branch");
-        //
-        // // Link the output of the real-data branch (audio_resample's src pad)
-        // // to the requested sink pad for the appsrc branch.
-        // self.audio_resample
-        //     .link_pads(
-        //         Some("src"),
-        //         &self.input_selector,
-        //         Some(&*app_sink_pad.name()),
-        //     )
-        //     .expect("Failed to link appsrc branch to input-selector");
-        //
-        // // Link the silent source to the input-selector.
-        // // (audiotestsrc has a fixed src pad so a normal link works)
-        // self.silent_src
-        //     .link(&self.input_selector)
-        //     .expect("Failed to link silent source to input-selector");
-        //
-        // // Optionally, you can set the active pad.
-        // // For example, default to the appsrc branch:
-        // self.input_selector
-        //     .set_property("active-pad", &app_sink_pad);
+        let app_sink_pad = self
+            .input_selector
+            .request_pad_simple("sink_%u")
+            .expect("Failed to get input-selector sink pad for appsrc branch");
+        // ...and one for the silent source.
+        let silent_sink_pad = self
+            .input_selector
+            .request_pad_simple("sink_%u")
+            .expect("Failed to get input-selector sink pad for silent branch");
+
+        // Link the output of the real-data branch (audio_resample's src pad)
+        // to the requested sink pad for the appsrc branch.
+        self.audio_resample
+            .link_pads(
+                Some("src"),
+                &self.input_selector,
+                Some(&*app_sink_pad.name()),
+            )
+            .expect("Failed to link appsrc branch to input-selector");
+
+        // Link the silent source to the input-selector.
+        // (audiotestsrc has a fixed src pad so a normal link works)
+        self.silent_src
+            .link(&self.input_selector)
+            .expect("Failed to link silent source to input-selector");
+
+        // Optionally, you can set the active pad.
+        // For example, default to the appsrc branch:
+        self.input_selector
+            .set_property("active-pad", &app_sink_pad);
 
         // The input-selector's src pad will be linked to the mixer in your main pipeline.
         Ok(())
@@ -257,10 +295,12 @@ impl SpotifyElements {
 
         let source_selector_need = source_selector.clone();
         let source_selector_enough = source_selector.clone();
-        //
+
         // app_source.set_callbacks(
         //     AppSrcCallbacks::builder()
         //         .need_data(move |_appsrc, _length| {
+        //             log::info!("nNeed: le: {}", _length);
+        //
         //             if let Ok(mut current) = source_selector_need.as_ref().lock(){
         //                 if matches!(*current, SourceSelector::Spotify){
         //                     let pads = selector_need.pads();
@@ -566,7 +606,7 @@ impl CommonElements {
         Element::link_many(&[
             &self.audio_mixer,
             &self.stereo_filter,
-            &self.queue,
+            // &self.queue,
             // &self.aac_encoder,
             &self.rtsp_sink,
         ])?;
