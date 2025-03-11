@@ -1,32 +1,23 @@
 use futures::StreamExt;
 
 use crate::spotify_player::{PlayerCommand, SpotifyPlayer};
-use crate::spotify_sink::ChannelSink;
 use anyhow::{anyhow, Result};
-use gstreamer::prelude::{Cast, ElementExt, GstBinExtManual, ObjectExt};
-use gstreamer_app::AppSrc;
-use gstreamer_rtsp::gst;
+use gstreamer::prelude::ObjectExt;
 use librespot::core::SessionConfig;
-use librespot::playback::config::PlayerConfig;
-use librespot::playback::player::Player;
 use librespot_core::authentication::Credentials;
 use librespot_core::cache::Cache;
 use librespot_core::config::DeviceType;
-use librespot_core::{Session, SpotifyId};
+use librespot_core::Session;
 use librespot_discovery::Discovery;
-use librespot_metadata::{Metadata, Playlist, Track};
-use librespot_playback::audio_backend::{Sink, SinkError, SinkResult};
-use librespot_playback::convert::Converter;
+use librespot_playback::audio_backend::Sink;
 use librespot_playback::decoder::AudioPacket;
-use librespot_playback::mixer::NoOpVolume;
 use sha1::{Digest, Sha1};
 use std::fs::File;
 use std::io::{BufReader, Read};
-use std::path::{Path, PathBuf};
+use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
-use tokio::sync::mpsc::channel;
-use tokio::sync::mpsc::{Receiver, Sender};
+use tokio::sync::mpsc::Sender;
 
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,

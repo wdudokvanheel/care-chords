@@ -137,6 +137,7 @@ pub fn monitor_buffer(
     let max_bytes: u32 = queue.property::<u32>("max-size-bytes");
     let current_bytes: u32 = queue.property::<u32>("current-level-bytes");
 
+    log::info!("current_bytes: {}/{}", current_bytes, max_bytes);
     // If the buffer is less than 10% full...
     if current_bytes < max_bytes * 10 / 100 {
         let mut current = source_selector.lock().unwrap();
@@ -151,7 +152,7 @@ pub fn monitor_buffer(
                 }
             }
         }
-    } else if current_bytes == max_bytes {
+    } else if current_bytes >= max_bytes {
         let mut current = source_selector.lock().unwrap();
         if matches!(*current, SourceSelector::Silence) {
             // Switch back to Spotify (typically sink pad "0")
