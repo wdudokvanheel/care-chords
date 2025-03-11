@@ -64,9 +64,10 @@ impl LivestreamPipeline {
         // Reduce volume
         // rgvolume.set_property("pre-amp", &-30.0f64);
 
-        buffer.set_property("max-size-buffers", &0u32);
-        buffer.set_property("max-size-bytes", &0u32);
-        buffer.set_property("max-size-time", &(900_000_000u64));
+        // buffer.set_property("max-size-buffers", &0u32);
+        // buffer.set_property("max-size-bytes", &10000_000u32);
+        // queue.set_property("max-size-bytes", &10000_000u32);
+        // buffer.set_property("max-size-time", &(9000_000_000u64));
 
         cap_filter.set_property(
             "caps",
@@ -117,11 +118,11 @@ impl LivestreamPipeline {
         Element::link_many(&[&self.depay, &self.parse, &self.decoder])?;
         Element::link_many(&[
             &self.queue,
+            &self.buffer,
             &self.convert,
             &self.resample,
             &self.volume,
             // &self.dsp,
-            &self.buffer,
             &self.cap_convert,
             &self.cap_resample,
             &self.cap_filter,

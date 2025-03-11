@@ -43,12 +43,12 @@ fn create_routes(
         .and(spotify_filter.clone())
         .and_then(handle_pause);
 
-    let pause_route = warp::path("next")
+    let next_route = warp::path("next")
         .and(warp::post())
         .and(spotify_filter.clone())
-        .and_then(handle_pause);
+        .and_then(handle_next);
 
-    playlist_route.or(play_route).or(pause_route).boxed()
+    playlist_route.or(play_route).or(pause_route).or(next_route).boxed()
 }
 
 async fn handle_playlist(
@@ -82,6 +82,19 @@ async fn handle_play(client: Sender<PlayerCommand>) -> Result<Response<Body>, Re
 
 async fn handle_pause(client: Sender<PlayerCommand>) -> Result<Response<Body>, Rejection> {
     client
+        .send(PlayerCommand::Pause)
+        .await
+        .expect("Failed to send pause command");
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&serde_json::json!({ "status": "paused" })),
+        StatusCode::OK,
+    )
+    .into_response())
+}
+
+async fn handle_next(client: Sender<PlayerCommand>) -> Result<Response<Body>, Rejection> {
+    client
         .send(PlayerCommand::Next)
         .await
         .expect("Failed to send pause command");
@@ -90,5 +103,5 @@ async fn handle_pause(client: Sender<PlayerCommand>) -> Result<Response<Body>, R
         warp::reply::json(&serde_json::json!({ "status": "success" })),
         StatusCode::OK,
     )
-    .into_response())
+        .into_response())
 }

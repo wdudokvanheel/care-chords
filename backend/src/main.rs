@@ -7,11 +7,13 @@ mod spotify_sink;
 mod webserver;
 
 use crate::http::start_http_server;
+use crate::pipeline::spotify::SpotifyInputSourceSelector;
 use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
 use crate::spotify_old::SpotifyDBusClient;
 use crate::spotify_sink::SinkEvent;
 use crate::SpotifyState::{Authenticated, Unauthenticated};
 use anyhow::Error;
+use futures::lock;
 use gstreamer as gst;
 use gstreamer::event::{FlushStart, FlushStop};
 use gstreamer::prelude::*;
@@ -20,10 +22,12 @@ use gstreamer::{
     event, ClockTime, Element, Event, EventType, Format, Pipeline, Segment, Structure,
 };
 use gstreamer_app::AppSrc;
+use librespot::protocol::authentication::AccountType::Spotify;
 use librespot_playback::decoder::AudioPacket;
 use pipeline::MainPipeline;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
+use std::thread::spawn;
 use std::time::{Duration, Instant};
 use tokio;
 use tokio::sync::watch;
@@ -122,6 +126,15 @@ impl CareChordsServer {
         self.pipeline
             .set_state(gst::State::Playing)
             .expect("Failed to set pipeline to Playing");
+
+        let pipeline = self.pipeline.clone();
+        // TODO: GStreamer won't start if the silent source is used, so for now start with the app source and switch after 1 second
+        tokio::spawn(async move {
+            sleep(Duration::from_secs(1)).await;
+            if let Ok(mut val) = pipeline.spotify.input_source.lock() {
+                *val = SpotifyInputSourceSelector::Spotify;
+            }
+        });
     }
 
     // Start a new thread that consumes all audio packets from the receiver and sends it to the app src
