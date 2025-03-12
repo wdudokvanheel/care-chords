@@ -359,6 +359,7 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
                 );
                 break;
             }
+            gst::MessageView::Warning(warn) => {log::error!("{:?}", warn);}
             // gst::MessageView::StreamStatus(s) => {log::info!("Received stream status: {:?}", s);}
             _ => (),
         }

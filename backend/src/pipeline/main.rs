@@ -64,7 +64,6 @@ impl MainPipeline {
             .expect("Failed to link audio mixer");
         Self::connect_dynamic_pads(&livestream)?;
 
-        // spotify.setup_auto_silence_switching(spotify.source.clone());
         Self::auto_switch_silence_fallback(
             &spotify.queue,
             &spotify.input_selector,
@@ -147,7 +146,7 @@ impl MainPipelineElements {
     fn new() -> Result<Self, Error> {
         let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("AudioMixer"))
             .expect("Could not create audio_mixer element.");
-        let queue = ElementFactory::make_with_name("queue", Some("AudioMixerQueue"))
+        let queue = ElementFactory::make_with_name("queue2", Some("AudioMixerQueue"))
             .expect("Could not create audio_mixer element.");
         let aac_encoder = ElementFactory::make_with_name("avenc_aac", Some("CommonEncoder"))
             .expect("Could not create aac_encoder element.");
@@ -159,13 +158,14 @@ impl MainPipelineElements {
         let rtsp_sink = ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
             .expect("Could not create rtsp_sink element.");
 
-        let rtsp_sink = ElementFactory::make_with_name("autoaudiosink", Some("rtsp_sink"))
-            .expect("Could not create rtsp_sink element.");
+        // let rtsp_sink = ElementFactory::make_with_name("autoaudiosink", Some("rtsp_sink"))
+        //     .expect("Could not create rtsp_sink element.");
 
-        queue.set_property("max-size-time", &100_000u64);
+        queue.set_property("max-size-buffers", &500u32);
+        queue.set_property("use-buffering", &true);
 
         // mp3_encoder.set_property("bitrate", &320);
-        // rtsp_sink.set_property("location", &"rtsp://10.0.0.21:8554/sleep");
+        rtsp_sink.set_property("location", &"rtsp://10.0.0.21:8554/sleep");
         stereo_filter.set_property(
             "caps",
             &Caps::builder("audio/x-raw").field("channels", &2).build(),
@@ -196,9 +196,9 @@ impl MainPipelineElements {
     fn link_elements(&self) -> Result<(), Error> {
         Element::link_many(&[
             &self.audio_mixer,
+            &self.queue,
             &self.stereo_filter,
-            // &self.queue,
-            // &self.aac_encoder,
+            &self.aac_encoder,
             &self.rtsp_sink,
         ])?;
         Ok(())

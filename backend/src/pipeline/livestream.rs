@@ -29,13 +29,13 @@ impl LivestreamPipeline {
             .expect("Could not create livestream_parse element.");
         let decoder = ElementFactory::make_with_name("decodebin", Some("livestream_decoder"))
             .expect("Could not create livestream_decoder element.");
-        let queue = ElementFactory::make_with_name("queue", Some("livestream_queue"))
+        let queue = ElementFactory::make_with_name("queue2", Some("livestream_queue"))
             .expect("Could not create livestream_queue element.");
         let convert = ElementFactory::make_with_name("audioconvert", Some("livestream_convert"))
             .expect("Could not create livestream_convert element.");
         let resample = ElementFactory::make_with_name("audioresample", Some("livestream_resample"))
             .expect("Could not create livestream_resample element.");
-        let buffer = ElementFactory::make_with_name("queue", Some("livestream_buffer"))
+        let buffer = ElementFactory::make_with_name("queue2", Some("livestream_buffer"))
             .expect("Could not create livestream_buffer element.");
         let rgvolume = ElementFactory::make_with_name("rgvolume", Some("livestream_rgvolume"))
             .expect("Could not create livestream_rgvolume element.");
@@ -52,9 +52,10 @@ impl LivestreamPipeline {
                 .expect("Could not create audioconvert element for capsfilter");
 
         // Set properties
-        source.set_property("location", &"rtsp://10.0.0.12:8554/camera.rlc_520a_clear");
+        source.set_property("location", &"rtsp://admin:13wesley@10.0.0.51");
         source.set_property("protocols", RTSPLowerTrans::TCP);
-
+        source.set_property("latency", &750u32);
+        // queue.set_property("use-buffering", &true);
         // dsp.set_property("echo-cancel", &false);
         // dsp.set_property("noise-suppression", &true);
         // dsp.set_property_from_str("noise-suppression-level", "very-high");
