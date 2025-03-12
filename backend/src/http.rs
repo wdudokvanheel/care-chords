@@ -24,7 +24,7 @@ pub fn start_http_server(spotify: Arc<SpotifyClient>) {
 fn create_routes(
     spotify: Arc<SpotifyClient>,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-    let channel = spotify.player_channel();
+    let channel = spotify.player_command_channel();
     let spotify_filter = warp::any().map(move || channel.clone());
 
     let playlist_route = warp::path("playlist")

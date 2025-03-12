@@ -1,3 +1,4 @@
+use crate::spotify_old::MusicMetadata;
 use crate::spotify_sink::{ChannelSink, SinkEvent};
 use gstreamer::event::SinkMessage;
 use librespot_core::{Session, SpotifyId};
@@ -12,6 +13,7 @@ use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
 use std::time::Duration;
 use tokio::sync::mpsc::{channel, Receiver, Sender, UnboundedReceiver};
+use tokio::sync::watch;
 use tokio::time::sleep;
 
 #[derive(Clone, Debug)]
@@ -22,16 +24,28 @@ pub enum PlayerCommand {
     Next,
 }
 
+#[derive(Clone, Debug)]
+pub struct SpotifyPlayerInfo {
+    status: SpotifyPlayerState,
+    music_metadata: Option<MusicMetadata>,
+    shuffle: bool,
+}
+
 pub struct SpotifyPlayer {
     command_receiver: Receiver<PlayerCommand>,
     command_sender: Sender<PlayerCommand>,
+    player_info_receiver: watch::Receiver<SpotifyPlayerInfo>,
+    player_info_sender: watch::Sender<SpotifyPlayerInfo>,
     session: Session,
-    state: PlayerState,
+    state: SpotifyPlayerState,
     queue: VecDeque<SpotifyId>,
     player: Arc<Player>,
+    shuffle: bool,
+    current_song: Option<MusicMetadata>,
 }
 
-enum PlayerState {
+#[derive(Clone, Debug)]
+enum SpotifyPlayerState {
     Stopped,
     Playing,
     Paused(SpotifyId, u32),
@@ -58,19 +72,44 @@ impl SpotifyPlayer {
         let volume_getter = Box::new(NoOpVolume);
 
         let player = Player::new(player_config, session.clone(), volume_getter, sink);
+        let info = SpotifyPlayerInfo {
+            status: SpotifyPlayerState::Stopped,
+            music_metadata: None,
+            shuffle: false,
+        };
+
+        let (player_info_sender, player_info_receiver) = watch::channel(info);
 
         SpotifyPlayer {
             command_receiver: receiver,
             command_sender: sender,
-            state: PlayerState::Stopped,
+            player_info_receiver,
+            player_info_sender,
+            state: SpotifyPlayerState::Stopped,
             queue: VecDeque::new(),
             session,
             player,
+            shuffle: false,
+            current_song: None,
         }
+    }
+
+    fn emit_player_state(&self){
+        let state = SpotifyPlayerInfo {
+            status: self.state.clone(),
+            music_metadata: self.current_song.clone(),
+            shuffle: self.shuffle,
+        };
+
+        self.player_info_sender.send(state).unwrap();
     }
 
     pub fn command_channel(&self) -> Sender<PlayerCommand> {
         self.command_sender.clone()
+    }
+
+    pub fn player_info_channel(&self) -> watch::Receiver<SpotifyPlayerInfo> {
+        self.player_info_receiver.clone()
     }
 
     pub async fn start(mut self) {
@@ -91,7 +130,7 @@ impl SpotifyPlayer {
                             self.play_next_song().await;
                         }
                         PlayerCommand::Pause => {
-                            if matches!(self.state, PlayerState::Playing) {
+                            if matches!(self.state, SpotifyPlayerState::Playing) {
                                 log::info!("Pausing");
                                 self.player.pause();
                             }
@@ -100,7 +139,7 @@ impl SpotifyPlayer {
                             self.play_next_song().await;
                         }
                         PlayerCommand::Play => {
-                            if let PlayerState::Paused(id, position_ms) = self.state {
+                            if let SpotifyPlayerState::Paused(id, position_ms) = self.state {
                                 log::info!("Resuming playback @ {}", position_ms);
                                 self.player.play();
                             }
@@ -113,9 +152,9 @@ impl SpotifyPlayer {
                 Some(event) = spotify_player_events.recv() => {
                     log::trace!("Received player event: {:?}", event);
                     match event {
-                        PlayerEvent::Playing{ position_ms, .. } => self.set_state(PlayerState::Playing).await,
-                        PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(PlayerState::Paused(track_id, position_ms)).await,
-                        PlayerEvent::Stopped { .. } => self.set_state(PlayerState::Stopped).await,
+                        PlayerEvent::Playing{ position_ms, .. } => self.set_state(SpotifyPlayerState::Playing).await,
+                        PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(SpotifyPlayerState::Paused(track_id, position_ms)).await,
+                        PlayerEvent::Stopped { .. } => self.set_state(SpotifyPlayerState::Stopped).await,
                         PlayerEvent::EndOfTrack { .. } => self.play_next_song().await,
                         _ => {}
                     }
@@ -130,12 +169,13 @@ impl SpotifyPlayer {
                 self.player.load(next_track_id, true, 0);
             }
         } else {
-            self.set_state(PlayerState::Stopped).await;
+            self.set_state(SpotifyPlayerState::Stopped).await;
         }
     }
 
-    async fn set_state(&mut self, state: PlayerState) {
+    async fn set_state(&mut self, state: SpotifyPlayerState) {
         self.state = state;
+        self.emit_player_state();
     }
 
     async fn load_playlist_to_queue(&mut self, playlist_id: &str) {

@@ -59,7 +59,7 @@ impl MainPipeline {
             .expect("Failed to link livestream to audio mixer");
 
         spotify
-            .input_selector
+            .audio_resample
             .link(&common.audio_mixer)
             .expect("Failed to link audio mixer");
         Self::connect_dynamic_pads(&livestream)?;
@@ -70,7 +70,7 @@ impl MainPipeline {
             &spotify.input_source,
         );
 
-        pipeline.set_latency(ClockTime::from_mseconds(1000));
+        pipeline.set_latency(ClockTime::from_mseconds(200));
 
         Ok(Self {
             pipeline,
@@ -161,7 +161,9 @@ impl MainPipelineElements {
         // let rtsp_sink = ElementFactory::make_with_name("autoaudiosink", Some("rtsp_sink"))
         //     .expect("Could not create rtsp_sink element.");
 
-        queue.set_property("max-size-buffers", &500u32);
+        queue.set_property("max-size-buffers", &0u32);
+        // queue.set_property("max-size-bytes", &0u32);
+        // queue.set_property("max-size-time", &0u32);
         queue.set_property("use-buffering", &true);
 
         // mp3_encoder.set_property("bitrate", &320);

@@ -10,6 +10,7 @@ use crate::http::start_http_server;
 use crate::pipeline::spotify::SpotifyInputSourceSelector;
 use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
 use crate::spotify_old::SpotifyDBusClient;
+use crate::spotify_player::SpotifyPlayerInfo;
 use crate::spotify_sink::SinkEvent;
 use crate::SpotifyState::{Authenticated, Unauthenticated};
 use anyhow::Error;
@@ -32,8 +33,8 @@ use std::time::{Duration, Instant};
 use tokio;
 use tokio::sync::watch;
 use tokio::sync::Mutex;
-use tokio::time;
 use tokio::time::sleep;
+use tokio::{task, time};
 use warp::hyper::Client;
 use warp::path::end;
 
@@ -93,16 +94,16 @@ impl CareChordsServer {
                 .try_cache_authentication_with_discovery_fallback()
                 .await
             {
-                Ok(mut client) => {
+                Ok(mut spotify_client) => {
                     log::info!("Authenticated with Spotify");
 
-                    let receiver = client.audio_stream_channel().take().unwrap();
+                    let receiver = spotify_client.audio_stream_channel().take().unwrap();
                     let app_src = self.pipeline.spotify.app_source.clone();
                     let pipeline = self.pipeline.pipeline.clone();
 
                     Self::push_audio_app_src(pipeline, app_src, receiver);
-
-                    self.spotify = Authenticated(Arc::new(client));
+                    Self::watch_events(spotify_client.player_info_channel());
+                    self.spotify = Authenticated(Arc::new(spotify_client));
                 }
                 Err(e) => {
                     log::error!("Failed to authenticate with Spotify: {}", e);
@@ -111,16 +112,26 @@ impl CareChordsServer {
         }
     }
 
+    fn watch_events(receiver: watch::Receiver<SpotifyPlayerInfo>) {
+        let mut receiver = receiver;
+
+        task::spawn(async move {
+            while receiver.changed().await.is_ok() {
+                println!("{:?}", *receiver.borrow());
+            }
+        });
+    }
+
     fn start_gstreamer(&mut self) {
         log::info!("Starting GStreamer!");
         let bus = self
             .pipeline
             .get_bus()
             .expect("Pipeline without bus. Shouldn't happen!");
-        let p = self.pipeline.pipeline.clone();
+        let pipeline = self.pipeline.pipeline.clone();
 
         tokio::spawn(async move {
-            handle_gst_bus_messages(bus, p.into()).await;
+            handle_gst_bus_messages(bus, pipeline.into()).await;
         });
 
         self.pipeline
@@ -128,6 +139,7 @@ impl CareChordsServer {
             .expect("Failed to set pipeline to Playing");
 
         let pipeline = self.pipeline.clone();
+
         // TODO: GStreamer won't start if the silent source is used, so for now start with the app source and switch after 1 second
         tokio::spawn(async move {
             sleep(Duration::from_secs(1)).await;
@@ -359,7 +371,9 @@ async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: gst::Element) {
                 );
                 break;
             }
-            gst::MessageView::Warning(warn) => {log::error!("{:?}", warn);}
+            gst::MessageView::Warning(warn) => {
+                log::error!("{:?}", warn);
+            }
             // gst::MessageView::StreamStatus(s) => {log::info!("Received stream status: {:?}", s);}
             _ => (),
         }

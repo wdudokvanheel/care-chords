@@ -1,6 +1,6 @@
 use futures::StreamExt;
 
-use crate::spotify_player::{PlayerCommand, SpotifyPlayer};
+use crate::spotify_player::{PlayerCommand, SpotifyPlayer, SpotifyPlayerInfo};
 use anyhow::{anyhow, Result};
 use gstreamer::prelude::ObjectExt;
 use librespot::core::SessionConfig;
@@ -18,6 +18,7 @@ use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
+use tokio::sync::watch;
 use crate::spotify_sink::SinkEvent;
 
 pub struct UnauthenticatedSpotifyClient {
@@ -28,7 +29,8 @@ pub struct SpotifyClient {
     session: Arc<Session>,
     audio_channel_sender: Option<SyncSender<AudioPacket>>,
     audio_channel_receiver: Option<std::sync::mpsc::Receiver<SinkEvent>>,
-    player_channel: Sender<PlayerCommand>,
+    player_command_channel: Sender<PlayerCommand>,
+    player_info_channel: watch::Receiver<SpotifyPlayerInfo>,
 }
 
 impl UnauthenticatedSpotifyClient {
@@ -63,7 +65,8 @@ impl UnauthenticatedSpotifyClient {
         let (sender, receiver) = sync_channel::<SinkEvent>(10);
 
         let player = SpotifyPlayer::new(session.clone(), sender);
-        let player_channel = player.command_channel();
+        let command_channel = player.command_channel();
+        let info_channel = player.player_info_channel();
 
         tokio::spawn(async move {
             player.start().await;
@@ -73,7 +76,8 @@ impl UnauthenticatedSpotifyClient {
             session: Arc::new(session),
             audio_channel_sender: None,
             audio_channel_receiver: Some(receiver),
-            player_channel,
+            player_command_channel: command_channel,
+            player_info_channel: info_channel,
         }
     }
 
@@ -141,30 +145,15 @@ impl SpotifyClient {
         }
     }
 
-    pub fn player_channel(&self) -> Sender<PlayerCommand> {
-        self.player_channel.clone()
+    // Use this channel to push commands to the player
+    pub fn player_command_channel(&self) -> Sender<PlayerCommand> {
+        self.player_command_channel.clone()
     }
 
-    // pub async fn playlist(&self, playlist: &str) {
-    //     self.player_channel
-    //         .send(PlayerCommand::Playlist(playlist.to_string()))
-    //         .await
-    //         .expect("Failed to send player command");
-    // }
-    //
-    // pub async fn pause(&self){
-    //     self.player_channel
-    //         .send(PlayerCommand::Pause)
-    //         .await
-    //         .expect("Failed to send player command");
-    // }
-    //
-    // pub async fn play(&self){
-    //     self.player_channel
-    //         .send(PlayerCommand::Play)
-    //         .await
-    //         .expect("Failed to send player command");
-    // }
+    // Use this channel to get the current state of the player
+    pub fn player_info_channel(&self) -> watch::Receiver<SpotifyPlayerInfo> {
+        self.player_info_channel.clone()
+    }
 
     pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<SinkEvent>> {
         self.audio_channel_receiver.take()

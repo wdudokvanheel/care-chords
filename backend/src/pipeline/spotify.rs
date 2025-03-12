@@ -15,7 +15,7 @@ pub struct SpotifyPipeline {
     pub app_source: Element,
     pub queue: Element,
     audio_convert: Element,
-    audio_resample: Element,
+    pub(crate) audio_resample: Element,
     silent_src: Element,
     pub input_selector: Element,
 }
@@ -60,11 +60,11 @@ impl SpotifyPipeline {
         app_source.set_property("caps", &caps);
         app_source.set_property("is-live", &true);
         app_source.set_property("format", &gstreamer::Format::Time);
-        app_source.set_property("max-bytes", &10_000u64);
-        app_source.set_property("do-timestamp", &true);
+        app_source.set_property("max-bytes", &50_000u64);
+        app_source.set_property("do-timestamp", &false);
         app_source.set_property("block", &true);
 
-        queue.set_property("max-size-bytes", &5_0000u32);
+        queue.set_property("max-size-bytes", &10_000u32);
 
         Ok(Self {
             app_source,
@@ -84,8 +84,8 @@ impl SpotifyPipeline {
             &self.queue,
             &self.audio_convert,
             &self.audio_resample,
-            &self.input_selector,
-            &self.silent_src,
+            // &self.input_selector,
+            // &self.silent_src,
         ])?;
         Ok(())
     }
@@ -101,37 +101,37 @@ impl SpotifyPipeline {
         .expect("Failed to link appsrc branch");
 
         // The input-selector element has request sink pads (named "sink_%u").
-        // Request one sink pad for the appsrc branch...
-        let app_sink_pad = self
-            .input_selector
-            .request_pad_simple("sink_%u")
-            .expect("Failed to get input-selector sink pad for appsrc branch");
-        // ...and one for the silent source.
-        let silent_sink_pad = self
-            .input_selector
-            .request_pad_simple("sink_%u")
-            .expect("Failed to get input-selector sink pad for silent branch");
-
-        // Link the output of the real-data branch (audio_resample's src pad)
-        // to the requested sink pad for the appsrc branch.
-        self.audio_resample
-            .link_pads(
-                Some("src"),
-                &self.input_selector,
-                Some(&*app_sink_pad.name()),
-            )
-            .expect("Failed to link appsrc branch to input-selector");
-
-        // Link the silent source to the input-selector.
-        // (audiotestsrc has a fixed src pad so a normal link works)
-        self.silent_src
-            .link(&self.input_selector)
-            .expect("Failed to link silent source to input-selector");
-
-        // Optionally, you can set the active pad.
-        // For example, default to the appsrc branch:
-        self.input_selector
-            .set_property("active-pad", &app_sink_pad);
+        // // Request one sink pad for the appsrc branch...
+        // let app_sink_pad = self
+        //     .input_selector
+        //     .request_pad_simple("sink_%u")
+        //     .expect("Failed to get input-selector sink pad for appsrc branch");
+        // // ...and one for the silent source.
+        // let silent_sink_pad = self
+        //     .input_selector
+        //     .request_pad_simple("sink_%u")
+        //     .expect("Failed to get input-selector sink pad for silent branch");
+        //
+        // // Link the output of the real-data branch (audio_resample's src pad)
+        // // to the requested sink pad for the appsrc branch.
+        // self.audio_resample
+        //     .link_pads(
+        //         Some("src"),
+        //         &self.input_selector,
+        //         Some(&*app_sink_pad.name()),
+        //     )
+        //     .expect("Failed to link appsrc branch to input-selector");
+        //
+        // // Link the silent source to the input-selector.
+        // // (audiotestsrc has a fixed src pad so a normal link works)
+        // self.silent_src
+        //     .link(&self.input_selector)
+        //     .expect("Failed to link silent source to input-selector");
+        //
+        // // Optionally, you can set the active pad.
+        // // For example, default to the appsrc branch:
+        // self.input_selector
+        //     .set_property("active-pad", &app_sink_pad);
 
         // The input-selector's src pad will be linked to the mixer in your main pipeline.
         Ok(())

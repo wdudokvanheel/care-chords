@@ -27,7 +27,7 @@ pub struct PlayerStatus {
     pub metadata: Option<MusicMetadata>,
 }
 
-#[derive(Debug, Serialize, Deserialize)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MusicMetadata {
     artist: String,
     title: String,
