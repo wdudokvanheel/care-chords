@@ -3,7 +3,6 @@ pub mod main;
 pub mod spotify;
 
 pub use crate::pipeline::main::MainPipeline;
-use crate::pipeline::spotify::SpotifyInputSourceSelector;
 use gstreamer::prelude::{
     Cast, ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, GstObjectExt,
     ObjectExt, PadExt, PipelineExt,

@@ -21,6 +21,7 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 use crate::spotify_sink::SinkEvent;
 
+
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,
 }

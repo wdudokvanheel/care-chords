@@ -1,6 +1,5 @@
 use crate::pipeline::livestream::LivestreamPipeline;
 use crate::pipeline::spotify::SpotifyPipeline;
-use crate::pipeline::SpotifyInputSourceSelector;
 use anyhow::Error;
 use futures::lock;
 use gstreamer::prelude::{
@@ -59,16 +58,10 @@ impl MainPipeline {
             .expect("Failed to link livestream to audio mixer");
 
         spotify
-            .audio_resample
+            .resample
             .link(&common.audio_mixer)
             .expect("Failed to link audio mixer");
         Self::connect_dynamic_pads(&livestream)?;
-
-        Self::auto_switch_silence_fallback(
-            &spotify.queue,
-            &spotify.input_selector,
-            &spotify.input_source,
-        );
 
         pipeline.set_latency(ClockTime::from_mseconds(200));
 
@@ -78,22 +71,6 @@ impl MainPipeline {
             spotify,
             elements: common,
         })
-    }
-
-    fn auto_switch_silence_fallback(
-        queue: &Element,
-        input_selector: &Element,
-        source_selector: &Arc<Mutex<SpotifyInputSourceSelector>>,
-    ) {
-        // Spawn a thread to monitor the buffer every 500ms.
-        let queue_clone = queue.clone();
-        let input_selector_clone = input_selector.clone();
-        let selector_clone = source_selector.clone();
-
-        spawn(move || loop {
-            monitor_buffer(&queue_clone, &input_selector_clone, &selector_clone);
-            sleep(Duration::from_millis(500));
-        });
     }
 
     fn connect_dynamic_pads(livestream: &LivestreamPipeline) -> Result<(), Error> {
@@ -204,43 +181,5 @@ impl MainPipelineElements {
             &self.rtsp_sink,
         ])?;
         Ok(())
-    }
-}
-
-pub fn monitor_buffer(
-    queue: &Element,
-    input_selector: &Element,
-    source_selector: &Arc<Mutex<SpotifyInputSourceSelector>>,
-) {
-    let max_bytes: u32 = queue.property::<u32>("max-size-bytes");
-    let current_bytes: u32 = queue.property::<u32>("current-level-bytes");
-
-    // log::trace!("current_bytes: {}/{}", current_bytes, max_bytes);
-    if current_bytes < max_bytes * 10 / 100 {
-        let mut current = source_selector.lock().unwrap();
-        if matches!(*current, SpotifyInputSourceSelector::Spotify) {
-            // Switch to silence branch (typically sink pad "1")
-            for pad in input_selector.pads() {
-                if pad.name().contains("sink") && pad.name().contains("1") {
-                    log::debug!("Switching to silence due to low buffer");
-                    input_selector.set_property("active-pad", &pad);
-                    *current = SpotifyInputSourceSelector::Silence;
-                    break;
-                }
-            }
-        }
-    } else if current_bytes >= max_bytes {
-        let mut current = source_selector.lock().unwrap();
-        if matches!(*current, SpotifyInputSourceSelector::Silence) {
-            // Switch back to Spotify (typically sink pad "0")
-            for pad in input_selector.pads() {
-                if pad.name().contains("sink") && pad.name().contains("0") {
-                    log::debug!("Buffer healthy; switching to appsrc");
-                    input_selector.set_property("active-pad", &pad);
-                    *current = SpotifyInputSourceSelector::Spotify;
-                    break;
-                }
-            }
-        }
     }
 }

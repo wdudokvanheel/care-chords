@@ -1,5 +1,4 @@
 use crate::spotify_client::SpotifyClient;
-use crate::spotify_old::SpotifyDBusClient;
 use crate::spotify_player::PlayerCommand;
 use std::sync::Arc;
 use std::time::Instant;

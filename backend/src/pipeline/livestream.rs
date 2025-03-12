@@ -11,7 +11,6 @@ pub struct LivestreamPipeline {
     pub queue: Element,
     convert: Element,
     resample: Element,
-    buffer: Element,
     volume: Element,
     // dsp: Element,
     pub cap_filter: Element,
@@ -35,8 +34,6 @@ impl LivestreamPipeline {
             .expect("Could not create livestream_convert element.");
         let resample = ElementFactory::make_with_name("audioresample", Some("livestream_resample"))
             .expect("Could not create livestream_resample element.");
-        let buffer = ElementFactory::make_with_name("queue", Some("livestream_buffer"))
-            .expect("Could not create livestream_buffer element.");
         let rgvolume = ElementFactory::make_with_name("rgvolume", Some("livestream_rgvolume"))
             .expect("Could not create livestream_rgvolume element.");
         // let dsp = ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
@@ -67,10 +64,7 @@ impl LivestreamPipeline {
         // Reduce volume
         // rgvolume.set_property("pre-amp", &-30.0f64);
 
-        // buffer.set_property("max-size-buffers", &0u32);
-        // buffer.set_property("max-size-bytes", &10000_000u32);
         // queue.set_property("max-size-bytes", &10000_000u32);
-        // buffer.set_property("max-size-time", &(9000_000_000u64));
 
         cap_filter.set_property(
             "caps",
@@ -89,7 +83,6 @@ impl LivestreamPipeline {
             queue,
             convert,
             resample,
-            buffer,
             volume: rgvolume,
             // dsp,
             cap_filter,
@@ -109,7 +102,6 @@ impl LivestreamPipeline {
             &self.resample,
             &self.volume,
             // &self.dsp,
-            &self.buffer,
             &self.cap_convert,
             &self.cap_resample,
             &self.cap_filter,
@@ -121,7 +113,6 @@ impl LivestreamPipeline {
         Element::link_many(&[&self.depay, &self.parse, &self.decoder])?;
         Element::link_many(&[
             &self.queue,
-            &self.buffer,
             &self.convert,
             &self.resample,
             &self.volume,
