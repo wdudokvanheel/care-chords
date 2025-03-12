@@ -1,13 +1,15 @@
-use crate::spotify_old::MusicMetadata;
 use crate::spotify_sink::{ChannelSink, SinkEvent};
 use gstreamer::event::SinkMessage;
 use librespot_core::{Session, SpotifyId};
+use librespot_metadata::artist::ArtistRole;
+use librespot_metadata::audio::UniqueFields;
 use librespot_metadata::{Metadata, Playlist, Track};
 use librespot_playback::audio_backend::Sink;
 use librespot_playback::config::PlayerConfig;
 use librespot_playback::decoder::AudioPacket;
 use librespot_playback::mixer::NoOpVolume;
 use librespot_playback::player::{Player, PlayerEvent};
+use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::sync::mpsc::SyncSender;
 use std::sync::Arc;
@@ -24,7 +26,7 @@ pub enum PlayerCommand {
     Next,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 pub struct SpotifyPlayerInfo {
     status: SpotifyPlayerState,
     music_metadata: Option<MusicMetadata>,
@@ -44,11 +46,11 @@ pub struct SpotifyPlayer {
     current_song: Option<MusicMetadata>,
 }
 
-#[derive(Clone, Debug)]
+#[derive(Clone, Debug, Serialize)]
 enum SpotifyPlayerState {
     Stopped,
     Playing,
-    Paused(SpotifyId, u32),
+    Paused,
 }
 
 impl SpotifyPlayer {
@@ -94,7 +96,7 @@ impl SpotifyPlayer {
         }
     }
 
-    fn emit_player_state(&self){
+    fn emit_player_state(&self) {
         let state = SpotifyPlayerInfo {
             status: self.state.clone(),
             music_metadata: self.current_song.clone(),
@@ -139,8 +141,7 @@ impl SpotifyPlayer {
                             self.play_next_song().await;
                         }
                         PlayerCommand::Play => {
-                            if let SpotifyPlayerState::Paused(id, position_ms) = self.state {
-                                log::info!("Resuming playback @ {}", position_ms);
+                            if let SpotifyPlayerState::Paused = self.state {
                                 self.player.play();
                             }
                         }
@@ -153,9 +154,33 @@ impl SpotifyPlayer {
                     log::trace!("Received player event: {:?}", event);
                     match event {
                         PlayerEvent::Playing{ position_ms, .. } => self.set_state(SpotifyPlayerState::Playing).await,
-                        PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(SpotifyPlayerState::Paused(track_id, position_ms)).await,
+                        PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(SpotifyPlayerState::Paused).await,
                         PlayerEvent::Stopped { .. } => self.set_state(SpotifyPlayerState::Stopped).await,
                         PlayerEvent::EndOfTrack { .. } => self.play_next_song().await,
+                        PlayerEvent::TrackChanged { audio_item} => {
+                            // log::trace!("Track changed to {:?}", audio_item);
+
+                            let artist = match &audio_item.unique_fields {
+                                UniqueFields::Track { artists, .. } => {
+                                    artists.0.iter()
+                                        .find(|a| a.role == ArtistRole::ARTIST_ROLE_MAIN_ARTIST)
+                                        .or_else(|| artists.0.first())
+                                        .map(|a| a.name.clone())
+                                        .unwrap_or_else(|| "Unknown Artist".to_string())
+                                },
+                                _ => "Unknown Artist".to_string(),
+                            };
+
+                            let metadata = MusicMetadata {
+                                artist,
+                                title: audio_item.name.clone(),
+                                artwork_url: audio_item.covers.get(0)
+                                    .map(|c| c.url.clone())
+                                    .unwrap_or_else(|| "".to_string()),
+                            };
+                            self.current_song = Some(metadata);
+                            self.emit_player_state();
+                        }
                         _ => {}
                     }
                 }
@@ -174,8 +199,10 @@ impl SpotifyPlayer {
     }
 
     async fn set_state(&mut self, state: SpotifyPlayerState) {
-        self.state = state;
-        self.emit_player_state();
+        if !matches!(&self.state, state) {
+            self.state = state;
+            self.emit_player_state();
+        }
     }
 
     async fn load_playlist_to_queue(&mut self, playlist_id: &str) {
@@ -188,4 +215,11 @@ impl SpotifyPlayer {
         self.queue.clear();
         self.queue.extend(tracks.map(|t| *t));
     }
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MusicMetadata {
+    artist: String,
+    title: String,
+    artwork_url: String,
 }
