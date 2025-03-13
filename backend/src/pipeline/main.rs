@@ -144,7 +144,7 @@ impl MainPipelineElements {
         queue.set_property("use-buffering", &true);
 
         // mp3_encoder.set_property("bitrate", &320);
-        rtsp_sink.set_property("location", &"rtsp://10.0.0.21:8554/sleep");
+        rtsp_sink.set_property("location", &"rtsp://10.0.0.153:8554/sleep");
         stereo_filter.set_property(
             "caps",
             &Caps::builder("audio/x-raw").field("channels", &2).build(),

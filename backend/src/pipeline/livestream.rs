@@ -1,5 +1,5 @@
 use anyhow::Error;
-use gstreamer::prelude::{GstBinExtManual, ObjectExt};
+use gstreamer::prelude::{GObjectExtManualGst, GstBinExtManual, ObjectExt};
 use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 use gstreamer_rtsp::RTSPLowerTrans;
 
@@ -12,7 +12,7 @@ pub struct LivestreamPipeline {
     convert: Element,
     resample: Element,
     volume: Element,
-    // dsp: Element,
+    dsp: Element,
     pub cap_filter: Element,
     cap_resample: Element,
     cap_convert: Element,
@@ -36,8 +36,8 @@ impl LivestreamPipeline {
             .expect("Could not create livestream_resample element.");
         let rgvolume = ElementFactory::make_with_name("rgvolume", Some("livestream_rgvolume"))
             .expect("Could not create livestream_rgvolume element.");
-        // let dsp = ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
-        //     .expect("Could not create livestream_dsp element.");
+        let dsp = ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
+            .expect("Could not create livestream_dsp element.");
         let cap_filter =
             ElementFactory::make_with_name("capsfilter", Some("livestream_cap_filter"))
                 .expect("Failed to create capsfilter");
@@ -53,11 +53,11 @@ impl LivestreamPipeline {
         source.set_property("protocols", RTSPLowerTrans::UDP);
         source.set_property("latency", &50u32);
 
-        // dsp.set_property("echo-cancel", &false);
-        // dsp.set_property("noise-suppression", &true);
-        // dsp.set_property_from_str("noise-suppression-level", "very-high");
-        // dsp.set_property("voice-detection", &true);
-        // dsp.set_property("extended-filter", &true);
+        dsp.set_property("echo-cancel", &false);
+        dsp.set_property("noise-suppression", &true);
+        dsp.set_property_from_str("noise-suppression-level", "very-high");
+        dsp.set_property("voice-detection", &true);
+        dsp.set_property("extended-filter", &true);
 
         // queue.set_property("use-buffering", &true);
 
@@ -84,7 +84,7 @@ impl LivestreamPipeline {
             convert,
             resample,
             volume: rgvolume,
-            // dsp,
+            dsp,
             cap_filter,
             cap_resample,
             cap_convert,
@@ -101,7 +101,7 @@ impl LivestreamPipeline {
             &self.convert,
             &self.resample,
             &self.volume,
-            // &self.dsp,
+            &self.dsp,
             &self.cap_convert,
             &self.cap_resample,
             &self.cap_filter,
@@ -116,7 +116,7 @@ impl LivestreamPipeline {
             &self.convert,
             &self.resample,
             &self.volume,
-            // &self.dsp,
+            &self.dsp,
             &self.cap_convert,
             &self.cap_resample,
             &self.cap_filter,

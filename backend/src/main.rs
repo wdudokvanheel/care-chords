@@ -50,37 +50,10 @@ impl CareChordsServer {
     pub async fn start(&mut self) {
         log::info!("Starting CareChordsServer!");
         self.start_gstreamer();
-
         self.start_spotify().await;
 
         if let Authenticated(spot) = &self.spotify {
             start_http_server(spot.clone());
-        }
-
-        sleep(Duration::from_secs(1)).await;
-
-        if let Authenticated(spot) = &self.spotify {
-            // spot.playlist("4k20pM1VwL5FSHQtlOENx5").await;
-            // // spot.playlist("4Kl21mcSdESNomCLQXO5DP").await;
-            // // spot.playlist("123Phuf9VqCgVndrnKBKlN").await;
-            // sleep(Duration::from_secs(10)).await;
-            // log::info!("Pause");
-            // spot.pause().await;
-            //
-            // sleep(Duration::from_secs(5)).await;
-            // log::info!("Play");
-            // // self.pipeline
-            // //     .spotify
-            // //     .app_source
-            // //     .set_state(gst::State::Ready)
-            // //     .unwrap();
-            // //
-            // // self.pipeline
-            // //     .spotify
-            // //     .app_source
-            // //     .set_state(gst::State::Playing)
-            // //     .unwrap();
-            // spot.play().await;
         }
     }
 
@@ -135,7 +108,7 @@ impl CareChordsServer {
             .expect("Failed to set pipeline to Playing");
     }
 
-    // Start a new thread that consumes all audio packets from the receiver and sends it to the app src
+    // Start a new thread that consumes all audio packets from librespot's audio sink and sends it to the gstreamer app src
     fn push_audio_app_src(pipeline: Pipeline, app_src: Element, receiver: Receiver<SinkEvent>) {
         let app_src = app_src
             .dynamic_cast::<AppSrc>()

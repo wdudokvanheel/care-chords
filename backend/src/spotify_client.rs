@@ -35,6 +35,28 @@ pub struct SpotifyClient {
     player_info_channel: watch::Receiver<SpotifyPlayerInfo>,
 }
 
+impl SpotifyClient {
+    pub fn new() -> UnauthenticatedSpotifyClient {
+        UnauthenticatedSpotifyClient {
+            cache_folder: PathBuf::from("cache"),
+        }
+    }
+    /// This channel can push commands to the player
+    pub fn player_command_channel(&self) -> Sender<PlayerCommand> {
+        self.player_command_channel.clone()
+    }
+
+    /// This channel will emit the current state of the player
+    pub fn player_info_channel(&self) -> watch::Receiver<SpotifyPlayerInfo> {
+        self.player_info_channel.clone()
+    }
+
+    /// This channel provides audio samples and audio stream status updates
+    pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<SinkEvent>> {
+        self.audio_channel_receiver.take()
+    }
+}
+
 impl UnauthenticatedSpotifyClient {
     pub async fn try_cache_authentication_with_discovery_fallback(&self) -> Result<SpotifyClient> {
         let credentials = self.fetch_credentials_from_cache().await;
@@ -137,28 +159,6 @@ impl UnauthenticatedSpotifyClient {
         }
 
         Err(anyhow!("Failed to get credentials"))
-    }
-}
-
-impl SpotifyClient {
-    pub fn new() -> UnauthenticatedSpotifyClient {
-        UnauthenticatedSpotifyClient {
-            cache_folder: PathBuf::from("cache"),
-        }
-    }
-
-    // Use this channel to push commands to the player
-    pub fn player_command_channel(&self) -> Sender<PlayerCommand> {
-        self.player_command_channel.clone()
-    }
-
-    // Use this channel to get the current state of the player
-    pub fn player_info_channel(&self) -> watch::Receiver<SpotifyPlayerInfo> {
-        self.player_info_channel.clone()
-    }
-
-    pub fn audio_stream_channel(&mut self) -> Option<std::sync::mpsc::Receiver<SinkEvent>> {
-        self.audio_channel_receiver.take()
     }
 }
 
