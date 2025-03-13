@@ -17,6 +17,7 @@ use std::io::{BufReader, Read};
 use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 use crate::spotify_sink::SinkEvent;
@@ -65,7 +66,7 @@ impl UnauthenticatedSpotifyClient {
     fn from_authenticated_session(session: Session) -> SpotifyClient {
         let (sender, receiver) = sync_channel::<SinkEvent>(10);
 
-        let player = SpotifyPlayer::new(session.clone(), sender);
+        let mut player = SpotifyPlayer::new(session.clone(), sender);
         let command_channel = player.command_channel();
         let info_channel = player.player_info_channel();
 

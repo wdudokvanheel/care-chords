@@ -10,7 +10,12 @@ use warp::{Filter, Rejection, Reply};
 
 #[derive(serde::Deserialize)]
 struct PlaylistRequest {
-    id: String,
+    uri: String,
+}
+
+#[derive(serde::Deserialize)]
+struct SleepTimerRequest {
+    timer: u32,
 }
 
 pub fn start_http_server(spotify: Arc<SpotifyClient>) {
@@ -50,12 +55,18 @@ fn create_routes(
         .and(command_filter.clone())
         .and_then(handle_next);
 
+    let sleep_route = warp::path("sleep")
+        .and(warp::post())
+        .and(warp::body::json::<SleepTimerRequest>())
+        .and(command_filter.clone())
+        .and_then(handle_sleep);
+
     let status_route = warp::path("status")
         .and(warp::get())
         .and(info_filter.clone())
         .and_then(handle_status);
 
-    playlist_route.or(play_route).or(pause_route).or(next_route).or(status_route).boxed()
+    playlist_route.or(play_route).or(pause_route).or(next_route).or(status_route).or(sleep_route).boxed()
 }
 
 async fn handle_status(
@@ -72,7 +83,7 @@ async fn handle_playlist(
     client: Sender<PlayerCommand>,
 ) -> Result<Response<Body>, Rejection> {
     client
-        .send(PlayerCommand::Playlist(req.id))
+        .send(PlayerCommand::Playlist(req.uri))
         .await
         .expect("Failed to send player command");
 
@@ -81,6 +92,22 @@ async fn handle_playlist(
         StatusCode::OK,
     )
     .into_response())
+}
+
+async fn handle_sleep(
+    req: SleepTimerRequest,
+    client: Sender<PlayerCommand>,
+) -> Result<Response<Body>, Rejection> {
+    client
+        .send(PlayerCommand::Sleep(req.timer))
+        .await
+        .expect("Failed to send player command");
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&serde_json::json!({ "status": "ok" })),
+        StatusCode::OK,
+    )
+        .into_response())
 }
 
 async fn handle_play(client: Sender<PlayerCommand>) -> Result<Response<Body>, Rejection> {
@@ -113,7 +140,7 @@ async fn handle_next(client: Sender<PlayerCommand>) -> Result<Response<Body>, Re
     client
         .send(PlayerCommand::Next)
         .await
-        .expect("Failed to send pause command");
+        .expect("Failed to send next command");
 
     Ok(warp::reply::with_status(
         warp::reply::json(&serde_json::json!({ "status": "success" })),
