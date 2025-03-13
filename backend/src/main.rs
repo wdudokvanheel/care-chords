@@ -1,14 +1,11 @@
 mod http;
 mod pipeline;
 mod spotify_client;
-mod spotify_old;
 mod spotify_player;
 mod spotify_sink;
-mod webserver;
 
 use crate::http::start_http_server;
 use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
-use crate::spotify_old::SpotifyDBusClient;
 use crate::spotify_player::SpotifyPlayerInfo;
 use crate::spotify_sink::SinkEvent;
 use crate::SpotifyState::{Authenticated, Unauthenticated};

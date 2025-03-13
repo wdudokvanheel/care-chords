@@ -23,6 +23,15 @@ use tokio::time::{sleep, Instant};
 use tokio::sync::Mutex as TokioMutex;
 use tokio::task::JoinHandle;
 
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct MusicMetadata {
+    artist: String,
+    title: String,
+    artwork_url: String,
+}
+
+
 #[derive(Clone, Debug)]
 pub enum PlayerCommand {
     Playlist(String),
@@ -360,13 +369,6 @@ impl SleepTimer {
         }
         None
     }
-}
-
-#[derive(Debug, Serialize, Deserialize, Clone)]
-pub struct MusicMetadata {
-    artist: String,
-    title: String,
-    artwork_url: String,
 }
 
 async fn fade_out_volume(volume: Arc<PlaybackVolume>, player: Arc<Player>) {

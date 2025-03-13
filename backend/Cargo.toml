@@ -34,6 +34,10 @@ env_logger = "0.11.6"
 pre-build = [
     "dpkg --add-architecture $CROSS_DEB_ARCH",
     "apt-get update",
+    "apt-get --assume-yes install libasound2-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install alsa-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install alsa-devel:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install alsa:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstreamer1.0:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstreamer-plugins-base1.0-dev:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstreamer-plugins-base1.0:$CROSS_DEB_ARCH",
