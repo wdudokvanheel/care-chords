@@ -2,11 +2,21 @@ import Combine
 import Foundation
 import SwiftUI
 
+enum PlayerState: String, Decodable {
+    case playing = "Playing"
+    case stopped = "Stopped"
+    case paused = "Paused"
+}
+
 struct PlayerStatus: Decodable {
     let sleep_timer: Int?
-    let playing: Bool
+    let status: PlayerState
     let shuffle: Bool
     let metadata: MusicMetadata?
+    
+    var playing: Bool {
+        self.status == .playing
+    }
 }
 
 struct MusicMetadata: Decodable {
@@ -17,7 +27,7 @@ struct MusicMetadata: Decodable {
 
 class MusicController: ObservableObject {
     @Published var updateStatus = true
-    @Published var status: PlayerStatus = .init(sleep_timer: nil, playing: false, shuffle: false, metadata: nil)
+    @Published var status: PlayerStatus = .init(sleep_timer: nil, status: .stopped, shuffle: false, metadata: nil)
 
     private var cancellables = Set<AnyCancellable>()
     private var statusTimer: DispatchSourceTimer?
@@ -73,9 +83,9 @@ class MusicController: ObservableObject {
     func previous() {
         controlPlayer("previous")
     }
-    
-    func setShuffle(_ shuffle: Bool){
-        let url = "http://10.0.0.153:7755/shuffle"
+
+    func setShuffle(_ shuffle: Bool) {
+        let url = "http://\(SleepStreamApp.SERVER):7755/shuffle"
         let request = ShuffleRequestDto(shuffle: shuffle)
 
         NetworkService.sendRequest(with: request, to: url, method: .POST)
@@ -94,7 +104,7 @@ class MusicController: ObservableObject {
     }
 
     func startSleepTimer(_ seconds: Int) {
-        let url = "http://10.0.0.153:7755/sleep"
+        let url = "http://\(SleepStreamApp.SERVER):7755/sleep"
         let request = SleepTimerRequestDto(timer: seconds)
 
         NetworkService.sendRequest(with: request, to: url, method: .POST)
@@ -113,7 +123,7 @@ class MusicController: ObservableObject {
     }
 
     private func controlPlayer(_ action: String) {
-        let url = "http://10.0.0.153:7755/control"
+        let url = "http://\(SleepStreamApp.SERVER):7755/\(action)"
         let request = ActionRequestDto(action: action)
 
         NetworkService.sendRequest(with: request, to: url, method: .POST)
@@ -142,7 +152,7 @@ class MusicController: ObservableObject {
             return
         }
 
-        let url = "http://10.0.0.153:7755/status"
+        let url = "http://\(SleepStreamApp.SERVER):7755/status"
         NetworkService.sendRequest(with: EmptyBody?(nil), to: url, method: .GET)
             .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { [weak self] completion in

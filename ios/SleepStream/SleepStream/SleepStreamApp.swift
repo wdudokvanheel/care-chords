@@ -3,6 +3,8 @@ import SwiftUI
 
 @main
 struct SleepStreamApp: App {
+    public static let SERVER = "10.0.0.153"
+    
     var audioViewModel: ViewModel
     @State private var cancellables: Set<AnyCancellable> = []
 
