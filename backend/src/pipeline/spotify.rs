@@ -4,14 +4,14 @@ use gstreamer::prelude::{
 };
 use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 
-pub struct SpotifyPipeline {
+pub struct SpotifySourcePipeline {
     pub app_source: Element,
     pub queue: Element,
     convert: Element,
     pub resample: Element,
 }
 
-impl SpotifyPipeline {
+impl SpotifySourcePipeline {
     pub fn new() -> Result<Self, Error> {
         let app_source = ElementFactory::make_with_name("appsrc", Some("spotify_app_source"))
             .expect("Could not create appsrc element");

@@ -1,0 +1,17 @@
+[Unit]
+Description=Care Chords Daemon
+After=network.target
+
+[Service]
+ExecStart=/opt/carechords/carechords
+Restart=always
+User=wesley
+Group=wesley
+WorkingDirectory=/opt/carechords/carechords
+StandardOutput=syslog
+StandardError=syslog
+SyslogIdentifier=carechords
+Environment="RUST_BACKTRACE=1"
+
+[Install]
+WantedBy=multi-user.target

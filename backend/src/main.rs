@@ -10,40 +10,27 @@ use crate::spotify_player::SpotifyPlayerInfo;
 use crate::spotify_sink::SinkEvent;
 use crate::SpotifyState::{Authenticated, Unauthenticated};
 use anyhow::Error;
-use futures::lock;
 use gstreamer as gst;
-use gstreamer::event::{FlushStart, FlushStop};
 use gstreamer::prelude::*;
-use gstreamer::EventType::SegmentDone;
-use gstreamer::{
-    event, ClockTime, Element, Event, EventType, Format, Pipeline, Segment, Structure,
-};
+use gstreamer::{ClockTime, Element, Pipeline};
 use gstreamer_app::AppSrc;
-use librespot::protocol::authentication::AccountType::Spotify;
-use librespot_playback::decoder::AudioPacket;
-use pipeline::MainPipeline;
+use pipeline::AudioPipeline;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;
-use std::thread::spawn;
-use std::time::{Duration, Instant};
 use tokio;
 use tokio::sync::watch;
-use tokio::sync::Mutex;
-use tokio::time::sleep;
-use tokio::{task, time};
-use warp::hyper::Client;
-use warp::path::end;
+use tokio::task;
 
 struct CareChordsServer {
     spotify: SpotifyState,
-    pipeline: Arc<MainPipeline>,
+    pipeline: Arc<AudioPipeline>,
 }
 
 impl CareChordsServer {
     pub fn new() -> Self {
         Self {
             spotify: Unauthenticated(Arc::new(SpotifyClient::new())),
-            pipeline: Arc::new(MainPipeline::new().unwrap()),
+            pipeline: Arc::new(AudioPipeline::new().unwrap()),
         }
     }
 
@@ -68,7 +55,7 @@ impl CareChordsServer {
 
                     let receiver = spotify_client.audio_stream_channel().take().unwrap();
                     let app_src = self.pipeline.spotify.app_source.clone();
-                    let pipeline = self.pipeline.pipeline.clone();
+                    let pipeline = self.pipeline.gstreamer_pipeline.clone();
 
                     Self::push_audio_app_src(pipeline, app_src, receiver);
                     Self::watch_events(spotify_client.player_info_channel());
@@ -97,7 +84,7 @@ impl CareChordsServer {
             .pipeline
             .get_bus()
             .expect("Pipeline without bus. Shouldn't happen!");
-        let pipeline = self.pipeline.pipeline.clone();
+        let pipeline = self.pipeline.gstreamer_pipeline.clone();
 
         tokio::spawn(async move {
             handle_gst_bus_messages(bus, pipeline.into()).await;

@@ -1,9 +1,10 @@
 use anyhow::Error;
-use gstreamer::prelude::{GObjectExtManualGst, GstBinExtManual, ObjectExt};
+use gstreamer::prelude::{ElementExt, GObjectExtManualGst, GstBinExtManual, ObjectExt, PadExt};
 use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 use gstreamer_rtsp::RTSPLowerTrans;
+use log::error;
 
-pub struct LivestreamPipeline {
+pub struct RTSPSourcePipeline {
     pub source: Element,
     pub depay: Element,
     parse: Element,
@@ -18,7 +19,7 @@ pub struct LivestreamPipeline {
     cap_convert: Element,
 }
 
-impl LivestreamPipeline {
+impl RTSPSourcePipeline {
     pub fn new() -> Result<Self, Error> {
         let source = ElementFactory::make_with_name("rtspsrc", Some("livestream_source"))
             .expect("Could not create livestream_source element.");
@@ -121,6 +122,42 @@ impl LivestreamPipeline {
             &self.cap_resample,
             &self.cap_filter,
         ])?;
+        Ok(())
+    }
+
+    pub  fn connect_dynamic_pads(&self) -> Result<(), Error> {
+        // Clone elements for closure
+        let depay_clone = self.depay.clone();
+        self.source.connect_pad_added(move |_src, src_pad| {
+            let src_pad_caps = src_pad.current_caps().unwrap();
+            let src_pad_structure = src_pad_caps.structure(0).unwrap();
+
+            if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
+                if media_type == "audio" {
+                    let sink_pad = depay_clone
+                        .static_pad("sink")
+                        .expect("Failed to get sink pad");
+                    if let Err(err) = src_pad.link(&sink_pad) {
+                        error!("Failed to link livestream_source audio: {}", err);
+                    }
+                }
+            }
+        });
+
+        let queue_clone = self.queue.clone();
+        self.decoder.connect_pad_added(move |_, src_pad| {
+            let sink_pad = queue_clone
+                .static_pad("sink")
+                .expect("Failed to get sink pad from livestream_queue");
+
+            if let Err(err) = src_pad.link(&sink_pad) {
+                error!(
+                    "Failed to link livestream_decoder to livestream_queue: {}",
+                    err
+                );
+            }
+        });
+
         Ok(())
     }
 }

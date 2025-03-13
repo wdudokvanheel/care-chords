@@ -1,9 +1,8 @@
 use crate::spotify_client::SpotifyClient;
 use crate::spotify_player::{PlayerCommand, SpotifyPlayerInfo};
 use std::sync::Arc;
-use std::time::Instant;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::{watch, Mutex};
+use tokio::sync::watch;
 use warp::http::{Response, StatusCode};
 use warp::hyper::Body;
 use warp::{Filter, Rejection, Reply};
@@ -66,7 +65,13 @@ fn create_routes(
         .and(info_filter.clone())
         .and_then(handle_status);
 
-    playlist_route.or(play_route).or(pause_route).or(next_route).or(status_route).or(sleep_route).boxed()
+    playlist_route
+        .or(play_route)
+        .or(pause_route)
+        .or(next_route)
+        .or(status_route)
+        .or(sleep_route)
+        .boxed()
 }
 
 async fn handle_status(
@@ -76,7 +81,6 @@ async fn handle_status(
 
     Ok(warp::reply::json(&info))
 }
-
 
 async fn handle_playlist(
     req: PlaylistRequest,
@@ -107,7 +111,7 @@ async fn handle_sleep(
         warp::reply::json(&serde_json::json!({ "status": "ok" })),
         StatusCode::OK,
     )
-        .into_response())
+    .into_response())
 }
 
 async fn handle_play(client: Sender<PlayerCommand>) -> Result<Response<Body>, Rejection> {
@@ -146,5 +150,5 @@ async fn handle_next(client: Sender<PlayerCommand>) -> Result<Response<Body>, Re
         warp::reply::json(&serde_json::json!({ "status": "success" })),
         StatusCode::OK,
     )
-        .into_response())
+    .into_response())
 }

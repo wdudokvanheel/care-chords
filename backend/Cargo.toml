@@ -1,6 +1,6 @@
 [package]
-name = "sleepstream"
-version = "0.1.0"
+name = "carechord"
+version = "1.0.0"
 edition = "2024"
 
 [dependencies]
@@ -12,9 +12,7 @@ anyhow = "1.0.93"
 tokio = { version = "1.41.1", features = ["full"] }
 serde_json = "1.0.133"
 warp = "0.3.7"
-dbus = { version = "0.9.7", features = ["futures"] }
 serde = { version = "1.0.215", features = ["derive"] }
-dbus-tokio = "0.7.6"
 log = "0.4.22"
 simple_logger = "5.0.0"
 
@@ -26,7 +24,6 @@ librespot-metadata = "0.6"
 hex = "0.4.3"
 sha1 = "0.10.6"
 futures = "0.3.31"
-env_logger = "0.11.6"
 
 # Configuratation for Cross (https://github.com/cross-rs/cross) to compile to aarch64
 # Installs gstreamer & dbus dependency dev packages

@@ -1,26 +1,21 @@
 use futures::StreamExt;
 
 use crate::spotify_player::{PlayerCommand, SpotifyPlayer, SpotifyPlayerInfo};
+use crate::spotify_sink::SinkEvent;
 use anyhow::{anyhow, Result};
-use gstreamer::prelude::ObjectExt;
 use librespot::core::SessionConfig;
 use librespot_core::authentication::Credentials;
 use librespot_core::cache::Cache;
 use librespot_core::config::DeviceType;
 use librespot_core::Session;
 use librespot_discovery::Discovery;
-use librespot_playback::audio_backend::Sink;
-use librespot_playback::decoder::AudioPacket;
 use sha1::{Digest, Sha1};
 use std::fs::File;
-use std::io::{BufReader, Read};
+use std::io::BufReader;
 use std::path::PathBuf;
-use std::sync::mpsc::{sync_channel, SyncSender};
-use std::sync::Arc;
-use std::time::Duration;
+use std::sync::mpsc::sync_channel;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
-use crate::spotify_sink::SinkEvent;
 
 
 pub struct UnauthenticatedSpotifyClient {
@@ -28,8 +23,6 @@ pub struct UnauthenticatedSpotifyClient {
 }
 
 pub struct SpotifyClient {
-    session: Arc<Session>,
-    audio_channel_sender: Option<SyncSender<AudioPacket>>,
     audio_channel_receiver: Option<std::sync::mpsc::Receiver<SinkEvent>>,
     player_command_channel: Sender<PlayerCommand>,
     player_info_channel: watch::Receiver<SpotifyPlayerInfo>,
@@ -88,7 +81,7 @@ impl UnauthenticatedSpotifyClient {
     fn from_authenticated_session(session: Session) -> SpotifyClient {
         let (sender, receiver) = sync_channel::<SinkEvent>(10);
 
-        let mut player = SpotifyPlayer::new(session.clone(), sender);
+        let player = SpotifyPlayer::new(session.clone(), sender);
         let command_channel = player.command_channel();
         let info_channel = player.player_info_channel();
 
@@ -97,8 +90,6 @@ impl UnauthenticatedSpotifyClient {
         });
 
         SpotifyClient {
-            session: Arc::new(session),
-            audio_channel_sender: None,
             audio_channel_receiver: Some(receiver),
             player_command_channel: command_channel,
             player_info_channel: info_channel,
@@ -170,19 +161,3 @@ fn create_spotify_cache() -> Option<Cache> {
 
     Cache::new(credentials_path, volume_path, audio_path, size_limit).ok()
 }
-
-pub const SCOPES: [&str; 13] = [
-    "playlist-read-collaborative",
-    "playlist-read-private",
-    "playlist-modify-private",
-    "playlist-modify-public",
-    "user-follow-read",
-    "user-follow-modify",
-    "user-library-modify",
-    "user-library-read",
-    "user-modify-playback-state",
-    "user-read-currently-playing",
-    "user-read-playback-state",
-    "user-read-private",
-    "user-read-recently-played",
-];

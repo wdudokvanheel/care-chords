@@ -1,31 +1,23 @@
-use crate::pipeline::livestream::LivestreamPipeline;
-use crate::pipeline::spotify::SpotifyPipeline;
+use crate::pipeline::livestream::RTSPSourcePipeline;
+use crate::pipeline::spotify::SpotifySourcePipeline;
 use anyhow::Error;
-use futures::lock;
 use gstreamer::prelude::{
-    Cast, ElementExt, ElementExtManual, GObjectExtManualGst, GstBinExtManual, GstObjectExt,
-    ObjectExt, PadExt, PipelineExt,
+    ElementExt, ElementExtManual, GstBinExtManual, ObjectExt, PadExt, PipelineExt,
 };
 use gstreamer::{
-    init, Bus, Caps, ClockTime, Element, ElementFactory, FlowSuccess, Pipeline, State,
-    StateChangeSuccess,
+    Bus, Caps, ClockTime, Element, ElementFactory, Pipeline, State, StateChangeSuccess, init,
 };
-use gstreamer_app::{gst, AppSrc, AppSrcCallbacks};
-use gstreamer_rtsp::RTSPLowerTrans;
 use log::error;
-use std::sync::{Arc, Mutex, Weak};
-use std::thread;
-use std::thread::{current, sleep, spawn};
-use std::time::{Duration, Instant};
 
-pub struct MainPipeline {
-    pub pipeline: Pipeline,
-    pub livestream: LivestreamPipeline,
-    pub spotify: SpotifyPipeline,
-    pub elements: MainPipelineElements,
+#[allow(dead_code)]
+pub struct AudioPipeline {
+    pub gstreamer_pipeline: Pipeline,
+    pub livestream: RTSPSourcePipeline,
+    pub spotify: SpotifySourcePipeline,
+    pub elements: AudioPipelineElements,
 }
 
-pub struct MainPipelineElements {
+pub struct AudioPipelineElements {
     audio_mixer: Element,
     queue: Element,
     aac_encoder: Element,
@@ -34,15 +26,15 @@ pub struct MainPipelineElements {
     rtsp_sink: Element,
 }
 
-impl MainPipeline {
+impl AudioPipeline {
     pub fn new() -> Result<Self, Error> {
         init()?;
 
         let pipeline = Pipeline::new();
 
-        let livestream = LivestreamPipeline::new()?;
-        let mut spotify = SpotifyPipeline::new()?;
-        let common = MainPipelineElements::new()?;
+        let livestream = RTSPSourcePipeline::new()?;
+        let spotify = SpotifySourcePipeline::new()?;
+        let common = AudioPipelineElements::new()?;
 
         livestream.add_to_pipeline(&pipeline)?;
         common.add_to_pipeline(&pipeline)?;
@@ -61,65 +53,31 @@ impl MainPipeline {
             .resample
             .link(&common.audio_mixer)
             .expect("Failed to link audio mixer");
-        Self::connect_dynamic_pads(&livestream)?;
+
+        livestream.connect_dynamic_pads()?;
+        // Self::connect_dynamic_pads(&livestream)?;
 
         pipeline.set_latency(ClockTime::from_mseconds(200));
 
         Ok(Self {
-            pipeline,
+            gstreamer_pipeline: pipeline,
             livestream,
             spotify,
             elements: common,
         })
     }
 
-    fn connect_dynamic_pads(livestream: &LivestreamPipeline) -> Result<(), Error> {
-        // Clone elements for closure
-        let depay_clone = livestream.depay.clone();
-        livestream.source.connect_pad_added(move |_src, src_pad| {
-            let src_pad_caps = src_pad.current_caps().unwrap();
-            let src_pad_structure = src_pad_caps.structure(0).unwrap();
-
-            if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
-                if media_type == "audio" {
-                    let sink_pad = depay_clone
-                        .static_pad("sink")
-                        .expect("Failed to get sink pad");
-                    if let Err(err) = src_pad.link(&sink_pad) {
-                        error!("Failed to link livestream_source audio: {}", err);
-                    }
-                }
-            }
-        });
-
-        let queue_clone = livestream.queue.clone();
-        livestream.decoder.connect_pad_added(move |_, src_pad| {
-            let sink_pad = queue_clone
-                .static_pad("sink")
-                .expect("Failed to get sink pad from livestream_queue");
-
-            if let Err(err) = src_pad.link(&sink_pad) {
-                error!(
-                    "Failed to link livestream_decoder to livestream_queue: {}",
-                    err
-                );
-            }
-        });
-
-        Ok(())
-    }
-
     pub fn set_state(&self, state: State) -> Result<StateChangeSuccess, Error> {
-        self.pipeline.set_state(state)?;
+        self.gstreamer_pipeline.set_state(state)?;
         Ok(StateChangeSuccess::Success)
     }
 
     pub fn get_bus(&self) -> Option<Bus> {
-        self.pipeline.bus()
+        self.gstreamer_pipeline.bus()
     }
 }
 
-impl MainPipelineElements {
+impl AudioPipelineElements {
     fn new() -> Result<Self, Error> {
         let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("AudioMixer"))
             .expect("Could not create audio_mixer element.");

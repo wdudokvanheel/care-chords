@@ -1,18 +1,15 @@
 use crate::spotify_sink::{ChannelSink, SinkEvent};
-use gstreamer::event::SinkMessage;
 use librespot_core::{Session, SpotifyId};
 use librespot_metadata::artist::ArtistRole;
 use librespot_metadata::audio::UniqueFields;
 use librespot_metadata::{Metadata, Playlist, Track};
 use librespot_playback::audio_backend::Sink;
 use librespot_playback::config::PlayerConfig;
-use librespot_playback::decoder::AudioPacket;
-use librespot_playback::mixer::{NoOpVolume, VolumeGetter};
+use librespot_playback::mixer::{VolumeGetter};
 use librespot_playback::player::{Player, PlayerEvent};
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::option::Option;
-use std::sync::atomic::{AtomicU16, Ordering};
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
@@ -235,7 +232,6 @@ impl SpotifyPlayer {
                             self.set_sleep_timer(Duration::from_secs(duration_s as u64)).await;
                             self.emit_player_state().await;
                         }
-                        _ => {}
                     }
                 }
 
@@ -243,8 +239,8 @@ impl SpotifyPlayer {
                 Some(event) = spotify_player_events.recv() => {
                     log::trace!("Received player event: {:?}", event);
                     match event {
-                        PlayerEvent::Playing{ position_ms, .. } => self.set_state(SpotifyPlayerState::Playing).await,
-                        PlayerEvent::Paused { position_ms, track_id, .. } => self.set_state(SpotifyPlayerState::Paused).await,
+                        PlayerEvent::Playing{  .. } => self.set_state(SpotifyPlayerState::Playing).await,
+                        PlayerEvent::Paused { .. } => self.set_state(SpotifyPlayerState::Paused).await,
                         PlayerEvent::Stopped { .. } => self.set_state(SpotifyPlayerState::Stopped).await,
                         PlayerEvent::EndOfTrack { .. } => self.play_next_song().await,
                         PlayerEvent::TrackChanged { audio_item} => {
@@ -301,7 +297,7 @@ impl SpotifyPlayer {
 
         let play_list = Playlist::get(&self.session, &plist_uri).await.unwrap();
         log::trace!("Playlist Uri {}", play_list.name());
-        let mut tracks = play_list.tracks();
+        let tracks = play_list.tracks();
         self.queue.clear();
         self.queue.extend(tracks.map(|t| *t));
     }
@@ -372,20 +368,20 @@ impl SleepTimer {
 }
 
 async fn fade_out_volume(volume: Arc<PlaybackVolume>, player: Arc<Player>) {
-    log::info!("Fading out volume");
+    log::trace!("Fading out volume");
     let fade_duration = Duration::from_secs(10);
     let steps = 100;
     let step_duration = fade_duration / steps;
     let initial_volume = volume.get_volume();
 
     for step in 0..steps {
-        log::info!("Fading step {}", step);
+        log::trace!("Fading step {}", step);
         let fraction = (step + 1) as f64 / steps as f64;
         let new_volume = initial_volume * (1.0 - fraction);
         volume.set_volume(new_volume);
         sleep(step_duration).await;
     }
-    log::info!("Fading done");
+    log::trace!("Fading done");
     player.pause();
 
     // Restore volume after pausing

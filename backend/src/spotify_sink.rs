@@ -22,13 +22,13 @@ impl ChannelSink {
 
 impl Sink for ChannelSink {
     fn start(&mut self) -> SinkResult<()> {
-        self.sender.send(SinkEvent::Start).map_err(|e| {
+        self.sender.send(SinkEvent::Start).map_err(|_| {
             SinkError::OnWrite("Failed to send audio packet to sync channel".to_string()).into()
         })
     }
 
     fn stop(&mut self) -> SinkResult<()> {
-        self.sender.send(SinkEvent::Stop).map_err(|e| {
+        self.sender.send(SinkEvent::Stop).map_err(|_| {
             SinkError::OnWrite("Failed to send audio packet to sync channel".to_string()).into()
         })
     }
@@ -36,7 +36,7 @@ impl Sink for ChannelSink {
     fn write(&mut self, packet: AudioPacket, _converter: &mut Converter) -> SinkResult<()> {
         match packet {
             AudioPacket::Samples(samples) => {
-                return self.sender.send(SinkEvent::Packet(samples)).map_err(|e| {
+                return self.sender.send(SinkEvent::Packet(samples)).map_err(|_| {
                     SinkError::OnWrite("Failed to send audio packet to sync channel".to_string())
                         .into()
                 });
