@@ -1,5 +1,5 @@
-mod livestream;
-pub mod main;
-pub mod spotify;
+mod rtsp_source;
+pub mod audio_pipeline;
+pub mod spotify_source;
 
-pub use crate::pipeline::main::AudioPipeline;
+pub use crate::pipeline::audio_pipeline::AudioPipeline;

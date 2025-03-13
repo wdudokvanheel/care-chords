@@ -20,7 +20,7 @@ pub struct RTSPSourcePipeline {
 }
 
 impl RTSPSourcePipeline {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new(rtsp_url: &str) -> Result<Self, Error> {
         let source = ElementFactory::make_with_name("rtspsrc", Some("livestream_source"))
             .expect("Could not create livestream_source element.");
         let depay = ElementFactory::make_with_name("rtpmp4gdepay", Some("livestream_depay"))
@@ -50,7 +50,7 @@ impl RTSPSourcePipeline {
                 .expect("Could not create audioconvert element for capsfilter");
 
         // Set properties
-        source.set_property("location", &"rtsp://sleepstream:sleepstream@10.0.0.51/");
+        source.set_property("location", rtsp_url);
         source.set_property("protocols", RTSPLowerTrans::UDP);
         source.set_property("latency", &50u32);
 

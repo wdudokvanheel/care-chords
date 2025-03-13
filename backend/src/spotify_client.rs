@@ -17,7 +17,6 @@ use std::sync::mpsc::sync_channel;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 
-
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,
 }

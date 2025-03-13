@@ -1,5 +1,5 @@
-use crate::pipeline::livestream::RTSPSourcePipeline;
-use crate::pipeline::spotify::SpotifySourcePipeline;
+use crate::pipeline::rtsp_source::RTSPSourcePipeline;
+use crate::pipeline::spotify_source::SpotifySourcePipeline;
 use anyhow::Error;
 use gstreamer::prelude::{
     ElementExt, ElementExtManual, GstBinExtManual, ObjectExt, PipelineExt,
@@ -7,6 +7,7 @@ use gstreamer::prelude::{
 use gstreamer::{
     Bus, Caps, ClockTime, Element, ElementFactory, Pipeline, State, StateChangeSuccess, init,
 };
+use crate::app_settings::ApplicationSettings;
 
 #[allow(dead_code)]
 pub struct AudioPipeline {
@@ -26,14 +27,14 @@ pub struct AudioPipelineElements {
 }
 
 impl AudioPipeline {
-    pub fn new() -> Result<Self, Error> {
+    pub fn new(settings: &ApplicationSettings) -> Result<Self, Error> {
         init()?;
 
         let pipeline = Pipeline::new();
 
-        let livestream = RTSPSourcePipeline::new()?;
+        let livestream = RTSPSourcePipeline::new(&settings.monitor_url)?;
         let spotify = SpotifySourcePipeline::new()?;
-        let common = AudioPipelineElements::new()?;
+        let common = AudioPipelineElements::new(&settings.rtsp_server)?;
 
         livestream.add_to_pipeline(&pipeline)?;
         common.add_to_pipeline(&pipeline)?;
@@ -77,7 +78,7 @@ impl AudioPipeline {
 }
 
 impl AudioPipelineElements {
-    fn new() -> Result<Self, Error> {
+    fn new(rtsp_server_url: &str) -> Result<Self, Error> {
         let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("AudioMixer"))
             .expect("Could not create audio_mixer element.");
         let queue = ElementFactory::make_with_name("queue2", Some("AudioMixerQueue"))
@@ -101,7 +102,7 @@ impl AudioPipelineElements {
         queue.set_property("use-buffering", &true);
 
         // mp3_encoder.set_property("bitrate", &320);
-        rtsp_sink.set_property("location", &"rtsp://10.0.0.153:8554/sleep");
+        rtsp_sink.set_property("location", rtsp_server_url);
         stereo_filter.set_property(
             "caps",
             &Caps::builder("audio/x-raw").field("channels", &2).build(),
