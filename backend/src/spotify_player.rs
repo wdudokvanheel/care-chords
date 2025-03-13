@@ -133,7 +133,7 @@ impl SpotifyPlayer {
         };
         // let volume_getter = Box::new(NoOpVolume);
 
-        let volume = Arc::new(PlaybackVolume::new(0.5));
+        let volume = Arc::new(PlaybackVolume::new(0.4));
         let volume_clone = volume.clone();
         let volume_getter =
             Box::new(ArcVolumeWrapper::new(volume.clone())) as Box<dyn VolumeGetter + Send>;

@@ -2,12 +2,11 @@ use crate::pipeline::livestream::RTSPSourcePipeline;
 use crate::pipeline::spotify::SpotifySourcePipeline;
 use anyhow::Error;
 use gstreamer::prelude::{
-    ElementExt, ElementExtManual, GstBinExtManual, ObjectExt, PadExt, PipelineExt,
+    ElementExt, ElementExtManual, GstBinExtManual, ObjectExt, PipelineExt,
 };
 use gstreamer::{
     Bus, Caps, ClockTime, Element, ElementFactory, Pipeline, State, StateChangeSuccess, init,
 };
-use log::error;
 
 #[allow(dead_code)]
 pub struct AudioPipeline {
