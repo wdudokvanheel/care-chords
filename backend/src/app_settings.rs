@@ -10,6 +10,9 @@ pub struct ApplicationSettings {
     /// The target RTSP server URL
     pub rtsp_server: String,
     pub monitor_url: String,
+    /// Enable noise filtering
+    #[serde(default)]
+    pub noise_filter: bool,
 }
 
 #[derive(Parser, Debug)]
@@ -23,6 +26,8 @@ struct Cli {
     rtsp_server: Option<String>,
     #[arg(short = 'm', long = "monitor-url", help = "Set the URL of the baby monitor")]
     monitor_url: Option<String>,
+    #[arg(long = "noise-filter", help = "Enable noise filtering")]
+    noise_filter: bool,
 }
 
 impl ApplicationSettings {
@@ -65,6 +70,10 @@ impl ApplicationSettings {
         }
         if let Some(monitor_url) = cli.monitor_url {
             settings.monitor_url = monitor_url;
+        }
+        // Only override noise_filter if the CLI flag is activated (true)
+        if cli.noise_filter {
+            settings.noise_filter = true;
         }
 
         // Display resolved configuration if requested

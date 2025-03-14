@@ -1,5 +1,5 @@
 use anyhow::Error;
-use gstreamer::prelude::{ElementExt, GObjectExtManualGst, GstBinExtManual, ObjectExt, PadExt};
+use gstreamer::prelude::{ElementExt, GObjectExtManualGst, GstBinExt, GstBinExtManual, ObjectExt, PadExt};
 use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 use gstreamer_rtsp::RTSPLowerTrans;
 use log::error;
@@ -13,14 +13,12 @@ pub struct RTSPSourcePipeline {
     convert: Element,
     resample: Element,
     volume: Element,
-    dsp: Element,
+    dsp: Option<Element>,
     pub cap_filter: Element,
-    cap_resample: Element,
-    cap_convert: Element,
 }
 
 impl RTSPSourcePipeline {
-    pub fn new(rtsp_url: &str) -> Result<Self, Error> {
+    pub fn new(rtsp_url: &str, noise_filter: bool) -> Result<Self, Error> {
         let source = ElementFactory::make_with_name("rtspsrc", Some("livestream_source"))
             .expect("Could not create livestream_source element.");
         let depay = ElementFactory::make_with_name("rtpmp4gdepay", Some("livestream_depay"))
@@ -37,28 +35,30 @@ impl RTSPSourcePipeline {
             .expect("Could not create livestream_resample element.");
         let rgvolume = ElementFactory::make_with_name("rgvolume", Some("livestream_rgvolume"))
             .expect("Could not create livestream_rgvolume element.");
-        let dsp = ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
-            .expect("Could not create livestream_dsp element.");
+
         let cap_filter =
             ElementFactory::make_with_name("capsfilter", Some("livestream_cap_filter"))
                 .expect("Failed to create capsfilter");
-        let cap_resample =
-            ElementFactory::make_with_name("audioresample", Some("livestream_cap_resample"))
-                .expect("Could not create audioresample element for capsfilter");
-        let cap_convert =
-            ElementFactory::make_with_name("audioconvert", Some("capsfilter_converter"))
-                .expect("Could not create audioconvert element for capsfilter");
 
         // Set properties
         source.set_property("location", rtsp_url);
         source.set_property("protocols", RTSPLowerTrans::UDP);
         source.set_property("latency", &50u32);
 
-        dsp.set_property("echo-cancel", &false);
-        dsp.set_property("noise-suppression", &true);
-        dsp.set_property_from_str("noise-suppression-level", "very-high");
-        dsp.set_property("voice-detection", &true);
-        dsp.set_property("extended-filter", &true);
+        let dsp = {
+            if noise_filter {
+                let dsp = ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
+                    .expect("Could not create livestream_dsp element.");
+                dsp.set_property("echo-cancel", &false);
+                dsp.set_property("noise-suppression", &true);
+                dsp.set_property_from_str("noise-suppression-level", "very-high");
+                dsp.set_property("voice-detection", &true);
+                dsp.set_property("extended-filter", &true);
+                Some(dsp)
+            } else {
+                None
+            }
+        };
 
         // queue.set_property("use-buffering", &true);
 
@@ -87,8 +87,6 @@ impl RTSPSourcePipeline {
             volume: rgvolume,
             dsp,
             cap_filter,
-            cap_resample,
-            cap_convert,
         })
     }
 
@@ -102,11 +100,12 @@ impl RTSPSourcePipeline {
             &self.convert,
             &self.resample,
             &self.volume,
-            &self.dsp,
-            &self.cap_convert,
-            &self.cap_resample,
             &self.cap_filter,
         ])?;
+
+        if let Some(dsp) = &self.dsp {
+            pipeline.add(dsp)?;
+        }
         Ok(())
     }
 
@@ -117,15 +116,19 @@ impl RTSPSourcePipeline {
             &self.convert,
             &self.resample,
             &self.volume,
-            &self.dsp,
-            &self.cap_convert,
-            &self.cap_resample,
-            &self.cap_filter,
         ])?;
+
+        if let Some(dsp) = &self.dsp {
+            Element::link_many(&[&self.volume, &dsp, &self.cap_filter])?;
+        }
+        else{
+            Element::link_many(&[&self.volume, &self.cap_filter])?;
+        }
+
         Ok(())
     }
 
-    pub  fn connect_dynamic_pads(&self) -> Result<(), Error> {
+    pub fn connect_dynamic_pads(&self) -> Result<(), Error> {
         // Clone elements for closure
         let depay_clone = self.depay.clone();
         self.source.connect_pad_added(move |_src, src_pad| {

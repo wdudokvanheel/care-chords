@@ -32,7 +32,7 @@ impl AudioPipeline {
 
         let pipeline = Pipeline::new();
 
-        let livestream = RTSPSourcePipeline::new(&settings.monitor_url)?;
+        let livestream = RTSPSourcePipeline::new(&settings.monitor_url, settings.noise_filter)?;
         let spotify = SpotifySourcePipeline::new()?;
         let common = AudioPipelineElements::new(&settings.rtsp_server)?;
 
