@@ -131,9 +131,7 @@ impl SpotifyPlayer {
             normalisation_knee_db: 0.0,
             ditherer: None,
         };
-        // let volume_getter = Box::new(NoOpVolume);
-
-        let volume = Arc::new(PlaybackVolume::new(0.2));
+        let volume = Arc::new(PlaybackVolume::new(0.1));
         let volume_clone = volume.clone();
         let volume_getter =
             Box::new(ArcVolumeWrapper::new(volume.clone())) as Box<dyn VolumeGetter + Send>;

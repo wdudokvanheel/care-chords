@@ -1,5 +1,7 @@
 use anyhow::Error;
-use gstreamer::prelude::{ElementExt, GObjectExtManualGst, GstBinExt, GstBinExtManual, ObjectExt, PadExt};
+use gstreamer::prelude::{
+    ElementExt, GObjectExtManualGst, GstBinExt, GstBinExtManual, ObjectExt, PadExt,
+};
 use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 use gstreamer_rtsp::RTSPLowerTrans;
 use log::error;
@@ -9,10 +11,11 @@ pub struct RTSPSourcePipeline {
     pub depay: Element,
     parse: Element,
     pub decoder: Element,
-    pub queue: Element,
-    convert: Element,
-    resample: Element,
-    volume: Element,
+    pre_mix_convert: Element,
+    resample_mixer: Element,
+    pub pre_mix_queue: Element,
+    post_mix_convert: Element,
+    post_mix_resample: Element,
     dsp: Option<Element>,
     pub cap_filter: Element,
 }
@@ -27,14 +30,20 @@ impl RTSPSourcePipeline {
             .expect("Could not create livestream_parse element.");
         let decoder = ElementFactory::make_with_name("decodebin", Some("livestream_decoder"))
             .expect("Could not create livestream_decoder element.");
-        let queue = ElementFactory::make_with_name("queue2", Some("livestream_queue"))
+        let resample_mixer =
+            ElementFactory::make_with_name("audiomixer", Some("livestream_resample_mixer"))
+                .expect("Could not create livestream_queue element.");
+        let pre_mix_queue = ElementFactory::make_with_name("queue2", Some("livestream_queue"))
             .expect("Could not create livestream_queue element.");
-        let convert = ElementFactory::make_with_name("audioconvert", Some("livestream_convert"))
-            .expect("Could not create livestream_convert element.");
-        let resample = ElementFactory::make_with_name("audioresample", Some("livestream_resample"))
-            .expect("Could not create livestream_resample element.");
-        let rgvolume = ElementFactory::make_with_name("rgvolume", Some("livestream_rgvolume"))
-            .expect("Could not create livestream_rgvolume element.");
+        let pre_mix_convert =
+            ElementFactory::make_with_name("audioconvert", Some("livestream_convert"))
+                .expect("Could not create livestream_convert element.");
+        let post_mix_convert =
+            ElementFactory::make_with_name("audioconvert", Some("livestream_convert2"))
+                .expect("Could not create livestream_convert element.");
+        let post_mix_resample =
+            ElementFactory::make_with_name("audioresample", Some("livestream_resample"))
+                .expect("Could not create livestream_resample element.");
 
         let cap_filter =
             ElementFactory::make_with_name("capsfilter", Some("livestream_cap_filter"))
@@ -60,17 +69,10 @@ impl RTSPSourcePipeline {
             }
         };
 
-        // queue.set_property("use-buffering", &true);
-
-        // Reduce volume
-        // rgvolume.set_property("pre-amp", &-30.0f64);
-
-        // queue.set_property("max-size-bytes", &10000_000u32);
-
         cap_filter.set_property(
             "caps",
             &Caps::builder("audio/x-raw")
-                .field("format", &"S16LE")
+                .field("format", &"F32LE")
                 .field("rate", &44100)
                 .field("channels", &2)
                 .build(),
@@ -81,10 +83,11 @@ impl RTSPSourcePipeline {
             depay,
             parse,
             decoder,
-            queue,
-            convert,
-            resample,
-            volume: rgvolume,
+            pre_mix_convert,
+            pre_mix_queue,
+            resample_mixer,
+            post_mix_convert,
+            post_mix_resample,
             dsp,
             cap_filter,
         })
@@ -96,10 +99,11 @@ impl RTSPSourcePipeline {
             &self.depay,
             &self.parse,
             &self.decoder,
-            &self.queue,
-            &self.convert,
-            &self.resample,
-            &self.volume,
+            &self.pre_mix_convert,
+            &self.pre_mix_queue,
+            &self.resample_mixer,
+            &self.post_mix_convert,
+            &self.post_mix_resample,
             &self.cap_filter,
         ])?;
 
@@ -112,18 +116,23 @@ impl RTSPSourcePipeline {
     pub fn link_elements(&self) -> Result<(), Error> {
         Element::link_many(&[&self.depay, &self.parse, &self.decoder])?;
         Element::link_many(&[
-            &self.queue,
-            &self.convert,
-            &self.resample,
-            &self.volume,
+            &self.pre_mix_convert,
+            &self.pre_mix_queue,
+            &self.resample_mixer,
         ])?;
 
+        let mut post_mix_chain = vec![
+            &self.resample_mixer,
+            &self.post_mix_convert,
+            &self.post_mix_resample,
+            &self.cap_filter,
+        ];
+
         if let Some(dsp) = &self.dsp {
-            Element::link_many(&[&self.volume, &dsp, &self.cap_filter])?;
+            post_mix_chain.insert(1, dsp);
         }
-        else{
-            Element::link_many(&[&self.volume, &self.cap_filter])?;
-        }
+
+        Element::link_many(&post_mix_chain)?;
 
         Ok(())
     }
@@ -147,7 +156,7 @@ impl RTSPSourcePipeline {
             }
         });
 
-        let queue_clone = self.queue.clone();
+        let queue_clone = self.pre_mix_convert.clone();
         self.decoder.connect_pad_added(move |_, src_pad| {
             let sink_pad = queue_clone
                 .static_pad("sink")
