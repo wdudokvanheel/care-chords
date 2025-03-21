@@ -27,15 +27,13 @@ hex = "0.4"
 sha1 = "0.10"
 futures = "0.3"
 
-# Configuratation for Cross (https://github.com/cross-rs/cross) to compile to aarch64
+# Configuratation for Cross (https://github.com/cross-rs/cross) to compile to Linux aarch64
 # Installs gstreamer & audio dev packages needed to build Care Chords
 [workspace.metadata.cross.target.aarch64-unknown-linux-gnu]
 pre-build = [
     "dpkg --add-architecture $CROSS_DEB_ARCH",
     "apt-get update",
     "apt-get --assume-yes install libasound2-dev:$CROSS_DEB_ARCH",
-    "apt-get --assume-yes install alsa-dev:$CROSS_DEB_ARCH",
-    "apt-get --assume-yes install alsa-devel:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install alsa:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstreamer1.0:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstreamer-plugins-base1.0-dev:$CROSS_DEB_ARCH",
@@ -44,4 +42,25 @@ pre-build = [
     "apt-get --assume-yes install libdbus-1-dev:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstrtspserver-1.0-dev:$CROSS_DEB_ARCH",
     "apt-get --assume-yes install libgstrtspserver-1.0:$CROSS_DEB_ARCH"
+]
+
+# Configuratation for Cross (https://github.com/cross-rs/cross) to compile to Linux x86_64
+# Installs gstreamer & audio dev packages needed to build Care Chords
+# aws-lc-sys requires gcc10 or clang
+[workspace.metadata.cross.target.x86_64-unknown-linux-gnu]
+pre-build = [
+    "dpkg --add-architecture $CROSS_DEB_ARCH",
+    "apt-get update",
+    "apt-get --assume-yes install libasound2-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install alsa:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer-plugins-base1.0-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer-plugins-base1.0:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer1.0:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstreamer1.0-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstrtspserver-1.0-dev:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install libgstrtspserver-1.0:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes remove gcc-9",
+    "apt-get --assume-yes install gcc-10:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes install clang:$CROSS_DEB_ARCH",
+    "apt-get --assume-yes remove gcc-9"
 ]
