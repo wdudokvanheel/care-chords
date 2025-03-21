@@ -32,3 +32,67 @@ The client communicates with the backend over HTTP to control playback, song sel
 
 - [ ] Add configurable connection settings (currently, all addresses are hardcoded)
 - [ ] Implement a settings menu
+
+### Docker compose with config file
+
+```
+version: '3.8'
+
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: rtspserver
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+
+  carechords:
+    image: carechords:latest
+    container_name: carechords
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./carechords.toml:/etc/carechords.toml
+      - ./spotify_cache:/cache
+
+```
+
+### Docker compose with environment variables
+
+```
+version: '3.8'
+
+services:
+  mediamtx:
+    image: bluenviron/mediamtx:latest
+    container_name: rtspserver
+    restart: unless-stopped
+    network_mode: "host"
+    volumes:
+      - ./mediamtx.yml:/mediamtx.yml
+
+
+  carechords:
+    image: carechords:latest
+    container_name: carechords
+    restart: unless-stopped
+    network_mode: "host"
+    environment:
+        CARECHORDS_RTSP_SERVER: "rtsp://localhost:7554/sleep"
+        CARECHORDS_MONITOR_URL: "rtsp://sleepstream:sleepstream@10.0.0.51"
+        CARECHORDS_NOISE_FILTER: true
+    volumes:
+      - ./spotify_cache:/cache
+```
+
+### mediamtx.yml
+
+```
+rtsp: yes
+rtspAddress: :7554
+
+paths:
+  all:
+    source: publisher
+```

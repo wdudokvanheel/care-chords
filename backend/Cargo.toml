@@ -27,6 +27,8 @@ hex = "0.4"
 sha1 = "0.10"
 futures = "0.3"
 toml = "0.8.20"
+futures-util = "0.3.31"
+async-stream = "0.3.6"
 
 # Configuratation for Cross (https://github.com/cross-rs/cross) to compile to Linux aarch64
 # Installs gstreamer & audio dev packages needed to build Care Chords

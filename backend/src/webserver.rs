@@ -1,5 +1,6 @@
 use crate::spotify_client::SpotifyClient;
 use crate::spotify_player::{PlayerCommand, SpotifyPlayerInfo};
+use futures_util::StreamExt;
 use std::sync::Arc;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
@@ -65,12 +66,46 @@ fn create_routes(
         .and(info_filter.clone())
         .and_then(handle_status);
 
+    // New SSE route that streams the player state:
+    let status_stream_route = warp::path("status_stream")
+        .and(warp::get())
+        .and(info_filter)
+        .map(|mut info_channel: watch::Receiver<SpotifyPlayerInfo>| {
+            // Create an async stream that yields an SSE event on every state change.
+            let event_stream: futures_util::stream::BoxStream<'static, Result<warp::sse::Event, std::convert::Infallible>> = async_stream::stream! {
+                // Immediately yield the current state on connection.
+                let initial_state = info_channel.borrow().clone();
+                let mut last_emitted = serde_json::to_string(&initial_state)
+                    .unwrap_or_else(|_| "{}".to_string());
+                yield Ok(warp::sse::Event::default().data(last_emitted.clone()));
+
+                // Then, yield subsequent updates only if they differ from the last emitted state.
+                loop {
+                    if info_channel.changed().await.is_err() {
+                        break;
+                    }
+                    let current_state = info_channel.borrow().clone();
+                    let current_json = serde_json::to_string(&current_state)
+                        .unwrap_or_else(|_| "{}".to_string());
+                    // Only yield if the new JSON differs from what was last sent.
+                    if current_json != last_emitted {
+                        last_emitted = current_json.clone();
+                        yield Ok(warp::sse::Event::default().data(current_json));
+                    }
+                }
+            }.boxed();
+
+            // Return the SSE reply with a keep-alive stream.
+            warp::sse::reply(warp::sse::keep_alive().stream(event_stream))
+        });
+
     playlist_route
         .or(play_route)
         .or(pause_route)
         .or(next_route)
         .or(status_route)
         .or(sleep_route)
+        .or(status_stream_route)
         .boxed()
 }
 
