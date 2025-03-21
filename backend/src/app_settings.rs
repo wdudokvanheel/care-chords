@@ -2,10 +2,10 @@ use std::env;
 use anyhow::{Result};
 use clap::{Parser};
 use config::{Config, Environment, File};
-use serde::Deserialize;
+use serde::{Deserialize, Serialize};
 use std::path::Path;
 
-#[derive(Debug, Deserialize)]
+#[derive(Debug, Serialize, Deserialize)]
 pub struct ApplicationSettings {
     /// The target RTSP server URL
     pub rtsp_server: String,
@@ -76,9 +76,9 @@ impl ApplicationSettings {
             settings.noise_filter = true;
         }
 
-        // Display resolved configuration if requested
-        log::info!("Running with settings: {:#?}", settings);
-
+        let toml_str = toml::to_string_pretty(&settings)
+            .expect("Failed to convert settings to TOML format");
+        log::info!("Running with settings:\n{}", toml_str);
         Ok(settings)
     }
 }

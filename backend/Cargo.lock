@@ -345,6 +345,7 @@ dependencies = [
  "sha1",
  "simple_logger",
  "tokio",
+ "toml",
  "warp",
 ]
 
