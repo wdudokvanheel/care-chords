@@ -1,3 +1,4 @@
+use crate::pipeline::audio_pipeline::PipeLineBranch;
 use anyhow::Error;
 use gstreamer::prelude::{
     ElementExt, GObjectExtManualGst, GstBinExt, GstBinExtManual, ObjectExt, PadExt,
@@ -6,21 +7,21 @@ use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 use gstreamer_rtsp::RTSPLowerTrans;
 use log::error;
 
-pub struct RTSPSourcePipeline {
-    pub source: Element,
-    pub depay: Element,
+pub struct MonitorSourcePipeline {
+    source: Element,
+    depay: Element,
     parse: Element,
-    pub decoder: Element,
+    decoder: Element,
     pre_mix_convert: Element,
     resample_mixer: Element,
-    pub pre_mix_queue: Element,
+    pre_mix_queue: Element,
     post_mix_convert: Element,
     post_mix_resample: Element,
     dsp: Option<Element>,
     pub cap_filter: Element,
 }
 
-impl RTSPSourcePipeline {
+impl MonitorSourcePipeline {
     pub fn new(rtsp_url: &str, noise_filter: bool) -> Result<Self, Error> {
         let source = ElementFactory::make_with_name("rtspsrc", Some("livestream_source"))
             .expect("Could not create livestream_source element.");
@@ -54,20 +55,21 @@ impl RTSPSourcePipeline {
         source.set_property("protocols", RTSPLowerTrans::UDP);
         source.set_property("latency", &50u32);
 
-        let dsp = {
-            if noise_filter {
-                let dsp = ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
-                    .expect("Could not create livestream_dsp element.");
-                dsp.set_property("echo-cancel", &false);
-                dsp.set_property("noise-suppression", &true);
-                dsp.set_property_from_str("noise-suppression-level", "very-high");
-                dsp.set_property("voice-detection", &true);
-                dsp.set_property("extended-filter", &true);
-                Some(dsp)
-            } else {
-                None
-            }
-        };
+        let dsp = noise_filter
+            .then(|| {
+                ElementFactory::make_with_name("webrtcdsp", Some("livestream_dsp"))
+                    .inspect_err(|_| log::warn!("Failed to create noise filter dsp (webrtcdsp from gst-bad-plugins), forcing noise_filter option to false."))
+                    .ok()
+                    .map(|dsp| {
+                        dsp.set_property("echo-cancel", &false);
+                        dsp.set_property("noise-suppression", &true);
+                        dsp.set_property_from_str("noise-suppression-level", "very-high");
+                        dsp.set_property("voice-detection", &true);
+                        dsp.set_property("extended-filter", &true);
+                        dsp
+                    })
+            })
+            .flatten();
 
         cap_filter.set_property(
             "caps",
@@ -93,7 +95,44 @@ impl RTSPSourcePipeline {
         })
     }
 
-    pub fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error> {
+    pub fn connect_dynamic_pads(&self) -> Result<(), Error> {
+        let depay_clone = self.depay.clone();
+        self.source.connect_pad_added(move |_src, src_pad| {
+            let src_pad_caps = src_pad.current_caps().unwrap();
+            let src_pad_structure = src_pad_caps.structure(0).unwrap();
+
+            if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
+                if media_type == "audio" {
+                    let sink_pad = depay_clone
+                        .static_pad("sink")
+                        .expect("Failed to get sink pad");
+                    if let Err(err) = src_pad.link(&sink_pad) {
+                        error!("Failed to link livestream_source audio: {}", err);
+                    }
+                }
+            }
+        });
+
+        let pre_convert_clone = self.pre_mix_convert.clone();
+        self.decoder.connect_pad_added(move |_, src_pad| {
+            let sink_pad = pre_convert_clone
+                .static_pad("sink")
+                .expect("Failed to get sink pad from livestream_queue");
+
+            if let Err(err) = src_pad.link(&sink_pad) {
+                error!(
+                    "Failed to link livestream_decoder to livestream_queue: {}",
+                    err
+                );
+            }
+        });
+
+        Ok(())
+    }
+}
+
+impl PipeLineBranch for MonitorSourcePipeline {
+    fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error> {
         pipeline.add_many(&[
             &self.source,
             &self.depay,
@@ -113,7 +152,7 @@ impl RTSPSourcePipeline {
         Ok(())
     }
 
-    pub fn link_elements(&self) -> Result<(), Error> {
+    fn link_elements(&self) -> Result<(), Error> {
         Element::link_many(&[&self.depay, &self.parse, &self.decoder])?;
         Element::link_many(&[
             &self.pre_mix_convert,
@@ -133,43 +172,11 @@ impl RTSPSourcePipeline {
         }
 
         Element::link_many(&post_mix_chain)?;
-
+        self.connect_dynamic_pads()?;
         Ok(())
     }
 
-    pub fn connect_dynamic_pads(&self) -> Result<(), Error> {
-        // Clone elements for closure
-        let depay_clone = self.depay.clone();
-        self.source.connect_pad_added(move |_src, src_pad| {
-            let src_pad_caps = src_pad.current_caps().unwrap();
-            let src_pad_structure = src_pad_caps.structure(0).unwrap();
-
-            if let Ok(media_type) = src_pad_structure.get::<&str>("media") {
-                if media_type == "audio" {
-                    let sink_pad = depay_clone
-                        .static_pad("sink")
-                        .expect("Failed to get sink pad");
-                    if let Err(err) = src_pad.link(&sink_pad) {
-                        error!("Failed to link livestream_source audio: {}", err);
-                    }
-                }
-            }
-        });
-
-        let queue_clone = self.pre_mix_convert.clone();
-        self.decoder.connect_pad_added(move |_, src_pad| {
-            let sink_pad = queue_clone
-                .static_pad("sink")
-                .expect("Failed to get sink pad from livestream_queue");
-
-            if let Err(err) = src_pad.link(&sink_pad) {
-                error!(
-                    "Failed to link livestream_decoder to livestream_queue: {}",
-                    err
-                );
-            }
-        });
-
-        Ok(())
+    fn last_element(&self) -> Element {
+        self.cap_filter.clone()
     }
 }

@@ -1,14 +1,13 @@
+use crate::pipeline::audio_pipeline::PipeLineBranch;
 use anyhow::Error;
-use gstreamer::prelude::{
-    GstBinExtManual, ObjectExt,
-};
+use gstreamer::prelude::{GstBinExtManual, ObjectExt};
 use gstreamer::{Caps, Element, ElementFactory, Pipeline};
 
 pub struct SpotifySourcePipeline {
     pub app_source: Element,
-    pub queue: Element,
+    queue: Element,
     convert: Element,
-    pub resample: Element,
+    resample: Element,
 }
 
 impl SpotifySourcePipeline {
@@ -29,15 +28,14 @@ impl SpotifySourcePipeline {
             .field("rate", &44100)
             .field("layout", &"interleaved")
             .build();
-
         app_source.set_property("caps", &caps);
         app_source.set_property("is-live", &true);
         app_source.set_property("format", &gstreamer::Format::Time);
-        app_source.set_property("max-bytes", &50_000u64);
-        app_source.set_property("do-timestamp", &false);
+        app_source.set_property("max-bytes", &500_000u64);
+        app_source.set_property("do-timestamp", &true);
         app_source.set_property("block", &true);
 
-        queue.set_property("max-size-bytes", &10_000u32);
+        // queue.set_property("max-size-bytes", &100_000u32);
 
         Ok(Self {
             app_source,
@@ -46,20 +44,20 @@ impl SpotifySourcePipeline {
             queue,
         })
     }
+}
 
-    pub fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error> {
+impl PipeLineBranch for SpotifySourcePipeline {
+    fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error> {
         pipeline.add_many(&[&self.app_source, &self.queue, &self.convert, &self.resample])?;
         Ok(())
     }
 
-    pub fn link_elements(&self) -> Result<(), Error> {
-        gstreamer::Element::link_many(&[
-            &self.app_source,
-            &self.queue,
-            &self.convert,
-            &self.resample,
-        ])?;
-
+    fn link_elements(&self) -> Result<(), Error> {
+        Element::link_many(&[&self.app_source, &self.queue, &self.convert, &self.resample])?;
         Ok(())
+    }
+
+    fn last_element(&self) -> Element {
+        self.resample.clone()
     }
 }

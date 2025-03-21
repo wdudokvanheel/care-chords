@@ -1,4 +1,4 @@
-mod rtsp_source;
+mod monitor_source;
 pub mod audio_pipeline;
 pub mod spotify_source;
 

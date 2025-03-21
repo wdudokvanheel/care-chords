@@ -1,18 +1,16 @@
-use crate::pipeline::rtsp_source::RTSPSourcePipeline;
+use crate::app_settings::ApplicationSettings;
+use crate::pipeline::monitor_source::MonitorSourcePipeline;
 use crate::pipeline::spotify_source::SpotifySourcePipeline;
 use anyhow::Error;
-use gstreamer::prelude::{
-    ElementExt, ElementExtManual, GstBinExtManual, ObjectExt, PipelineExt,
-};
+use gstreamer::prelude::{ElementExt, ElementExtManual, GstBinExtManual, ObjectExt, PipelineExt};
 use gstreamer::{
     Bus, Caps, ClockTime, Element, ElementFactory, Pipeline, State, StateChangeSuccess, init,
 };
-use crate::app_settings::ApplicationSettings;
 
 #[allow(dead_code)]
 pub struct AudioPipeline {
     pub gstreamer_pipeline: Pipeline,
-    pub livestream: RTSPSourcePipeline,
+    pub monitor: MonitorSourcePipeline,
     pub spotify: SpotifySourcePipeline,
     pub elements: AudioPipelineElements,
 }
@@ -26,42 +24,45 @@ pub struct AudioPipelineElements {
     rtsp_sink: Element,
 }
 
+pub trait PipeLineBranch {
+    fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error>;
+    fn link_elements(&self) -> Result<(), Error>;
+    fn last_element(&self) -> Element;
+}
+
 impl AudioPipeline {
     pub fn new(settings: &ApplicationSettings) -> Result<Self, Error> {
         init()?;
 
         let pipeline = Pipeline::new();
 
-        let livestream = RTSPSourcePipeline::new(&settings.monitor_url, settings.noise_filter)?;
+        let monitor = MonitorSourcePipeline::new(&settings.monitor_url, settings.noise_filter)?;
         let spotify = SpotifySourcePipeline::new()?;
         let common = AudioPipelineElements::new(&settings.rtsp_server)?;
 
-        livestream.add_to_pipeline(&pipeline)?;
+        monitor.add_to_pipeline(&pipeline)?;
         common.add_to_pipeline(&pipeline)?;
         spotify.add_to_pipeline(&pipeline)?;
 
-        livestream.link_elements()?;
+        monitor.link_elements()?;
         spotify.link_elements()?;
         common.link_elements()?;
 
-        livestream
-            .cap_filter
+        monitor
+            .last_element()
             .link(&common.audio_mixer)
             .expect("Failed to link livestream to audio mixer");
 
         spotify
-            .resample
+            .last_element()
             .link(&common.audio_mixer)
             .expect("Failed to link audio mixer");
-
-        livestream.connect_dynamic_pads()?;
-        // Self::connect_dynamic_pads(&livestream)?;
 
         pipeline.set_latency(ClockTime::from_mseconds(200));
 
         Ok(Self {
             gstreamer_pipeline: pipeline,
-            livestream,
+            monitor,
             spotify,
             elements: common,
         })
@@ -97,11 +98,8 @@ impl AudioPipelineElements {
         //     .expect("Could not create rtsp_sink element.");
 
         queue.set_property("max-size-buffers", &0u32);
-        // queue.set_property("max-size-bytes", &0u32);
-        // queue.set_property("max-size-time", &0u32);
         queue.set_property("use-buffering", &true);
 
-        // mp3_encoder.set_property("bitrate", &320);
         rtsp_sink.set_property("location", rtsp_server_url);
         stereo_filter.set_property(
             "caps",
@@ -133,8 +131,8 @@ impl AudioPipelineElements {
     fn link_elements(&self) -> Result<(), Error> {
         Element::link_many(&[
             &self.audio_mixer,
-            &self.queue,
             &self.stereo_filter,
+            &self.queue,
             &self.aac_encoder,
             &self.rtsp_sink,
         ])?;
