@@ -37,4 +37,8 @@ import UIKit
             self.messageFromGstBackend = message
         }
     }
+    
+    @objc func gstreamerDidReceiveVideoResolution(width: Int, height: Int) {
+        print("Video resolution: \(width)x\(height)")
+    }
 }

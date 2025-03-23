@@ -38,6 +38,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     GstElement *queue;
     GstElement *h264parse;
     GstElement *avdec_h264;
+    GstElement *videocrop;
     GstElement *autovideosink;
     GstElement *capsfilter;
     GstElement *videoconvert;
@@ -64,9 +65,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void)setWindow:(UIView *)video_view
 {
-//    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
         self->ui_video_view = video_view;
-//    });
 }
 
 -(void) run_app_pipeline_threaded
@@ -197,6 +196,12 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     gchar *caps_str = gst_caps_to_string(caps2);
     g_free(caps_str);
     gst_caps_unref(caps2);
+    
+    GstPad *decoder_src_pad = gst_element_get_static_pad(self->avdec_h264, "src");
+    if (decoder_src_pad) {
+        g_signal_connect(decoder_src_pad, "notify::caps", G_CALLBACK(cb_new_decoded_caps), (__bridge void *)self);
+        gst_object_unref(decoder_src_pad);
+    }
 
     if (g_str_has_prefix(new_pad_type, "application/x-rtp")) {
         /* Check if it's video */
@@ -225,6 +230,32 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     gst_caps_unref(caps);
 }
 
+static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer user_data)
+{
+    GStreamerVideoBackend *self = (__bridge GStreamerVideoBackend *)user_data;
+    GstPad *pad = GST_PAD(padObject);
+
+    // Retrieve the current caps from this pad
+    GstCaps *caps = gst_pad_get_current_caps(pad);
+    if (!caps) return;
+
+    // Extract width/height from the caps
+    const GstStructure *s = gst_caps_get_structure(caps, 0);
+    gint width = 0, height = 0;
+    gboolean hasWidth = gst_structure_get_int(s, "width", &width);
+    gboolean hasHeight = gst_structure_get_int(s, "height", &height);
+
+    if (hasWidth && hasHeight) {
+        // Dispatch to the main thread and call the new delegate method
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [self->ui_delegate gstreamerDidReceiveVideoResolutionWithWidth:width
+                                                                   height:height];
+        });
+    }
+
+    gst_caps_unref(caps);
+}
+
 /* Main method */
 -(void) run_app_pipeline
 {
@@ -232,7 +263,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     GST_DEBUG ("Creating pipeline");
     
 //    gst_debug_set_threshold_for_name("GST_CAPS", GST_LEVEL_DEBUG);
-    gst_debug_set_threshold_for_name("videosink", GST_LEVEL_DEBUG);
+//    gst_debug_set_threshold_for_name("videosink", GST_LEVEL_DEBUG);
 
     /* Create our own GLib Main Context and make it the default one */
     context = g_main_context_new ();
@@ -246,6 +277,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     self->queue = gst_element_factory_make("queue", "queue");
     self->h264parse = gst_element_factory_make("h264parse", "parse");
     self->avdec_h264 = gst_element_factory_make("vtdec", "decoder");
+    self->videocrop      = gst_element_factory_make("videocrop",     "videocrop");
     self->autovideosink = gst_element_factory_make("glimagesink", "videosink");
     self->videoconvert = gst_element_factory_make("videoconvert", "videoconvert");
     self->videoscale = gst_element_factory_make("videoscale", "videoscale");
@@ -257,7 +289,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     int screenHeight = screenRect.size.height * screenScale;
     
     g_object_set(self->rtspsrc,
-                 "location", "rtsp://10.0.0.12:8554/camera.rlc_520a_clear",
+                 "location", "rtsp://sleepstream:sleepstream@10.0.0.51",
                  "protocols", GST_RTSP_LOWER_TRANS_TCP,
                  "latency", 0,
                  "buffermode", 0,
@@ -271,11 +303,29 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
 
     //g_object_set(self->queue, "max-size-time", (guint64)500000000, NULL);
     
+    int totalHeight = 1920;
+    int totalWidth = 2560;
+    
+    int cropWidth = totalWidth * 0.4;
+    int cropHeight = totalHeight * 0.4;
+    
+    int top = 352;
+    int left = 1024;
+    int bottom = totalHeight - cropHeight - top;
+    int right = totalWidth - cropWidth - left;
+    
+    g_object_set(self->videocrop,
+                    "top",    top,
+                    "left",   left,
+                    "bottom", bottom,
+                    "right",  right,
+                    NULL);
+    
     self->capsfilter = gst_element_factory_make("capsfilter", "capsfilter");
     g_object_set(self->capsfilter, "caps", caps, NULL);
     gst_caps_unref(caps);
 
-    if (!pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->videoscale || !self->videoconvert|| !self->autovideosink || !self->capsfilter) {
+    if (!pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->videocrop  || !self->videoscale || !self->videoconvert|| !self->autovideosink || !self->capsfilter) {
         gchar *message = g_strdup_printf("Not all elements could be created.");
         [self setUIMessage:message];
         g_free(message);
@@ -283,11 +333,11 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     }
 
     /* Add elements to the pipeline */
-    gst_bin_add_many(GST_BIN(pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videoconvert,
+    gst_bin_add_many(GST_BIN(pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert,
                      self->videoscale,  self->capsfilter, self->autovideosink, NULL);
 
     /* Link the elements (except rtspsrc, which is linked dynamically) */
-    if (!gst_element_link_many(self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videoconvert, self->videoscale, self->capsfilter,  self->autovideosink, NULL)) {
+    if (!gst_element_link_many(self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert, self->videoscale, self->capsfilter,  self->autovideosink, NULL)) {
         gchar *message = g_strdup_printf("Elements could not be linked.");
         [self setUIMessage:message];
         g_free(message);

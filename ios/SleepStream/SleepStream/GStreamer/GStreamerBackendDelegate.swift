@@ -7,4 +7,5 @@
 @objc protocol GStreamerVideoBackendDelegate {
     func gStreamerInitialized()
     func gstreamerMessage(message: String)
+    func gstreamerDidReceiveVideoResolution(width: Int, height: Int)
 }
