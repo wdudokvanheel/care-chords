@@ -1,9 +1,10 @@
 import Combine
 import SwiftUI
+import MediaPlayer
 
 @main
 struct SleepStreamApp: App {
-    public static let SERVER = "10.0.0.153"
+    public static let SERVER = "10.0.0.12"
     
     var audioViewModel: ViewModel
     @State private var cancellables: Set<AnyCancellable> = []
@@ -12,7 +13,7 @@ struct SleepStreamApp: App {
         setenv("GST_DEBUG", "4", 1)
         setenv("GST_DEBUG_NO_COLOR", "1", 1)
         gst_ios_init()
-
+      
         let spotify: SpotifyController = .init()
         audioViewModel = .init(spotify: spotify)
     }

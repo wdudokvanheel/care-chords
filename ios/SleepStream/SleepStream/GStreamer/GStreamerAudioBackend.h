@@ -14,6 +14,8 @@
 
 -(void) run_app_pipeline_threaded;
 
+-(void) stop;
+
 @end
 
 #endif 

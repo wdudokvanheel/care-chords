@@ -1,13 +1,22 @@
 import AVKit
 import Combine
 import Foundation
+import MediaPlayer
 import os
 import SwiftUI
+import AVKit
+import Combine
+import Foundation
+import SwiftUI
+import os
 
 class AudioOutputController: ObservableObject {
+    let logger = Logger.new("AudioOutputController")
+
     @Published var currentOutputDescription: String = "Unknown"
     @Published var currentOutput: AVAudioSession.Port = .virtual
     @Published var pauseOnSpeaker = true
+    @Published var isPlaying: Bool = true
 
     init() {
         configureAudioSession()
@@ -33,7 +42,9 @@ class AudioOutputController: ObservableObject {
     }
 
     func stopMonitoringAudioRoute() {
-        NotificationCenter.default.removeObserver(self, name: AVAudioSession.routeChangeNotification, object: nil)
+        NotificationCenter.default.removeObserver(self,
+                                                  name: AVAudioSession.routeChangeNotification,
+                                                  object: nil)
     }
 
     @objc private func audioRouteChanged(notification: Notification) {

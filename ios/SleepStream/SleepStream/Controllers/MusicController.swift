@@ -25,48 +25,59 @@ struct MusicMetadata: Decodable {
     let artwork_url: String
 }
 
-class MusicController: ObservableObject {
+class MusicController: NSObject, ObservableObject {
     @Published var updateStatus = true
     @Published var status: PlayerStatus = .init(sleep_timer: nil, status: .stopped, shuffle: false, metadata: nil)
 
     private var cancellables = Set<AnyCancellable>()
-    private var statusTimer: DispatchSourceTimer?
+    private var statusStreamTask: URLSessionDataTask?
+    
+    private var sseSession: URLSession?
+    private var eventBuffer = ""
+    
+    private let sseDelegateQueue: OperationQueue = {
+        let queue = OperationQueue()
+        queue.maxConcurrentOperationCount = 1
+        return queue
+    }()
 
-    init() {
-        NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive), name: UIApplication.didBecomeActiveNotification, object: nil)
-        NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground), name: UIApplication.didEnterBackgroundNotification, object: nil)
-        startStatusUpdate()
+    override init() {
+        super.init()
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidBecomeActive),
+                                               name: UIApplication.didBecomeActiveNotification, object: nil)
+        NotificationCenter.default.addObserver(self, selector: #selector(appDidEnterBackground),
+                                               name: UIApplication.didEnterBackgroundNotification, object: nil)
+        startStatusStream()
     }
 
     deinit {
-        NotificationCenter.default.removeObserver(self)
-        stopStatusUpdate()
-    }
+         NotificationCenter.default.removeObserver(self)
+         stopStatusStream()
+     }
 
-    @objc private func appDidBecomeActive() {
-        startStatusUpdate()
-    }
+     @objc private func appDidBecomeActive() {
+         startStatusStream()
+     }
 
-    @objc private func appDidEnterBackground() {
-        stopStatusUpdate()
-    }
+     @objc private func appDidEnterBackground() {
+         stopStatusStream()
+     }
 
-    private func startStatusUpdate() {
-        let queue = DispatchQueue.global(qos: .background)
-        statusTimer = DispatchSource.makeTimerSource(queue: queue)
-        statusTimer?.schedule(deadline: .now(), repeating: 1.0)
+     private func startStatusStream() {
+         guard let url = URL(string: "http://\(SleepStreamApp.SERVER):7755/status_stream") else { return }
+         var request = URLRequest(url: url)
+         request.addValue("text/event-stream", forHTTPHeaderField: "Accept")
+         sseSession = URLSession(configuration: .default, delegate: self, delegateQueue: sseDelegateQueue)
+         statusStreamTask = sseSession?.dataTask(with: request)
+         statusStreamTask?.resume()
+     }
 
-        statusTimer?.setEventHandler { [weak self] in
-            self?.statusUpdate()
-        }
-
-        statusTimer?.resume()
-    }
-
-    private func stopStatusUpdate() {
-        statusTimer?.cancel()
-        statusTimer = nil
-    }
+     private func stopStatusStream() {
+         statusStreamTask?.cancel()
+         statusStreamTask = nil
+         sseSession?.invalidateAndCancel()
+         sseSession = nil
+     }
 
     func play() {
         controlPlayer("play")
@@ -91,11 +102,8 @@ class MusicController: ObservableObject {
         NetworkService.sendRequest(with: request, to: url, method: .POST)
             .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { completion in
-                switch completion {
-                case .failure(let error):
+                if case .failure(let error) = completion {
                     print("Error: \(error.localizedDescription)")
-                case .finished:
-                    break
                 }
             }, receiveValue: { [weak self] data in
                 self?.updateStatusData(data)
@@ -110,11 +118,8 @@ class MusicController: ObservableObject {
         NetworkService.sendRequest(with: request, to: url, method: .POST)
             .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { completion in
-                switch completion {
-                case .failure(let error):
+                if case .failure(let error) = completion {
                     print("Error: \(error.localizedDescription)")
-                case .finished:
-                    break
                 }
             }, receiveValue: { [weak self] data in
                 self?.updateStatusData(data)
@@ -129,11 +134,8 @@ class MusicController: ObservableObject {
         NetworkService.sendRequest(with: request, to: url, method: .POST)
             .decode(type: PlayerStatus.self, decoder: JSONDecoder())
             .sink(receiveCompletion: { completion in
-                switch completion {
-                case .failure(let error):
+                if case .failure(let error) = completion {
                     print("Error: \(error.localizedDescription)")
-                case .finished:
-                    break
                 }
             }, receiveValue: { [weak self] data in
                 self?.updateStatusData(data)
@@ -146,25 +148,29 @@ class MusicController: ObservableObject {
             self.status = status
         }
     }
+}
 
-    func statusUpdate() {
-        if !updateStatus {
-            return
-        }
-
-        let url = "http://\(SleepStreamApp.SERVER):7755/status"
-        NetworkService.sendRequest(with: EmptyBody?(nil), to: url, method: .GET)
-            .decode(type: PlayerStatus.self, decoder: JSONDecoder())
-            .sink(receiveCompletion: { [weak self] completion in
-                switch completion {
-                case .failure(let error):
-                    print("Failed to fetch music status: \(error)")
-                case .finished:
-                    break
+/// URLSessionDataDelegate for SSE Handling
+extension MusicController: URLSessionDataDelegate {
+    func urlSession(_ session: URLSession, dataTask: URLSessionDataTask, didReceive data: Data) {
+        guard let newData = String(data: data, encoding: .utf8) else { return }
+        eventBuffer.append(newData)
+        
+        let events = eventBuffer.components(separatedBy: "\n\n")
+        eventBuffer = events.last ?? ""
+        
+        for event in events.dropLast() {
+            if event.hasPrefix("data:") {
+                let jsonString = event.replacingOccurrences(of: "data:", with: "").trimmingCharacters(in: .whitespacesAndNewlines)
+                if let jsonData = jsonString.data(using: .utf8) {
+                    do {
+                        let playerStatus = try JSONDecoder().decode(PlayerStatus.self, from: jsonData)
+                        updateStatusData(playerStatus)
+                    } catch {
+                        print("Error decoding SSE event: \(error)")
+                    }
                 }
-            }, receiveValue: { [weak self] data in
-                self?.updateStatusData(data)
-            })
-            .store(in: &cancellables)
+            }
+        }
     }
 }

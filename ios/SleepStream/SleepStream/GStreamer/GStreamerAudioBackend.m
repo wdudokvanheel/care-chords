@@ -16,6 +16,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 -(void)setUIMessage:(gchar*) message;
 -(void)run_app_pipeline;
 -(void)check_initialization_complete;
+-(void)stop;
 @end
 
 @implementation GStreamerAudioBackend {
@@ -71,7 +72,7 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void) pause
 {
-    printf("PAUSING!!!!!!\n\n\n\n\n\n\n");
+    printf("Pausing playback\n");
     if(gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
         [self setUIMessage:"Failed to set pipeline to paused"];
     }
@@ -152,6 +153,8 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBacken
                 break;
 
             case GST_STATE_READY:
+                // Auto state playback when ready
+                [self play];
                 if (self->ui_delegate) {
                     dispatch_async(dispatch_get_main_queue(), ^{
                         [self->ui_delegate gstreamerAudioStateWithState:AudioStateReady];
@@ -162,7 +165,7 @@ static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerAudioBacken
             case GST_STATE_NULL:
                 if (self->ui_delegate) {
                     dispatch_async(dispatch_get_main_queue(), ^{
-                        [self->ui_delegate gstreamerAudioStateWithState:AudioStateInitializing];
+                        [self->ui_delegate gstreamerAudioStateWithState:AudioStateStopped];
                     });
                 }
                 break;
@@ -262,7 +265,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend
     }
 
     /* Set element properties */
-    g_object_set(self->rtspsrc, "location", "rtsp://10.0.0.153:8554/sleep", NULL);
+    g_object_set(self->rtspsrc, "location", "rtsp://10.0.0.12:7554/sleep", NULL);
     g_object_set(self->rtspsrc, "protocols", GST_RTSP_LOWER_TRANS_TCP, NULL);
 
     /* Add elements to the pipeline */
@@ -309,6 +312,11 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend
     gst_element_set_state (pipeline, GST_STATE_NULL);
     gst_object_unref (pipeline);
     return;
+}
+
+-(void) stop {
+    [self->ui_delegate gstreamerAudioStateWithState:AudioStateStopped];
+    g_main_loop_quit(main_loop);
 }
 
 @end

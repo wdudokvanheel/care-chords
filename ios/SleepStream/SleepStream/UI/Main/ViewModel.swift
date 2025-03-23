@@ -1,18 +1,33 @@
 import AVKit
 import Combine
+import MediaPlayer
+import os
 
 class ViewModel: ObservableObject {
-    @Published var music: MusicController = .init()
-    @Published var audioOutput: AudioOutputController = .init()
-    @Published var gstreamer: GStreamerController = .init()
+    private let logger = Logger.new("ViewModel")
+
+    @Published var music: MusicController
+    @Published var audioOutput: AudioOutputController
+    @Published var gstreamer: GStreamerController
     @Published var video: LiveStreamController = .init()
+    @Published var nowPlaying: NowPlayingMediator
 
     let spotify: SpotifyController
 
     private var cancellables = Set<AnyCancellable>()
 
     init(spotify: SpotifyController) {
+        let music = MusicController()
+        let audio = AudioOutputController()
+        let gstreamer = GStreamerController()
+        let osMediaPlayer = OsMediaPlayerController()
+        let nowPlaying = NowPlayingMediator(audioOutput: audio, gstreamer: gstreamer, musicController: music, osMediaPlayer: osMediaPlayer)
+
         self.spotify = spotify
+        self.music = music
+        self.audioOutput = audio
+        self.gstreamer = gstreamer
+        self.nowPlaying = nowPlaying
 
         audioOutput.$currentOutput
             .sink(receiveValue: onOutputChange)
@@ -36,8 +51,8 @@ class ViewModel: ObservableObject {
             gstreamer.pause()
         case .paused:
             gstreamer.play()
-        case .initializing:
-            break
+        case .stopped:
+            gstreamer.play()
         case .ready:
             gstreamer.play()
         }
@@ -46,8 +61,8 @@ class ViewModel: ObservableObject {
     func startSleepTimer(seconds: Int) {
         music.startSleepTimer(seconds)
     }
-    
-    func setShuffle(shuffle: Bool){
+
+    func setShuffle(shuffle: Bool) {
         music.setShuffle(shuffle)
     }
 

@@ -1,10 +1,11 @@
 import AVKit
 import Foundation
+import MediaPlayer
 import os
 import SwiftUI
 
 class GStreamerController: GStreamerAudioBackendDelegate, ObservableObject {
-    @Published var state: AudioState = .initializing
+    @Published var state: AudioState = .stopped
     @Published var backendMessage: String = ""
     @Published var backendError: Bool = false
 
@@ -12,19 +13,16 @@ class GStreamerController: GStreamerAudioBackendDelegate, ObservableObject {
 
     init() {
         self.gstBackend = GStreamerAudioBackend(self)
-
-        let queue = DispatchQueue(label: "gstreamer_audio_queue")
-        queue.async {
-            self.gstBackend?.run_app_pipeline_threaded()
-        }
     }
 
     func pause() {
-        gstBackend?.pause()
+        gstBackend?.stop()
     }
 
     func play() {
-        gstBackend?.play()
+        DispatchQueue(label: "gstreamer_audio_queue").async {
+            self.gstBackend?.run_app_pipeline_threaded()
+        }
     }
 
     func gStreamerInitialized() {}

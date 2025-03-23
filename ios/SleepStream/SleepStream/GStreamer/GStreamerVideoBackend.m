@@ -268,7 +268,6 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
                                         "width", G_TYPE_INT, screenWidth,
                                         "height", G_TYPE_INT, screenHeight,
                                         NULL);
-    
 
     //g_object_set(self->queue, "max-size-time", (guint64)500000000, NULL);
     
