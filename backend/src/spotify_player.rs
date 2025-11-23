@@ -1,5 +1,5 @@
 use crate::spotify_sink::{ChannelSink, SinkEvent};
-use librespot_core::{Session, SpotifyId};
+use librespot_core::{Session, SpotifyUri};
 use librespot_metadata::artist::ArtistRole;
 use librespot_metadata::audio::UniqueFields;
 use librespot_metadata::{Metadata, Playlist, Track};
@@ -55,7 +55,7 @@ pub struct SpotifyPlayer {
     player_info_sender: watch::Sender<SpotifyPlayerInfo>,
     session: Session,
     state: SpotifyPlayerState,
-    queue: VecDeque<SpotifyId>,
+    queue: VecDeque<SpotifyUri>,
     player: Arc<Player>,
     shuffle: bool,
     current_song: Option<MusicMetadata>,
@@ -129,7 +129,9 @@ impl SpotifyPlayer {
             normalisation_attack_cf: 0.0,
             normalisation_release_cf: 0.0,
             normalisation_knee_db: 0.0,
+            local_file_directories: Vec::new(),
             ditherer: None,
+            position_update_interval: None,
         };
         let volume = Arc::new(PlaybackVolume::new(0.1));
         let volume_clone = volume.clone();
@@ -273,9 +275,9 @@ impl SpotifyPlayer {
     }
 
     async fn play_next_song(&mut self) {
-        if let Some(next_track_id) = self.queue.pop_front() {
-            if let Ok(_) = Track::get(&self.session, &next_track_id).await {
-                self.player.load(next_track_id, true, 0);
+        if let Some(next_track_uri) = self.queue.pop_front() {
+            if let Ok(_) = Track::get(&self.session, &next_track_uri).await {
+                self.player.load(next_track_uri, true, 0);
             }
         } else {
             self.set_state(SpotifyPlayerState::Stopped).await;
@@ -290,14 +292,14 @@ impl SpotifyPlayer {
     }
 
     async fn load_playlist_to_queue(&mut self, playlist_id: &str) {
-        let plist_uri = SpotifyId::from_uri(&format!("{}", playlist_id))
+        let plist_uri = SpotifyUri::from_uri(&playlist_id)
             .expect("Spotify URI could not be parsed.");
 
         let play_list = Playlist::get(&self.session, &plist_uri).await.unwrap();
         log::trace!("Playlist Uri {}", play_list.name());
         let tracks = play_list.tracks();
         self.queue.clear();
-        self.queue.extend(tracks.map(|t| *t));
+        self.queue.extend(tracks.cloned());
     }
 }
 
