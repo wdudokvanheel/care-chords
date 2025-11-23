@@ -18,6 +18,11 @@ struct SleepTimerRequest {
     timer: u32,
 }
 
+#[derive(serde::Deserialize)]
+struct ShuffleRequest {
+    shuffle: bool,
+}
+
 pub fn start_http_server(spotify: Arc<SpotifyClient>) {
     log::info!("Starting server @ :7755");
     let routes = create_routes(spotify);
@@ -61,6 +66,13 @@ fn create_routes(
         .and(command_filter.clone())
         .and_then(handle_sleep);
 
+    let shuffle_route = warp::path("shuffle")
+        .and(warp::post())
+        .and(warp::body::json::<ShuffleRequest>())
+        .and(command_filter.clone())
+        .and(info_filter.clone())
+        .and_then(handle_shuffle);
+
     let status_route = warp::path("status")
         .and(warp::get())
         .and(info_filter.clone())
@@ -72,7 +84,10 @@ fn create_routes(
         .and(info_filter)
         .map(|mut info_channel: watch::Receiver<SpotifyPlayerInfo>| {
             // Create an async stream that yields an SSE event on every state change.
-            let event_stream: futures_util::stream::BoxStream<'static, Result<warp::sse::Event, std::convert::Infallible>> = async_stream::stream! {
+            let event_stream: futures_util::stream::BoxStream<
+                'static,
+                Result<warp::sse::Event, std::convert::Infallible>,
+            > = async_stream::stream! {
                 // Immediately yield the current state on connection.
                 let initial_state = info_channel.borrow().clone();
                 let mut last_emitted = serde_json::to_string(&initial_state)
@@ -93,7 +108,8 @@ fn create_routes(
                         yield Ok(warp::sse::Event::default().data(current_json));
                     }
                 }
-            }.boxed();
+            }
+            .boxed();
 
             // Return the SSE reply with a keep-alive stream.
             warp::sse::reply(warp::sse::keep_alive().stream(event_stream))
@@ -105,6 +121,7 @@ fn create_routes(
         .or(next_route)
         .or(status_route)
         .or(sleep_route)
+        .or(shuffle_route)
         .or(status_stream_route)
         .boxed()
 }
@@ -144,6 +161,23 @@ async fn handle_sleep(
 
     Ok(warp::reply::with_status(
         warp::reply::json(&serde_json::json!({ "status": "ok" })),
+        StatusCode::OK,
+    )
+    .into_response())
+}
+
+async fn handle_shuffle(
+    req: ShuffleRequest,
+    client: Sender<PlayerCommand>,
+    mut info_channel: watch::Receiver<SpotifyPlayerInfo>,
+) -> Result<Response<Body>, Rejection> {
+    client
+        .send(PlayerCommand::Shuffle(req.shuffle))
+        .await
+        .expect("Failed to send shuffle command");
+
+    Ok(warp::reply::with_status(
+        warp::reply::json(&info_channel.borrow().clone()),
         StatusCode::OK,
     )
     .into_response())

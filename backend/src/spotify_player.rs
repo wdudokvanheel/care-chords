@@ -5,21 +5,21 @@ use librespot_metadata::audio::UniqueFields;
 use librespot_metadata::{Metadata, Playlist, Track};
 use librespot_playback::audio_backend::Sink;
 use librespot_playback::config::PlayerConfig;
-use librespot_playback::mixer::{VolumeGetter};
+use librespot_playback::mixer::VolumeGetter;
 use librespot_playback::player::{Player, PlayerEvent};
+use rand::seq::SliceRandom;
 use serde::{Deserialize, Serialize};
 use std::collections::VecDeque;
 use std::option::Option;
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 use std::time::Duration;
-use tokio::sync::mpsc::{channel, Receiver, Sender, UnboundedReceiver};
+use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, channel};
 use tokio::sync::watch;
-use tokio::time::{sleep, Instant};
+use tokio::time::{Instant, sleep};
 
 use tokio::sync::Mutex as TokioMutex;
 use tokio::task::JoinHandle;
-
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MusicMetadata {
@@ -28,7 +28,6 @@ pub struct MusicMetadata {
     artwork_url: String,
 }
 
-
 #[derive(Clone, Debug)]
 pub enum PlayerCommand {
     Playlist(String),
@@ -36,6 +35,7 @@ pub enum PlayerCommand {
     Play,
     Pause,
     Next,
+    Shuffle(bool),
 }
 
 #[derive(Clone, Debug, Serialize)]
@@ -56,6 +56,7 @@ pub struct SpotifyPlayer {
     session: Session,
     state: SpotifyPlayerState,
     queue: VecDeque<SpotifyUri>,
+    playlist_tracks: Vec<SpotifyUri>,
     player: Arc<Player>,
     shuffle: bool,
     current_song: Option<MusicMetadata>,
@@ -155,6 +156,7 @@ impl SpotifyPlayer {
             player_info_sender,
             state: SpotifyPlayerState::Stopped,
             queue: VecDeque::new(),
+            playlist_tracks: Vec::new(),
             session,
             player,
             shuffle: false,
@@ -232,6 +234,11 @@ impl SpotifyPlayer {
                             self.set_sleep_timer(Duration::from_secs(duration_s as u64)).await;
                             self.emit_player_state().await;
                         }
+                        PlayerCommand::Shuffle(shuffle) => {
+                            self.shuffle = shuffle;
+                            self.rebuild_queue();
+                            self.emit_player_state().await;
+                        }
                     }
                 }
 
@@ -275,6 +282,10 @@ impl SpotifyPlayer {
     }
 
     async fn play_next_song(&mut self) {
+        if self.queue.is_empty() && !self.playlist_tracks.is_empty() {
+            self.rebuild_queue();
+        }
+
         if let Some(next_track_uri) = self.queue.pop_front() {
             if let Ok(_) = Track::get(&self.session, &next_track_uri).await {
                 self.player.load(next_track_uri, true, 0);
@@ -292,14 +303,30 @@ impl SpotifyPlayer {
     }
 
     async fn load_playlist_to_queue(&mut self, playlist_id: &str) {
-        let plist_uri = SpotifyUri::from_uri(&playlist_id)
-            .expect("Spotify URI could not be parsed.");
+        let plist_uri =
+            SpotifyUri::from_uri(&playlist_id).expect("Spotify URI could not be parsed.");
 
         let play_list = Playlist::get(&self.session, &plist_uri).await.unwrap();
         log::trace!("Playlist Uri {}", play_list.name());
         let tracks = play_list.tracks();
+        self.playlist_tracks = tracks.iter().cloned().collect();
+        self.rebuild_queue();
+    }
+
+    fn rebuild_queue(&mut self) {
         self.queue.clear();
-        self.queue.extend(tracks.cloned());
+
+        if self.playlist_tracks.is_empty() {
+            return;
+        }
+
+        let mut tracks = self.playlist_tracks.clone();
+
+        if self.shuffle {
+            tracks.shuffle(&mut rand::thread_rng());
+        }
+
+        self.queue.extend(tracks);
     }
 }
 

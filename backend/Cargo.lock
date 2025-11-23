@@ -300,6 +300,7 @@ dependencies = [
  "librespot-metadata",
  "librespot-playback",
  "log",
+ "rand 0.8.5",
  "serde",
  "serde_json",
  "sha1",
