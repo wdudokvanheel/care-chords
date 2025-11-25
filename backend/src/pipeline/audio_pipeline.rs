@@ -18,10 +18,10 @@ pub struct AudioPipeline {
 pub struct AudioPipelineElements {
     audio_mixer: Element,
     queue: Element,
-    aac_encoder: Element,
+    audio_convert: Element,
     stereo_filter: Element,
-    mp4_mux: Element,
-    rtsp_sink: Element,
+    rtp_pay: Element,
+    udp_sink: Element,
 }
 
 pub trait PipeLineBranch {
@@ -38,7 +38,7 @@ impl AudioPipeline {
 
         let monitor = MonitorSourcePipeline::new(&settings.monitor_url, settings.noise_filter)?;
         let spotify = SpotifySourcePipeline::new()?;
-        let common = AudioPipelineElements::new(&settings.rtsp_server)?;
+        let common = AudioPipelineElements::new()?;
 
         monitor.add_to_pipeline(&pipeline)?;
         common.add_to_pipeline(&pipeline)?;
@@ -58,7 +58,7 @@ impl AudioPipeline {
             .link(&common.audio_mixer)
             .expect("Failed to link audio mixer");
 
-        pipeline.set_latency(ClockTime::from_mseconds(200));
+        pipeline.set_latency(ClockTime::from_mseconds(1000));
 
         Ok(Self {
             gstreamer_pipeline: pipeline,
@@ -79,40 +79,50 @@ impl AudioPipeline {
 }
 
 impl AudioPipelineElements {
-    fn new(rtsp_server_url: &str) -> Result<Self, Error> {
+    fn new() -> Result<Self, Error> {
         let audio_mixer = ElementFactory::make_with_name("audiomixer", Some("AudioMixer"))
             .expect("Could not create audio_mixer element.");
         let queue = ElementFactory::make_with_name("queue2", Some("AudioMixerQueue"))
             .expect("Could not create audio_mixer element.");
-        let aac_encoder = ElementFactory::make_with_name("avenc_aac", Some("CommonEncoder"))
-            .expect("Could not create aac_encoder element.");
+        let audio_convert = ElementFactory::make_with_name("audioconvert", Some("AudioConvert"))
+            .expect("Could not create audio_convert element.");
         let stereo_filter =
             ElementFactory::make_with_name("capsfilter", Some("CommonStereoFilter"))
                 .expect("Could not create stereo_filter element.");
-        let mp4_mux = ElementFactory::make_with_name("mp4mux", Some("mp4_mux"))
-            .expect("Could not create mp4_mux element.");
-        let rtsp_sink = ElementFactory::make_with_name("rtspclientsink", Some("rtsp_sink"))
-            .expect("Could not create rtsp_sink element.");
-
-        // let rtsp_sink = ElementFactory::make_with_name("autoaudiosink", Some("rtsp_sink"))
-        //     .expect("Could not create rtsp_sink element.");
+        
+        // We use udpsink to send the stream to the local RTSP server
+        // Use L16 (Raw Audio) for the bridge to avoid AAC config issues
+        let rtp_pay = ElementFactory::make_with_name("rtpL16pay", Some("rtp_pay"))
+            .expect("Could not create rtp_pay element.");
+        let udp_sink = ElementFactory::make_with_name("udpsink", Some("udp_sink"))
+            .expect("Could not create udp_sink element.");
 
         queue.set_property("max-size-buffers", &0u32);
         queue.set_property("use-buffering", &true);
+        queue.set_property("max-size-time", &200_000_000u64); // 200ms to bound latency for AudioMixer
 
-        rtsp_sink.set_property("location", rtsp_server_url);
+        udp_sink.set_property("host", "127.0.0.1");
+        udp_sink.set_property("port", &5000);
+        
+        // Set explicit latency on the mixer to avoid latency negotiation issues
+        // with unbounded sinks (udpsink reports max_latency=0)
+        audio_mixer.set_property("latency", &100_000_000u64); // 100ms in nanoseconds
+
         stereo_filter.set_property(
             "caps",
-            &Caps::builder("audio/x-raw").field("channels", &2).build(),
+            &Caps::builder("audio/x-raw")
+                .field("channels", &2)
+                .field("rate", &44100)
+                .build(),
         );
 
         Ok(Self {
             audio_mixer,
             queue,
-            aac_encoder,
+            audio_convert,
             stereo_filter,
-            mp4_mux,
-            rtsp_sink,
+            rtp_pay,
+            udp_sink,
         })
     }
 
@@ -121,9 +131,9 @@ impl AudioPipelineElements {
             &self.audio_mixer,
             &self.stereo_filter,
             &self.queue,
-            &self.aac_encoder,
-            &self.mp4_mux,
-            &self.rtsp_sink,
+            &self.audio_convert,
+            &self.rtp_pay,
+            &self.udp_sink,
         ])?;
         Ok(())
     }
@@ -133,8 +143,9 @@ impl AudioPipelineElements {
             &self.audio_mixer,
             &self.stereo_filter,
             &self.queue,
-            &self.aac_encoder,
-            &self.rtsp_sink,
+            &self.audio_convert,
+            &self.rtp_pay,
+            &self.udp_sink,
         ])?;
         Ok(())
     }

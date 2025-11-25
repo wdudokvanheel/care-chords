@@ -309,7 +309,7 @@ impl SpotifyPlayer {
         let play_list = Playlist::get(&self.session, &plist_uri).await.unwrap();
         log::trace!("Playlist Uri {}", play_list.name());
         let tracks = play_list.tracks();
-        self.playlist_tracks = tracks.iter().cloned().collect();
+        self.playlist_tracks = tracks.cloned().collect();
         self.rebuild_queue();
     }
 

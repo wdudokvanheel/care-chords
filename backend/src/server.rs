@@ -103,17 +103,12 @@ impl CareChordsServer {
 
         tokio::spawn(async move {
             let mut timestamp: u64 = 0;
-            let mut last_stopped_time = *pipeline.clock().unwrap().time().unwrap();
 
             while let Ok(event) = receiver.recv() {
                 match event {
                     SinkEvent::Start => {
-                        let now: ClockTime = pipeline.clock().unwrap().time().unwrap();
-
-                        timestamp += *now - last_stopped_time;
                     }
                     SinkEvent::Stop => {
-                        last_stopped_time = *pipeline.clock().unwrap().time().unwrap();
                     }
                     SinkEvent::Packet(samples) => {
                         // Skip empty packets.

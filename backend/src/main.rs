@@ -17,6 +17,13 @@ async fn main() -> Result<(), Error> {
 
     let settings = ApplicationSettings::load().context("Failed to load settings")?;
     let mut server = CareChordsServer::new(&settings);
+    let rtsp_server = crate::pipeline::rtsp_server::RtspServer::new(settings.rtsp_port)?;
+
+    tokio::spawn(async move {
+        if let Err(e) = rtsp_server.start().await {
+            log::error!("RTSP server error: {}", e);
+        }
+    });
 
     server.start().await;
 

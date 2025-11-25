@@ -169,7 +169,7 @@ async fn handle_sleep(
 async fn handle_shuffle(
     req: ShuffleRequest,
     client: Sender<PlayerCommand>,
-    mut info_channel: watch::Receiver<SpotifyPlayerInfo>,
+    info_channel: watch::Receiver<SpotifyPlayerInfo>,
 ) -> Result<Response<Body>, Rejection> {
     client
         .send(PlayerCommand::Shuffle(req.shuffle))

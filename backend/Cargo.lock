@@ -293,6 +293,7 @@ dependencies = [
  "gstreamer",
  "gstreamer-app",
  "gstreamer-rtsp",
+ "gstreamer-rtsp-server",
  "hex",
  "librespot",
  "librespot-core",
@@ -982,6 +983,23 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "07e28edb80900c19c28f1072f2e8aeca7fa06b23cd4169cefe1af5aa3260783f"
 
 [[package]]
+name = "gio"
+version = "0.20.12"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8e27e276e7b6b8d50f6376ee7769a71133e80d093bdc363bd0af71664228b831"
+dependencies = [
+ "futures-channel",
+ "futures-core",
+ "futures-io",
+ "futures-util",
+ "gio-sys",
+ "glib",
+ "libc",
+ "pin-project-lite",
+ "smallvec",
+]
+
+[[package]]
 name = "gio-sys"
 version = "0.20.9"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1149,6 +1167,31 @@ dependencies = [
 ]
 
 [[package]]
+name = "gstreamer-net"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "f7a57013f1af740373c5cbf1602b6ff25238d4a0e300eff179b75676c9c7781e"
+dependencies = [
+ "gio",
+ "glib",
+ "gstreamer",
+ "gstreamer-net-sys",
+]
+
+[[package]]
+name = "gstreamer-net-sys"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "6b0291a3064e6e94d640f2d662264b726e5e0c2067ceb17f2b56dec6f6920877"
+dependencies = [
+ "gio-sys",
+ "glib-sys",
+ "gstreamer-sys",
+ "libc",
+ "system-deps",
+]
+
+[[package]]
 name = "gstreamer-rtsp"
 version = "0.23.5"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -1159,6 +1202,39 @@ dependencies = [
  "gstreamer-rtsp-sys",
  "gstreamer-sdp",
  "libc",
+]
+
+[[package]]
+name = "gstreamer-rtsp-server"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "832f695a3faa63ed428acd01256c51d8c517202aed25e8bb2839c19c1f0726f4"
+dependencies = [
+ "gio",
+ "glib",
+ "gstreamer",
+ "gstreamer-net",
+ "gstreamer-rtsp",
+ "gstreamer-rtsp-server-sys",
+ "gstreamer-sdp",
+ "libc",
+]
+
+[[package]]
+name = "gstreamer-rtsp-server-sys"
+version = "0.23.5"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2e57ff3460f37f3f84f4a557edc247ef3e28205462cbebfad33a15794ab5fc01"
+dependencies = [
+ "gio-sys",
+ "glib-sys",
+ "gobject-sys",
+ "gstreamer-net-sys",
+ "gstreamer-rtsp-sys",
+ "gstreamer-sdp-sys",
+ "gstreamer-sys",
+ "libc",
+ "system-deps",
 ]
 
 [[package]]

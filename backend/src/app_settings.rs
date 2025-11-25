@@ -7,12 +7,17 @@ use std::path::Path;
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApplicationSettings {
-    /// The target RTSP server URL
-    pub rtsp_server: String,
+    /// The target RTSP server port
+    #[serde(default = "default_rtsp_port")]
+    pub rtsp_port: u16,
     pub monitor_url: String,
     /// Enable noise filtering
     #[serde(default)]
     pub noise_filter: bool,
+}
+
+fn default_rtsp_port() -> u16 {
+    7554
 }
 
 #[derive(Parser, Debug)]
@@ -22,8 +27,8 @@ pub struct ApplicationSettings {
     long_about = "The CareChords Server streams your IP camera combined with the integrated Spotify client to an RTSP server, which can be consumed by the accompanying CareChords app."
 )]
 struct Cli {
-    #[arg(short = 't', long = "rtsp-server", help = "Set the target RTSP server URL")]
-    rtsp_server: Option<String>,
+    #[arg(short = 'p', long = "rtsp-port", help = "Set the target RTSP server port")]
+    rtsp_port: Option<u16>,
     #[arg(short = 'm', long = "monitor-url", help = "Set the URL of the baby monitor")]
     monitor_url: Option<String>,
     #[arg(long = "noise-filter", help = "Enable noise filtering")]
@@ -65,8 +70,8 @@ impl ApplicationSettings {
 
         // Override with CLI arguments if provided
         let cli = Cli::parse();
-        if let Some(rtsp_server) = cli.rtsp_server {
-            settings.rtsp_server = rtsp_server;
+        if let Some(rtsp_port) = cli.rtsp_port {
+            settings.rtsp_port = rtsp_port;
         }
         if let Some(monitor_url) = cli.monitor_url {
             settings.monitor_url = monitor_url;
