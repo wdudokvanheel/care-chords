@@ -1,3 +1,5 @@
+import CoreMedia
+
 @objc protocol GStreamerBackendDelegate {
     func gStreamerInitialized()
     func gstreamerMessage(message: String)
@@ -9,4 +11,5 @@
 
 @objc protocol GStreamerVideoBackendDelegate: GStreamerBackendDelegate {
     func gstreamerDidReceiveVideoResolution(width: Int, height: Int)
+    func gstreamerDidReceiveSampleBuffer(_ sampleBuffer: CMSampleBuffer)
 }

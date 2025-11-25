@@ -9,13 +9,25 @@ struct LiveStreamView: View {
         VStack {
             GeometryReader { geometry in
                 Spacer()
-                ZStack {
+                ZStack(alignment: .topTrailing) {
                     Color.darkerBlue
                     Image(systemName: "hourglass")
                         .font(.system(size: 256))
                         .foregroundColor(.white)
                     UIViewWrapper(view: controller.view)
                         .frame(width: 2560, height: 1920)
+                    
+                    Button(action: {
+                        controller.togglePiP()
+                    }) {
+                        Image(systemName: "pip.enter")
+                            .font(.system(size: 64))
+                            .foregroundColor(.white)
+                            .padding()
+                            .background(Color.black.opacity(0.5))
+                            .clipShape(Circle())
+                    }
+                    .padding(60)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 48.0))
                 .onAppear {

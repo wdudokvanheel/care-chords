@@ -1,10 +1,13 @@
 #import "GStreamerVideoBackend.h"
 #import "gst_ios_init.h"
 #import <UIKit/UIKit.h>
+#import <CoreMedia/CoreMedia.h>
+#import <VideoToolbox/VideoToolbox.h>
 
 #import <GStreamer/gst/gst.h>
 #import <GStreamer/gst/video/video.h>
 #import <GStreamer/gst/rtsp/rtsp.h>
+#import <GStreamer/gst/app/gstappsink.h>
 #import "SleepStream-Bridging-Header.h"
 #import "Care_Chords-Swift.h"
 
@@ -13,7 +16,6 @@
 
 @implementation GStreamerVideoBackend {
     UIView *ui_video_view;     /* UIView that holds the video */
-    GstElement *video_sink;    /* The video sink element which receives XOverlay commands */
     
     /* New elements */
     GstElement *rtspsrc;
@@ -22,7 +24,7 @@
     GstElement *h264parse;
     GstElement *avdec_h264;
     GstElement *videocrop;
-    GstElement *autovideosink;
+    GstElement *appsink;
     GstElement *capsfilter;
     GstElement *videoconvert;
     GstElement *videoscale;
@@ -81,6 +83,81 @@ static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer 
     }
 
     gst_caps_unref(caps);
+}
+
+static GstFlowReturn on_new_sample(GstElement *sink, gpointer user_data) {
+    GStreamerVideoBackend *self = (__bridge GStreamerVideoBackend *)user_data;
+    GstSample *sample = gst_app_sink_pull_sample(GST_APP_SINK(sink));
+    
+    if (sample) {
+        GstCaps *caps = gst_sample_get_caps(sample);
+        GstVideoInfo info;
+        
+        if (gst_video_info_from_caps(&info, caps)) {
+            GstBuffer *buffer = gst_sample_get_buffer(sample);
+            GstMapInfo map;
+            
+            if (gst_buffer_map(buffer, &map, GST_MAP_READ)) {
+                int width = info.width;
+                int height = info.height;
+                
+                CVPixelBufferRef pixelBuffer = NULL;
+                NSDictionary *options = @{
+                    (__bridge NSString *)kCVPixelBufferCGImageCompatibilityKey: @YES,
+                    (__bridge NSString *)kCVPixelBufferCGBitmapContextCompatibilityKey: @YES,
+                    (__bridge NSString *)kCVPixelBufferIOSurfacePropertiesKey: @{}
+                };
+                
+                CVReturn status = CVPixelBufferCreate(kCFAllocatorDefault, width, height, kCVPixelFormatType_32BGRA, (__bridge CFDictionaryRef)options, &pixelBuffer);
+                
+                if (status == kCVReturnSuccess && pixelBuffer != NULL) {
+                    CVPixelBufferLockBaseAddress(pixelBuffer, 0);
+                    void *pxdata = CVPixelBufferGetBaseAddress(pixelBuffer);
+                    size_t bytesPerRow = CVPixelBufferGetBytesPerRow(pixelBuffer);
+                    
+                    // Copy line by line to handle stride mismatch
+                    // GStreamer BGRA is usually packed, but let's be safe
+                    // info.stride[0] is the GStreamer stride
+                    int gst_stride = info.stride[0];
+                    int copy_width = width * 4; // 4 bytes per pixel for BGRA
+                    
+                    for (int i = 0; i < height; i++) {
+                        memcpy(pxdata + i * bytesPerRow, map.data + i * gst_stride, copy_width);
+                    }
+                    
+                    CVPixelBufferUnlockBaseAddress(pixelBuffer, 0);
+                    
+                    // Create CMSampleBuffer
+                    CMSampleBufferRef sampleBuffer = NULL;
+                    CMVideoFormatDescriptionRef videoInfo = NULL;
+                    CMVideoFormatDescriptionCreateForImageBuffer(NULL, pixelBuffer, &videoInfo);
+                    
+                    CMSampleTimingInfo timingInfo;
+                    timingInfo.duration = kCMTimeInvalid;
+                    timingInfo.decodeTimeStamp = kCMTimeInvalid;
+                    timingInfo.presentationTimeStamp = CMTimeMake(GST_BUFFER_PTS(buffer), GST_SECOND);
+                    
+                    CMSampleBufferCreateForImageBuffer(kCFAllocatorDefault, pixelBuffer, true, NULL, NULL, videoInfo, &timingInfo, &sampleBuffer);
+                    
+                    if (sampleBuffer) {
+                        dispatch_async(dispatch_get_main_queue(), ^{
+                            if (self.ui_delegate) {
+                                [(id<GStreamerVideoBackendDelegate>)self.ui_delegate gstreamerDidReceiveSampleBuffer:sampleBuffer];
+                            }
+                            CFRelease(sampleBuffer);
+                        });
+                    }
+                    
+                    if (videoInfo) CFRelease(videoInfo);
+                    CVPixelBufferRelease(pixelBuffer);
+                }
+                gst_buffer_unmap(buffer, &map);
+            }
+        }
+        gst_sample_unref(sample);
+        return GST_FLOW_OK;
+    }
+    return GST_FLOW_ERROR;
 }
 
 static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend *self)
@@ -153,15 +230,16 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     self->h264parse = gst_element_factory_make("h264parse", "parse");
     self->avdec_h264 = gst_element_factory_make("vtdec", "decoder");
     self->videocrop      = gst_element_factory_make("videocrop",     "videocrop");
-    self->autovideosink = gst_element_factory_make("glimagesink", "videosink");
+    self->appsink = gst_element_factory_make("appsink", "videosink");
     self->videoconvert = gst_element_factory_make("videoconvert", "videoconvert");
     self->videoscale = gst_element_factory_make("videoscale", "videoscale");
-    g_object_set(self->autovideosink, "run-on-ui-thread", TRUE, NULL);
+    
+    // Configure appsink
+    g_object_set(self->appsink, "emit-signals", TRUE, "sync", FALSE, NULL);
+    g_signal_connect(self->appsink, "new-sample", G_CALLBACK(on_new_sample), (__bridge void *)self);
 
-    CGRect screenRect = [[UIScreen mainScreen] bounds];
-    CGFloat screenScale = [[UIScreen mainScreen] scale];
-    int screenWidth = screenRect.size.width * screenScale;
-    int screenHeight = screenRect.size.height * screenScale;
+    int totalHeight = 1920;
+    int totalWidth = 2560;
     
     g_object_set(self->rtspsrc,
                  "location", "rtsp://sleepstream:sleepstream@10.0.0.51",
@@ -171,14 +249,13 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
                  NULL);
     
     // Create a capsfilter with desired caps
+    // We force BGRA for compatibility with CVPixelBuffer creation
     GstCaps *caps = gst_caps_new_simple("video/x-raw",
-                                        "width", G_TYPE_INT, screenWidth,
-                                        "height", G_TYPE_INT, screenHeight,
+                                        "format", G_TYPE_STRING, "BGRA",
+                                        "width", G_TYPE_INT, totalWidth,
+                                        "height", G_TYPE_INT, totalHeight,
                                         NULL);
 
-    int totalHeight = 1920;
-    int totalWidth = 2560;
-    
     int cropWidth = totalWidth * 0.4;
     int cropHeight = totalHeight * 0.4;
     
@@ -198,7 +275,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     g_object_set(self->capsfilter, "caps", caps, NULL);
     gst_caps_unref(caps);
 
-    if (!self.pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->videocrop  || !self->videoscale || !self->videoconvert|| !self->autovideosink || !self->capsfilter) {
+    if (!self.pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->videocrop  || !self->videoscale || !self->videoconvert|| !self->appsink || !self->capsfilter) {
         gchar *message = g_strdup_printf("Not all elements could be created.");
         [self setUIMessage:message];
         g_free(message);
@@ -208,10 +285,10 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
 
     /* Add elements to the pipeline */
     gst_bin_add_many(GST_BIN(self.pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert,
-                     self->videoscale,  self->capsfilter, self->autovideosink, NULL);
+                     self->videoscale,  self->capsfilter, self->appsink, NULL);
 
     /* Link the elements (except rtspsrc, which is linked dynamically) */
-    if (!gst_element_link_many(self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert, self->videoscale, self->capsfilter,  self->autovideosink, NULL)) {
+    if (!gst_element_link_many(self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert, self->videoscale, self->capsfilter,  self->appsink, NULL)) {
         gchar *message = g_strdup_printf("Elements could not be linked.");
         [self setUIMessage:message];
         g_free(message);
@@ -223,18 +300,8 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     /* Connect to the pad-added signal for dynamic pad linking */
     g_signal_connect(self->rtspsrc, "pad-added", G_CALLBACK(on_pad_added), (__bridge void *)self);
 
-    /* Set the pipeline to READY, so it can already accept a window handle */
+    /* Set the pipeline to READY */
     gst_element_set_state(self.pipeline, GST_STATE_READY);
-
-    /* Set the video sink */
-    self->video_sink = gst_bin_get_by_interface(GST_BIN(self.pipeline), GST_TYPE_VIDEO_OVERLAY);
-    if (!self->video_sink) {
-        GST_ERROR ("Could not retrieve video sink");
-        self.pipeline = NULL;
-        return;
-    }
-    
-    gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(self->video_sink), (guintptr) (id) self->ui_video_view);
 }
 
 -(void) play
@@ -245,31 +312,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     }
 }
 
-// Override run_app_pipeline to handle cleanup specifically if needed, but base implementation should cover most.
-// However, the video backend had specific cleanup logic in run_app_pipeline (removing subviews).
-// We should probably override run_app_pipeline to add that cleanup after base implementation returns, 
-// OR just put it in stopAndCleanup or similar.
-// The original run_app_pipeline had this at the end:
-/*
-    // Clean up all resources
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // Remove all subviews
-        NSArray *subviews = [self->ui_video_view subviews];
-        for (UIView *subview in subviews) {
-            [subview removeFromSuperview];
-        }
-    });
-*/
-// We can override run_app_pipeline, call super, and then do cleanup.
-
-
-
 -(void) stopAndCleanup {
-    // Detach the window handle from GStreamer to prevent it from drawing to the view
-    if (self->video_sink) {
-        gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(self->video_sink), 0);
-    }
-    
     // Safely remove subviews on the main thread
     dispatch_async(dispatch_get_main_queue(), ^{
         if (self->ui_video_view) {

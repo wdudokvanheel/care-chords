@@ -32,6 +32,7 @@
 		2B49A91D2CDA2AF200734789 /* libiconv.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */; };
 		2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A91F2CDA2B1300734789 /* gst_ios_init.m */; };
 		2B7020882ED63EB50002AD8E /* GStreamerBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B7020872ED63EB50002AD8E /* GStreamerBackend.m */; };
+		2B70208B2ED646E20002AD8E /* VideoDisplayView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B7020892ED646E20002AD8E /* VideoDisplayView.swift */; };
 		2B86D4D12CF3837D00E79918 /* ShuffleButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B86D4D02CF3837D00E79918 /* ShuffleButton.swift */; };
 		2BB24D002CE8CAD800786E1C /* RoundedCornerRectangle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24CFF2CE8CAD800786E1C /* RoundedCornerRectangle.swift */; };
 		2BB24D022CE8CB1000786E1C /* Path.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24D012CE8CB1000786E1C /* Path.swift */; };
@@ -76,6 +77,7 @@
 		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gst_ios_init.h; sourceTree = "<group>"; };
 		2B7020862ED63EB50002AD8E /* GStreamerBackend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GStreamerBackend.h; sourceTree = "<group>"; };
 		2B7020872ED63EB50002AD8E /* GStreamerBackend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GStreamerBackend.m; sourceTree = "<group>"; };
+		2B7020892ED646E20002AD8E /* VideoDisplayView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = VideoDisplayView.swift; sourceTree = "<group>"; };
 		2B86D4D02CF3837D00E79918 /* ShuffleButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShuffleButton.swift; sourceTree = "<group>"; };
 		2BB24CFF2CE8CAD800786E1C /* RoundedCornerRectangle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundedCornerRectangle.swift; sourceTree = "<group>"; };
 		2BB24D012CE8CB1000786E1C /* Path.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Path.swift; sourceTree = "<group>"; };
@@ -133,6 +135,7 @@
 			children = (
 				2B1D17792CE63393001B6147 /* Common */,
 				2B1D17732CE63305001B6147 /* Main */,
+				2B70208A2ED646E20002AD8E /* Components */,
 			);
 			path = UI;
 			sourceTree = "<group>";
@@ -238,6 +241,14 @@
 				2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */,
 			);
 			name = Frameworks;
+			sourceTree = "<group>";
+		};
+		2B70208A2ED646E20002AD8E /* Components */ = {
+			isa = PBXGroup;
+			children = (
+				2B7020892ED646E20002AD8E /* VideoDisplayView.swift */,
+			);
+			path = Components;
 			sourceTree = "<group>";
 		};
 /* End PBXGroup section */
@@ -348,6 +359,7 @@
 				2B1D17862CE754B8001B6147 /* MuteButton.swift in Sources */,
 				2BF07A982CDA4986007D56F7 /* UIViewWrapper.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
+				2B70208B2ED646E20002AD8E /* VideoDisplayView.swift in Sources */,
 				2BDAEF732CE76D750075CC11 /* TabPanel.swift in Sources */,
 				2BF07A992CDA4986007D56F7 /* LiveStreamController.swift in Sources */,
 				2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */,
