@@ -34,6 +34,7 @@ class NowPlayingMediator: ObservableObject {
     func start() {
         musicController.$status.sink { status in
             self.osMediaPlayer.updateNowPlayingMetaData(status, self.gstreamer.state)
+            self.osMediaPlayer.updateShuffleState(status.shuffle)
         }
         .store(in: &cancellables)
 
@@ -72,6 +73,8 @@ class NowPlayingMediator: ObservableObject {
                 self.musicController.play()
                 self.musicController.startSleepTimer(60 * 30)
 //                self.musicController.previous()
+            case .setShuffle(let shuffle):
+                self.musicController.setShuffle(shuffle)
             default:
                 break
             }

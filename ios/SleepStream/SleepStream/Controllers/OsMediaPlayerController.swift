@@ -3,12 +3,13 @@ import MediaPlayer
 import UIKit
 import os
 
-enum OsMediaPlayerEvent: String {
+enum OsMediaPlayerEvent {
     case play
     case pause
     case toggle
     case next
     case prev
+    case setShuffle(Bool)
 }
 
 class OsMediaPlayerController: ObservableObject {
@@ -45,6 +46,10 @@ class OsMediaPlayerController: ObservableObject {
         }
         MPNowPlayingInfoCenter.default().nowPlayingInfo = nowPlayingInfo
     }
+    
+    func updateShuffleState(_ shuffle: Bool) {
+        MPRemoteCommandCenter.shared().changeShuffleModeCommand.currentShuffleType = shuffle ? .items : .off
+    }
 
     private func setupRemoteCommandCenter() {
         // Start receiving remote control events
@@ -78,6 +83,15 @@ class OsMediaPlayerController: ObservableObject {
         // Handle Previous Track Command
         commandCenter.previousTrackCommand.addTarget { [weak self] _ in
             self?.events.send(.prev)
+            return .success
+        }
+        
+        // Handle Shuffle Command
+        commandCenter.changeShuffleModeCommand.isEnabled = true
+        commandCenter.changeShuffleModeCommand.addTarget { [weak self] event in
+            guard let self = self, let event = event as? MPChangeShuffleModeCommandEvent else { return .commandFailed }
+            let shuffle = event.preservesShuffleMode
+            self.events.send(.setShuffle(shuffle))
             return .success
         }
     }
