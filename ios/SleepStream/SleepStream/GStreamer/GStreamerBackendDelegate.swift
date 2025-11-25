@@ -1,11 +1,12 @@
-@objc protocol GStreamerAudioBackendDelegate {
+@objc protocol GStreamerBackendDelegate {
     func gStreamerInitialized()
     func gstreamerMessage(message: String)
+}
+
+@objc protocol GStreamerAudioBackendDelegate: GStreamerBackendDelegate {
     func gstreamerAudioState(state: AudioState)
 }
 
-@objc protocol GStreamerVideoBackendDelegate {
-    func gStreamerInitialized()
-    func gstreamerMessage(message: String)
+@objc protocol GStreamerVideoBackendDelegate: GStreamerBackendDelegate {
     func gstreamerDidReceiveVideoResolution(width: Int, height: Int)
 }

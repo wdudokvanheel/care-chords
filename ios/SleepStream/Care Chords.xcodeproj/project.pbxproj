@@ -31,6 +31,7 @@
 		2B49A9162CDA2A8500734789 /* GStreamer.framework in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A9152CDA2A8500734789 /* GStreamer.framework */; };
 		2B49A91D2CDA2AF200734789 /* libiconv.2.tbd in Frameworks */ = {isa = PBXBuildFile; fileRef = 2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */; };
 		2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B49A91F2CDA2B1300734789 /* gst_ios_init.m */; };
+		2B7020882ED63EB50002AD8E /* GStreamerBackend.m in Sources */ = {isa = PBXBuildFile; fileRef = 2B7020872ED63EB50002AD8E /* GStreamerBackend.m */; };
 		2B86D4D12CF3837D00E79918 /* ShuffleButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B86D4D02CF3837D00E79918 /* ShuffleButton.swift */; };
 		2BB24D002CE8CAD800786E1C /* RoundedCornerRectangle.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24CFF2CE8CAD800786E1C /* RoundedCornerRectangle.swift */; };
 		2BB24D022CE8CB1000786E1C /* Path.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2BB24D012CE8CB1000786E1C /* Path.swift */; };
@@ -73,6 +74,8 @@
 		2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SleepStream-Bridging-Header.h"; sourceTree = "<group>"; };
 		2B49A91F2CDA2B1300734789 /* gst_ios_init.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = gst_ios_init.m; sourceTree = "<group>"; };
 		2B49A9202CDA2B1300734789 /* gst_ios_init.h */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.h; path = gst_ios_init.h; sourceTree = "<group>"; };
+		2B7020862ED63EB50002AD8E /* GStreamerBackend.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = GStreamerBackend.h; sourceTree = "<group>"; };
+		2B7020872ED63EB50002AD8E /* GStreamerBackend.m */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.objc; path = GStreamerBackend.m; sourceTree = "<group>"; };
 		2B86D4D02CF3837D00E79918 /* ShuffleButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ShuffleButton.swift; sourceTree = "<group>"; };
 		2BB24CFF2CE8CAD800786E1C /* RoundedCornerRectangle.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = RoundedCornerRectangle.swift; sourceTree = "<group>"; };
 		2BB24D012CE8CB1000786E1C /* Path.swift */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.swift; path = Path.swift; sourceTree = "<group>"; };
@@ -119,6 +122,8 @@
 				2BF07A922CDA497F007D56F7 /* GStreamerVideoBackend.h */,
 				2BF07A912CDA497F007D56F7 /* GStreamerVideoBackend.m */,
 				2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */,
+				2B7020862ED63EB50002AD8E /* GStreamerBackend.h */,
+				2B7020872ED63EB50002AD8E /* GStreamerBackend.m */,
 			);
 			path = GStreamer;
 			sourceTree = "<group>";
@@ -318,6 +323,7 @@
 				2BB24D022CE8CB1000786E1C /* Path.swift in Sources */,
 				2BB24D002CE8CAD800786E1C /* RoundedCornerRectangle.swift in Sources */,
 				2B3BDCEE2D90523B00E38C36 /* OsMediaPlayerController.swift in Sources */,
+				2B7020882ED63EB50002AD8E /* GStreamerBackend.m in Sources */,
 				2B1D17782CE63378001B6147 /* MusicControlsView.swift in Sources */,
 				2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */,
 				2B35E86D2CE363B5000FC2D5 /* GStreamerController.swift in Sources */,

@@ -1,4 +1,3 @@
-#import <unistd.h>
 #import "GStreamerVideoBackend.h"
 #import "gst_ios_init.h"
 #import <UIKit/UIKit.h>
@@ -7,31 +6,15 @@
 #import <GStreamer/gst/video/video.h>
 #import <GStreamer/gst/rtsp/rtsp.h>
 #import "SleepStream-Bridging-Header.h"
-
-GST_DEBUG_CATEGORY_STATIC (debug_category);
-#define GST_CAT_DEFAULT debug_category
-
 #import "Care_Chords-Swift.h"
 
 @interface GStreamerVideoBackend()
--(void)setUIMessage:(gchar*) message;
--(void)run_app_pipeline;
--(void)check_initialization_complete;
--(void)stopAndCleanup;
--(void)setWindow:(UIView *)video_view; 
 @end
 
 @implementation GStreamerVideoBackend {
-    id<GStreamerVideoBackendDelegate> ui_delegate;        /* Class that we use to interact with the user interface */
-    GstElement *pipeline;      /* The running pipeline */
-    GstElement *video_sink;    /* The video sink element which receives XOverlay commands */
-    GMainContext *context;     /* GLib context used to run the main loop */
-    GMainLoop *main_loop;      /* GLib main loop */
-    gboolean initialized;      /* To avoid informing the UI multiple times about the initialization */
-    GstBus *bus;
     UIView *ui_video_view;     /* UIView that holds the video */
-    GstMessage* eos_msg;
-
+    GstElement *video_sink;    /* The video sink element which receives XOverlay commands */
+    
     /* New elements */
     GstElement *rtspsrc;
     GstElement *rtph264depay;
@@ -51,124 +34,53 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(id) init:(id) uiDelegate videoView:(UIView *)video_view
 {
-    if (self = [super init])
+    if (self = [super init:uiDelegate])
     {
-        self->ui_delegate = (id<GStreamerVideoBackendDelegate>)uiDelegate;
         self->ui_video_view = video_view;
-
-        GST_DEBUG_CATEGORY_INIT (debug_category, "SleepStreamer", 0, "SleepStreamer-Backend");
-        gst_debug_set_threshold_for_name("SleepStreamer", GST_LEVEL_TRACE);
     }
-
     return self;
 }
 
 -(void)setWindow:(UIView *)video_view
 {
-        self->ui_video_view = video_view;
+    self->ui_video_view = video_view;
 }
 
--(void) run_app_pipeline_threaded
-{
-    dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-           [self run_app_pipeline];
-       });
-}
-
--(void) play
-{
-    if (gst_element_set_state(pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
-        [self setUIMessage:"Failed to set pipeline to playing"];
-        return;
-    }
-}
-
--(void) pause
-{
-    if(gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
-        [self setUIMessage:"Failed to set pipeline to paused"];
-    }
-}
-
--(void) destroy
-{
-    if(gst_element_set_state(pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
-        [self setUIMessage:"Failed to set pipeline to READY"];
-    }
-    eos_msg = gst_message_new_eos(GST_OBJECT(pipeline));
-    gst_element_post_message (pipeline, eos_msg);
-}
-
-/* Change the message on the UI through the UI delegate */
--(void)setUIMessage:(gchar*) message
-{
-    printf("Setting message to: %s\n", message);
-    NSString *messagString = [NSString stringWithUTF8String:message];
-    if(ui_delegate)
-    {
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self->ui_delegate gstreamerMessageWithMessage:messagString];
-        });
-    }
-}
-
-static void eos_cb(GstBus *bus, GstMessage *msg, GStreamerVideoBackend *self){
-    printf("\nEOS called\n");
-    gst_element_set_state (self->pipeline, GST_STATE_NULL);
-    g_main_loop_quit(self->main_loop);
-}
-
-/* Retrieve errors from the bus and show them on the UI */
-static void error_cb (GstBus *bus, GstMessage *msg, GStreamerVideoBackend *self)
-{
-    GError *err;
-    gchar *debug_info;
-    gchar *message_string;
-
-    gst_message_parse_error (msg, &err, &debug_info);
-    message_string = g_strdup_printf ("Error received from element %s: %s", GST_OBJECT_NAME (msg->src), err->message);
-    printf("Error from element %s: %s\n", GST_OBJECT_NAME (msg->src), err->message);
-    g_clear_error (&err);
-    g_free (debug_info);
-    [self setUIMessage:message_string];
-    g_free (message_string);
-    gst_element_set_state (self->pipeline, GST_STATE_NULL);
-}
-
-/* Notify UI about pipeline state changes */
-static void state_changed_cb (GstBus *bus, GstMessage *msg, GStreamerVideoBackend *self)
-{
-    GstState old_state, new_state, pending_state;
-    gst_message_parse_state_changed (msg, &old_state, &new_state, &pending_state);
-
-    if (new_state == GST_STATE_READY){
+-(void) stateChanged:(GstState)newState old:(GstState)oldState pending:(GstState)pendingState {
+    if (newState == GST_STATE_READY){
         [self play];
     }
     
-    /* Only pay attention to messages coming from the pipeline, not its children */
-    if (GST_MESSAGE_SRC (msg) == GST_OBJECT (self->pipeline)) {
-        printf("State changed from %s to %s\n", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
-
-        gchar *message = g_strdup_printf("State changed from %s to %s", gst_element_state_get_name(old_state), gst_element_state_get_name(new_state));
-        [self setUIMessage:message];
-        g_free (message);
-    }
+    // Original implementation sent a generic message on state change
+    gchar *message = g_strdup_printf("State changed from %s to %s", gst_element_state_get_name(oldState), gst_element_state_get_name(newState));
+    [self setUIMessage:message];
+    g_free (message);
 }
 
-/* Check if all conditions are met to report GStreamer as initialized.
- * These conditions will change depending on the application */
--(void) check_initialization_complete
+static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer user_data)
 {
-    if (!initialized && main_loop) {
-        GST_DEBUG ("Initialization complete, notifying application.");
-        if (ui_delegate)
-        {
-            dispatch_async(dispatch_get_main_queue(), ^{
-                [ui_delegate gStreamerInitialized];
-            });
-        }
-        initialized = TRUE;
+    GStreamerVideoBackend *self = (__bridge GStreamerVideoBackend *)user_data;
+    GstPad *pad = GST_PAD(padObject);
+
+    // Retrieve the current caps from this pad
+    GstCaps *caps = gst_pad_get_current_caps(pad);
+    if (!caps) return;
+
+    // Extract width/height from the caps
+    const GstStructure *s = gst_caps_get_structure(caps, 0);
+    gint width = 0, height = 0;
+    gboolean hasWidth = gst_structure_get_int(s, "width", &width);
+    gboolean hasHeight = gst_structure_get_int(s, "height", &height);
+
+    if (hasWidth && hasHeight) {
+        // Dispatch to the main thread and call the new delegate method
+        dispatch_async(dispatch_get_main_queue(), ^{
+            [(id<GStreamerVideoBackendDelegate>)self.ui_delegate gstreamerDidReceiveVideoResolutionWithWidth:width
+                                                                   height:height];
+        });
     }
+
+    gst_caps_unref(caps);
 }
 
 static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend *self)
@@ -230,47 +142,10 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     gst_caps_unref(caps);
 }
 
-static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer user_data)
+-(void) build_pipeline
 {
-    GStreamerVideoBackend *self = (__bridge GStreamerVideoBackend *)user_data;
-    GstPad *pad = GST_PAD(padObject);
-
-    // Retrieve the current caps from this pad
-    GstCaps *caps = gst_pad_get_current_caps(pad);
-    if (!caps) return;
-
-    // Extract width/height from the caps
-    const GstStructure *s = gst_caps_get_structure(caps, 0);
-    gint width = 0, height = 0;
-    gboolean hasWidth = gst_structure_get_int(s, "width", &width);
-    gboolean hasHeight = gst_structure_get_int(s, "height", &height);
-
-    if (hasWidth && hasHeight) {
-        // Dispatch to the main thread and call the new delegate method
-        dispatch_async(dispatch_get_main_queue(), ^{
-            [self->ui_delegate gstreamerDidReceiveVideoResolutionWithWidth:width
-                                                                   height:height];
-        });
-    }
-
-    gst_caps_unref(caps);
-}
-
-/* Main method */
--(void) run_app_pipeline
-{
-    GSource *bus_source;
-    GST_DEBUG ("Creating pipeline");
-    
-//    gst_debug_set_threshold_for_name("GST_CAPS", GST_LEVEL_DEBUG);
-//    gst_debug_set_threshold_for_name("videosink", GST_LEVEL_DEBUG);
-
-    /* Create our own GLib Main Context and make it the default one */
-    context = g_main_context_new ();
-    g_main_context_push_thread_default(context);
-
     /* Create the pipeline and elements */
-    pipeline = gst_pipeline_new("pipeline");
+    self.pipeline = gst_pipeline_new("pipeline");
 
     self->rtspsrc = gst_element_factory_make("rtspsrc", "source");
     self->rtph264depay = gst_element_factory_make("rtph264depay", "depay");
@@ -301,8 +176,6 @@ static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer 
                                         "height", G_TYPE_INT, screenHeight,
                                         NULL);
 
-    //g_object_set(self->queue, "max-size-time", (guint64)500000000, NULL);
-    
     int totalHeight = 1920;
     int totalWidth = 2560;
     
@@ -325,15 +198,16 @@ static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer 
     g_object_set(self->capsfilter, "caps", caps, NULL);
     gst_caps_unref(caps);
 
-    if (!pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->videocrop  || !self->videoscale || !self->videoconvert|| !self->autovideosink || !self->capsfilter) {
+    if (!self.pipeline || !self->rtspsrc || !self->rtph264depay || !self->queue || !self->h264parse || !self->avdec_h264 || !self->videocrop  || !self->videoscale || !self->videoconvert|| !self->autovideosink || !self->capsfilter) {
         gchar *message = g_strdup_printf("Not all elements could be created.");
         [self setUIMessage:message];
         g_free(message);
+        self.pipeline = NULL;
         return;
     }
 
     /* Add elements to the pipeline */
-    gst_bin_add_many(GST_BIN(pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert,
+    gst_bin_add_many(GST_BIN(self.pipeline), self->rtspsrc, self->rtph264depay, self->queue, self->h264parse, self->avdec_h264, self->videocrop, self->videoconvert,
                      self->videoscale,  self->capsfilter, self->autovideosink, NULL);
 
     /* Link the elements (except rtspsrc, which is linked dynamically) */
@@ -341,7 +215,8 @@ static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer 
         gchar *message = g_strdup_printf("Elements could not be linked.");
         [self setUIMessage:message];
         g_free(message);
-        gst_object_unref(pipeline);
+        gst_object_unref(self.pipeline);
+        self.pipeline = NULL;
         return;
     }
 
@@ -349,32 +224,47 @@ static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer 
     g_signal_connect(self->rtspsrc, "pad-added", G_CALLBACK(on_pad_added), (__bridge void *)self);
 
     /* Set the pipeline to READY, so it can already accept a window handle */
-    gst_element_set_state(pipeline, GST_STATE_READY);
+    gst_element_set_state(self.pipeline, GST_STATE_READY);
 
     /* Set the video sink */
-    self->video_sink = gst_bin_get_by_interface(GST_BIN(pipeline), GST_TYPE_VIDEO_OVERLAY);
+    self->video_sink = gst_bin_get_by_interface(GST_BIN(self.pipeline), GST_TYPE_VIDEO_OVERLAY);
     if (!self->video_sink) {
         GST_ERROR ("Could not retrieve video sink");
+        self.pipeline = NULL;
         return;
     }
     
     gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(self->video_sink), (guintptr) (id) self->ui_video_view);
+}
 
-    /* Signals to watch */
-    bus = gst_element_get_bus (pipeline);
-    bus_source = gst_bus_create_watch (bus);
-    g_source_set_callback (bus_source, (GSourceFunc) gst_bus_async_signal_func, NULL, NULL);
-    g_source_attach (bus_source, context);
-    g_source_unref (bus_source);
-    g_signal_connect (G_OBJECT (bus), "message::error", (GCallback)error_cb, (__bridge void *)self);
-    g_signal_connect (G_OBJECT (bus), "message::eos", (GCallback)eos_cb, (__bridge void *)self);
-    g_signal_connect (G_OBJECT (bus), "message::state-changed", (GCallback)state_changed_cb, (__bridge void *)self);
-    gst_object_unref (bus);
+-(void) play
+{
+    if (gst_element_set_state(self.pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
+        [self setUIMessage:"Failed to set pipeline to playing"];
+        return;
+    }
+}
 
-    /* Create a GLib Main Loop and set it to run */
-    main_loop = g_main_loop_new (context, FALSE);
-    [self check_initialization_complete];
-    g_main_loop_run (main_loop);
+// Override run_app_pipeline to handle cleanup specifically if needed, but base implementation should cover most.
+// However, the video backend had specific cleanup logic in run_app_pipeline (removing subviews).
+// We should probably override run_app_pipeline to add that cleanup after base implementation returns, 
+// OR just put it in stopAndCleanup or similar.
+// The original run_app_pipeline had this at the end:
+/*
+    // Clean up all resources
+    dispatch_async(dispatch_get_main_queue(), ^{
+        // Remove all subviews
+        NSArray *subviews = [self->ui_video_view subviews];
+        for (UIView *subview in subviews) {
+            [subview removeFromSuperview];
+        }
+    });
+*/
+// We can override run_app_pipeline, call super, and then do cleanup.
+
+-(void) run_app_pipeline
+{
+    [super run_app_pipeline];
     
     // Clean up all resources
     dispatch_async(dispatch_get_main_queue(), ^{
@@ -384,26 +274,21 @@ static void cb_new_decoded_caps(GObject *padObject, GParamSpec *pspec, gpointer 
             [subview removeFromSuperview];
         }
     });
-    
-    g_main_loop_unref (main_loop);
-    main_loop = NULL;
-    if (context) {
-        g_main_context_pop_thread_default(context);
-        g_main_context_unref(context);
-        context = NULL;
-    }
-    
-    if (pipeline) {
-        gst_element_set_state(pipeline, GST_STATE_NULL);
-        gst_object_unref(pipeline);
-        pipeline = NULL;
-    }
-    
-    return;
 }
 
 -(void) stopAndCleanup {
-    g_main_loop_quit(main_loop);
+    if (self.main_loop) {
+        g_main_loop_quit(self.main_loop);
+    }
+}
+
+-(void) destroy
+{
+    if(gst_element_set_state(self.pipeline, GST_STATE_PAUSED) == GST_STATE_CHANGE_FAILURE) {
+        [self setUIMessage:"Failed to set pipeline to READY"];
+    }
+    GstMessage* eos_msg = gst_message_new_eos(GST_OBJECT(self.pipeline));
+    gst_element_post_message (self.pipeline, eos_msg);
 }
 
 @end
