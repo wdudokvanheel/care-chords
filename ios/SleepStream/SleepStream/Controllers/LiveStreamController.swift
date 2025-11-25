@@ -18,6 +18,10 @@ import UIKit
         self.gstBackend = GStreamerVideoBackend(self, videoView: self.view)
     }
     
+    deinit {
+        self.stop()
+    }
+    
     func play() {
         self.gstBackend?.run_app_pipeline_threaded()
     }

@@ -262,21 +262,24 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
 */
 // We can override run_app_pipeline, call super, and then do cleanup.
 
--(void) run_app_pipeline
-{
-    [super run_app_pipeline];
-    
-    // Clean up all resources
-    dispatch_async(dispatch_get_main_queue(), ^{
-        // Remove all subviews
-        NSArray *subviews = [self->ui_video_view subviews];
-        for (UIView *subview in subviews) {
-            [subview removeFromSuperview];
-        }
-    });
-}
+
 
 -(void) stopAndCleanup {
+    // Detach the window handle from GStreamer to prevent it from drawing to the view
+    if (self->video_sink) {
+        gst_video_overlay_set_window_handle(GST_VIDEO_OVERLAY(self->video_sink), 0);
+    }
+    
+    // Safely remove subviews on the main thread
+    dispatch_async(dispatch_get_main_queue(), ^{
+        if (self->ui_video_view) {
+            NSArray *subviews = [self->ui_video_view subviews];
+            for (UIView *subview in subviews) {
+                [subview removeFromSuperview];
+            }
+        }
+    });
+
     if (self.main_loop) {
         g_main_loop_quit(self.main_loop);
     }
