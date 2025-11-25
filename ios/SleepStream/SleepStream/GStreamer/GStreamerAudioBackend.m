@@ -1,6 +1,7 @@
 #import "GStreamerAudioBackend.h"
 #import "gst_ios_init.h"
 #import <UIKit/UIKit.h>
+#import <AVFoundation/AVFoundation.h>
 
 #import <GStreamer/gst/gst.h>
 #import <GStreamer/gst/rtsp/rtsp.h>
@@ -28,7 +29,33 @@
 
 -(id) init:(id) uiDelegate
 {
-    return [super init:uiDelegate];
+    if (self = [super init:uiDelegate]) {
+        [[NSNotificationCenter defaultCenter] addObserver:self
+                                                 selector:@selector(handleInterruption:)
+                                                     name:AVAudioSessionInterruptionNotification
+                                                   object:nil];
+    }
+    return self;
+}
+
+-(void) dealloc {
+    [[NSNotificationCenter defaultCenter] removeObserver:self];
+}
+
+-(void) handleInterruption:(NSNotification *)notification {
+    NSDictionary *interruptionDict = notification.userInfo;
+    NSNumber *interruptionType = [interruptionDict valueForKey:AVAudioSessionInterruptionTypeKey];
+    
+    if ([interruptionType unsignedIntegerValue] == AVAudioSessionInterruptionTypeBegan) {
+        printf("Audio interruption began\n");
+        [self pause];
+    } else if ([interruptionType unsignedIntegerValue] == AVAudioSessionInterruptionTypeEnded) {
+        NSNumber *interruptionOption = [interruptionDict valueForKey:AVAudioSessionInterruptionOptionKey];
+        if ([interruptionOption unsignedIntegerValue] == AVAudioSessionInterruptionOptionShouldResume) {
+            printf("Audio interruption ended, resuming\n");
+            [self play];
+        }
+    }
 }
 
 -(void) stateChanged:(GstState)newState old:(GstState)oldState pending:(GstState)pendingState {
