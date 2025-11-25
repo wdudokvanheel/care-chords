@@ -23,8 +23,7 @@ keeping an ear on your little ones.
 ## How does it work
 
 The Rust backend uses GStreamer to capture audio from an IP camera via RTSP and combines this with
-the integrated Spotify client. The streams are processed, mixed, and streamed to an RTSP server for
-client consumption.
+the integrated Spotify client. The streams are processed, mixed, and streamed to the clients.
 
 The client communicates with the backend over HTTP to control playback, song selection, the sleep timer, and other settings.
 
@@ -39,14 +38,6 @@ The client communicates with the backend over HTTP to control playback, song sel
 version: '3.8'
 
 services:
-  mediamtx:
-    image: bluenviron/mediamtx:latest
-    container_name: rtspserver
-    restart: unless-stopped
-    network_mode: "host"
-    volumes:
-      - ./mediamtx.yml:/mediamtx.yml
-
   carechords:
     image: carechords:latest
     container_name: carechords
@@ -64,35 +55,16 @@ services:
 version: '3.8'
 
 services:
-  mediamtx:
-    image: bluenviron/mediamtx:latest
-    container_name: rtspserver
-    restart: unless-stopped
-    network_mode: "host"
-    volumes:
-      - ./mediamtx.yml:/mediamtx.yml
-
-
   carechords:
     image: carechords:latest
     container_name: carechords
     restart: unless-stopped
     network_mode: "host"
     environment:
-        CARECHORDS_RTSP_SERVER: "rtsp://localhost:7554/sleep"
+        CARECHORDS_RTSP_PORT: 8554
         CARECHORDS_MONITOR_URL: "rtsp://sleepstream:sleepstream@10.0.0.51"
         CARECHORDS_NOISE_FILTER: true
     volumes:
       - ./spotify_cache:/cache
 ```
 
-### mediamtx.yml
-
-```
-rtsp: yes
-rtspAddress: :7554
-
-paths:
-  all:
-    source: publisher
-```

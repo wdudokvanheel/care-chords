@@ -17,7 +17,7 @@ pub struct ApplicationSettings {
 }
 
 fn default_rtsp_port() -> u16 {
-    7554
+    8554
 }
 
 #[derive(Parser, Debug)]
