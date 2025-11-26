@@ -228,7 +228,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     self->rtph264depay = gst_element_factory_make("rtph264depay", "depay");
     self->queue = gst_element_factory_make("queue", "queue");
     self->h264parse = gst_element_factory_make("h264parse", "parse");
-    self->avdec_h264 = gst_element_factory_make("vtdec", "decoder");
+    self->avdec_h264 = gst_element_factory_make("avdec_h264", "decoder");
     self->videocrop      = gst_element_factory_make("videocrop",     "videocrop");
     self->appsink = gst_element_factory_make("appsink", "videosink");
     self->videoconvert = gst_element_factory_make("videoconvert", "videoconvert");
@@ -323,9 +323,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
         }
     });
 
-    if (self.main_loop) {
-        g_main_loop_quit(self.main_loop);
-    }
+    [self stop];
 }
 
 -(void) destroy

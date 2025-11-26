@@ -28,15 +28,23 @@ class VideoDisplayView: UIView {
     
     func enqueue(_ sampleBuffer: CMSampleBuffer) {
         if videoLayer.status == .failed {
+            print("VideoLayer failed: \(String(describing: videoLayer.error))")
             videoLayer.flush()
         }
         
         if videoLayer.isReadyForMoreMediaData {
             videoLayer.enqueue(sampleBuffer)
+        } else {
+            print("VideoLayer not ready for more media data")
         }
     }
     
     func flush() {
         videoLayer.flush()
+    }
+    
+    func reset() {
+        videoLayer.flush()
+        videoLayer.flushAndRemoveImage()
     }
 }

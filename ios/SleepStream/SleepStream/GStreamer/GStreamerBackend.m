@@ -6,6 +6,11 @@
 GST_DEBUG_CATEGORY_STATIC (debug_category);
 #define GST_CAT_DEFAULT debug_category
 
+@interface GStreamerBackend() {
+    BOOL stopping;
+}
+@end
+
 @implementation GStreamerBackend
 
 -(id) init:(id) uiDelegate
@@ -23,13 +28,27 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void) run_app_pipeline_threaded
 {
+    NSLog(@"[GStreamerBackend] run_app_pipeline_threaded called, main_loop=%p, stopping=%d", self.main_loop, stopping);
     dispatch_async(dispatch_get_global_queue(DISPATCH_QUEUE_PRIORITY_DEFAULT, 0), ^{
-           [self run_app_pipeline];
-       });
+        NSLog(@"[GStreamerBackend] Inside async block, main_loop=%p, stopping=%d", self.main_loop, self->stopping);
+        if (self.main_loop) {
+            if (!self->stopping) {
+                NSLog(@"[GStreamerBackend] Pipeline already running, ignoring play request");
+                return;
+            }
+            NSLog(@"[GStreamerBackend] Waiting for previous pipeline to stop...");
+            while (self.main_loop) {
+                usleep(10000); // Wait 10ms
+            }
+            NSLog(@"[GStreamerBackend] Previous pipeline stopped, starting new one");
+        }
+        [self run_app_pipeline];
+    });
 }
 
 -(void) play
 {
+    NSLog(@"[GStreamerBackend] play called");
     if(gst_element_set_state(self.pipeline, GST_STATE_PLAYING) == GST_STATE_CHANGE_FAILURE) {
         [self setUIMessage:"Failed to set pipeline to playing"];
     }
@@ -44,8 +63,11 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
 
 -(void) stop
 {
+    NSLog(@"[GStreamerBackend] stop called, main_loop=%p", self.main_loop);
     if (self.main_loop) {
+        self->stopping = TRUE;
         g_main_loop_quit(self.main_loop);
+        NSLog(@"[GStreamerBackend] Main loop quit requested");
     }
 }
 
@@ -112,11 +134,13 @@ GST_DEBUG_CATEGORY_STATIC (debug_category);
     /* Create and run the main loop */
     GST_DEBUG ("Starting main loop...");
     self.main_loop = g_main_loop_new (self.context, FALSE);
+    self->stopping = FALSE;
     [self check_initialization_complete];
     g_main_loop_run (self.main_loop);
     GST_DEBUG ("Main loop finished");
     g_main_loop_unref (self.main_loop);
     self.main_loop = NULL;
+    self->stopping = FALSE;
 
     /* Free resources */
     g_main_context_pop_thread_default(self.context);

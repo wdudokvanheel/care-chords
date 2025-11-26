@@ -4,37 +4,51 @@ struct LiveStreamView: View {
     @ObservedObject var controller: LiveStreamController
     @Environment(\.scenePhase) private var scenePhase
     @State var shouldResume = false
-    
+
     var body: some View {
         VStack {
             GeometryReader { geometry in
                 Spacer()
-                ZStack(alignment: .topTrailing) {
+                ZStack {
                     Color.darkerBlue
-                    Image(systemName: "hourglass")
-                        .font(.system(size: 256))
-                        .foregroundColor(.white)
+
+                    if !controller.isPipActive {
+                        Image(systemName: "hourglass")
+                            .font(.system(size: 256))
+                            .foregroundColor(.white)
+                    }
+
                     UIViewWrapper(view: controller.view)
                         .frame(width: 2560, height: 1920)
-                    
-                    Button(action: {
-                        controller.togglePiP()
-                    }) {
-                        Image(systemName: "pip.enter")
-                            .font(.system(size: 64))
-                            .foregroundColor(.white)
-                            .padding()
-                            .background(Color.black.opacity(0.5))
-                            .clipShape(Circle())
+
+                    if controller.hasVideo {
+                        VStack {
+                            HStack {
+                                Spacer()
+                                Button(action: {
+                                    controller.togglePiP()
+                                }) {
+                                    Image(systemName: "pip.enter")
+                                        .font(.system(size: 124))
+                                        .foregroundColor(.white)
+                                        .padding(48)
+                                        .background(Color.black.opacity(0.5))
+                                        .clipShape(Circle())
+                                }
+                                .padding(20)
+                            }
+                            Spacer()
+                        }
                     }
-                    .padding(60)
                 }
                 .clipShape(RoundedRectangle(cornerRadius: 48.0))
                 .onAppear {
                     self.controller.play()
                 }
                 .onDisappear {
-                    self.controller.stop()
+                    if !controller.isPipActive {
+                        self.controller.stop()
+                    }
                 }
                 .scaleEffect(calculateScale(for: geometry.size))
                 .frame(width: geometry.size.width, height: geometry.size.height)
@@ -48,9 +62,12 @@ struct LiveStreamView: View {
                 if shouldResume {
                     self.controller.play()
                 }
+                self.controller.flush()
             case .inactive, .background:
-                self.controller.stop()
-                shouldResume = true
+                if !controller.isPipActive {
+                    self.controller.stop()
+                    shouldResume = true
+                }
             @unknown default:
                 break
             }

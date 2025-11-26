@@ -14,15 +14,38 @@ import AVKit
     @Published
     var messageFromGstBackend: String?
     
+    @Published
+    var isPipActive: Bool = false
+    @Published
+    var hasVideo: Bool = false
+    
     private var pipController: AVPictureInPictureController?
+    private var isPlaying: Bool = false
     
     override init() {
         super.init()
         self.gstBackend = GStreamerVideoBackend(self, videoView: self.view)
+        
+        // Observe app becoming active to refresh PiP if needed
+        NotificationCenter.default.addObserver(
+            self,
+            selector: #selector(appDidBecomeActive),
+            name: UIApplication.didBecomeActiveNotification,
+            object: nil
+        )
     }
     
     deinit {
+        NotificationCenter.default.removeObserver(self)
         self.stop()
+    }
+    
+    @objc private func appDidBecomeActive() {
+        // If PiP is active, flush the layer to refresh it
+        if isPipActive {
+            print("[LiveStreamController] App became active with PiP active, flushing video layer")
+            view.flush()
+        }
     }
     
     func setupPiP() {
@@ -53,11 +76,22 @@ import AVKit
     }
     
     func play() {
+        print("[LiveStreamController] play() called")
+        isPlaying = true
         self.gstBackend?.run_app_pipeline_threaded()
     }
     
     func stop() {
+        print("[LiveStreamController] stop() called")
+        isPlaying = false
+        pipController = nil
+        hasVideo = false
+        view.reset()
         self.gstBackend?.stopAndCleanup()
+    }
+    
+    func flush() {
+        view.flush()
     }
     
     @objc func gStreamerInitialized() {
@@ -77,7 +111,16 @@ import AVKit
     }
     
     @objc func gstreamerDidReceiveSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
+        // print("Received sample buffer") // Commented out to avoid spam, uncomment if needed
+        guard isPlaying else { return }
+        
         view.enqueue(sampleBuffer)
+        
+        if !hasVideo {
+            DispatchQueue.main.async {
+                self.hasVideo = true
+            }
+        }
         
         if pipController == nil {
             DispatchQueue.main.async {
@@ -86,10 +129,19 @@ import AVKit
         }
     }
     
-    // MARK: - AVPictureInPictureSampleBufferPlaybackDelegate
+    // MARK: - AVPictureInPictureControllerDelegate
     
-    // These methods are required for AVPictureInPictureController.ContentSource(sampleBufferDisplayLayer:playbackDelegate:)
-    // Since we are not implementing full playback control (seek, etc.), we can leave them empty or minimal.
+    func pictureInPictureControllerDidStartPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        DispatchQueue.main.async {
+            self.isPipActive = true
+        }
+    }
+    
+    func pictureInPictureControllerDidStopPictureInPicture(_ pictureInPictureController: AVPictureInPictureController) {
+        DispatchQueue.main.async {
+            self.isPipActive = false
+        }
+    }
 }
 
 extension LiveStreamController: AVPictureInPictureSampleBufferPlaybackDelegate {

@@ -519,7 +519,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-lresolv",
 					"-lc++",
@@ -595,7 +595,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
-				MARKETING_VERSION = 1.4;
+				MARKETING_VERSION = 1.5.0;
 				OTHER_LDFLAGS = (
 					"-lresolv",
 					"-lc++",
