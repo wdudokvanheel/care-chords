@@ -1,13 +1,18 @@
+import AVKit
+import Combine
 import Dispatch
 import Foundation
 import SwiftUI
 import UIKit
-import AVKit
+
+struct MonitorResponse: Codable {
+    let url: String
+}
 
 @objc class LiveStreamController: NSObject, GStreamerVideoBackendDelegate, ObservableObject, AVPictureInPictureControllerDelegate {
     var gstBackend: GStreamerVideoBackend?
     @Published
-    var view: VideoDisplayView = VideoDisplayView()
+    var view: VideoDisplayView = .init()
     
     @Published
     var gStreamerInitializationStatus: Bool = false
@@ -21,10 +26,12 @@ import AVKit
     
     private var pipController: AVPictureInPictureController?
     private var isPlaying: Bool = false
+    private var cancellables = Set<AnyCancellable>()
+    private var monitorUrl: String?
     
     override init() {
         super.init()
-        self.gstBackend = GStreamerVideoBackend(self, videoView: self.view)
+        self.gstBackend = GStreamerVideoBackend(self, videoView: view)
         
         // Observe app becoming active to refresh PiP if needed
         NotificationCenter.default.addObserver(
@@ -78,7 +85,39 @@ import AVKit
     func play() {
         print("[LiveStreamController] play() called")
         isPlaying = true
-        self.gstBackend?.run_app_pipeline_threaded()
+        
+        if let url = monitorUrl {
+            gstBackend?.setMonitorUrl(url)
+            gstBackend?.run_app_pipeline_threaded()
+        } else {
+            fetchMonitorUrl { [weak self] url in
+                guard let self = self, let url = url else { return }
+                self.monitorUrl = url
+                self.gstBackend?.setMonitorUrl(url)
+                if self.isPlaying {
+                    self.gstBackend?.run_app_pipeline_threaded()
+                }
+            }
+        }
+    }
+    
+    private func fetchMonitorUrl(completion: @escaping (String?) -> Void) {
+        let url = URL(string: "http://\(SleepStreamApp.SERVER):7755/monitor")!
+        URLSession.shared.dataTaskPublisher(for: url)
+            .map { $0.data }
+            .decode(type: MonitorResponse.self, decoder: JSONDecoder())
+            .receive(on: DispatchQueue.main)
+            .sink(receiveCompletion: { completion in
+                switch completion {
+                case .failure(let error):
+                    print("Error fetching monitor URL: \(error)")
+                case .finished:
+                    break
+                }
+            }, receiveValue: { response in
+                completion(response.url)
+            })
+            .store(in: &cancellables)
     }
     
     func stop() {
@@ -87,7 +126,7 @@ import AVKit
         pipController = nil
         hasVideo = false
         view.reset()
-        self.gstBackend?.stopAndCleanup()
+        gstBackend?.stopAndCleanup()
     }
     
     func flush() {

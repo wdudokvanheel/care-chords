@@ -23,15 +23,16 @@ struct ShuffleRequest {
     shuffle: bool,
 }
 
-pub fn start_http_server(spotify: Arc<SpotifyClient>) {
+pub fn start_http_server(spotify: Arc<SpotifyClient>, monitor_url: String) {
     log::info!("Starting server @ :7755");
-    let routes = create_routes(spotify);
+    let routes = create_routes(spotify, monitor_url);
     tokio::spawn(async move {
         warp::serve(routes).run(([0, 0, 0, 0], 7755)).await;
     });
 }
 fn create_routes(
     spotify: Arc<SpotifyClient>,
+    monitor_url: String,
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let command_channel = spotify.player_command_channel();
     let info_channel = spotify.player_info_channel();
@@ -42,6 +43,7 @@ fn create_routes(
 
     let command_filter = warp::any().map(move || command_channel.clone());
     let info_filter = warp::any().map(move || info_channel.clone());
+    let monitor_url_filter = warp::any().map(move || monitor_url.clone());
 
     let playlist_route = warp::path("playlist")
         .and(warp::post())
@@ -86,6 +88,11 @@ fn create_routes(
         .and(warp::get())
         .and(info_filter.clone())
         .and_then(handle_status);
+
+    let monitor_route = warp::path("monitor")
+        .and(warp::get())
+        .and(monitor_url_filter)
+        .and_then(handle_monitor);
 
     // New SSE route that streams the player state:
     let status_stream_route = warp::path("status_stream")
@@ -132,6 +139,7 @@ fn create_routes(
         .or(status_route)
         .or(sleep_route)
         .or(shuffle_route)
+        .or(monitor_route)
         .or(status_stream_route)
         .boxed()
 }
@@ -142,6 +150,12 @@ async fn handle_status(
     let info = info_channel.borrow().clone(); // Get the latest player info
 
     Ok(warp::reply::json(&info))
+}
+
+async fn handle_monitor(monitor_url: String) -> Result<impl Reply, Rejection> {
+    Ok(warp::reply::json(&serde_json::json!({
+        "url": monitor_url
+    })))
 }
 
 async fn handle_playlists(spotify: Arc<SpotifyClient>) -> Result<impl Reply, Rejection> {

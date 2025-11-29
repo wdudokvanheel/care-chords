@@ -28,6 +28,8 @@
     GstElement *capsfilter;
     GstElement *videoconvert;
     GstElement *videoscale;
+    
+    NSString *monitorUrl;
 }
 
 /*
@@ -46,6 +48,11 @@
 -(void)setWindow:(UIView *)video_view
 {
     self->ui_video_view = video_view;
+}
+
+-(void)setMonitorUrl:(NSString *)url
+{
+    self->monitorUrl = url;
 }
 
 -(void) stateChanged:(GstState)newState old:(GstState)oldState pending:(GstState)pendingState {
@@ -242,7 +249,7 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerVideoBackend
     int totalWidth = 2560;
     
     g_object_set(self->rtspsrc,
-                 "location", "rtsp://sleepstream:sleepstream@10.0.0.51",
+                 "location", [self->monitorUrl UTF8String],
                  "protocols", GST_RTSP_LOWER_TRANS_TCP,
                  "latency", 0,
                  "buffermode", 0,

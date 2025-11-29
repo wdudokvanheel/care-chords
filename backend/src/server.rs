@@ -24,6 +24,7 @@ pub enum SpotifyState {
 pub struct CareChordsServer {
     spotify: SpotifyState,
     pipeline: Arc<AudioPipeline>,
+    monitor_url: String,
 }
 
 impl CareChordsServer {
@@ -31,6 +32,7 @@ impl CareChordsServer {
         Self {
             spotify: SpotifyState::Unauthenticated(Arc::new(SpotifyClient::new())),
             pipeline: Arc::new(AudioPipeline::new(&settings).unwrap()),
+            monitor_url: settings.monitor_url.clone(),
         }
     }
 
@@ -40,7 +42,9 @@ impl CareChordsServer {
         self.start_spotify().await;
 
         if let Authenticated(spot) = &self.spotify {
-            start_http_server(spot.clone());
+        if let Authenticated(spot) = &self.spotify {
+            start_http_server(spot.clone(), self.monitor_url.clone());
+        }
         }
     }
 

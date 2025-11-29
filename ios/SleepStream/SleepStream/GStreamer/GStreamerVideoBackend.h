@@ -7,6 +7,7 @@
 
 -(id) init:(id) uiDelegate videoView:(UIView*) video_view;
 -(void) setWindow:(UIView *)video_view;
+-(void) setMonitorUrl:(NSString *)url;
 -(void) stopAndCleanup;
 
 @end
