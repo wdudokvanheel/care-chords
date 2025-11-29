@@ -1,3 +1,4 @@
+pub mod audio_bridge;
 pub mod audio_pipeline;
 pub mod monitor_source;
 pub mod rtsp_server;

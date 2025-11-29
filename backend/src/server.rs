@@ -1,3 +1,4 @@
+use crate::pipeline::audio_bridge::AudioBridge;
 use crate::pipeline::AudioPipeline;
 use crate::server::SpotifyState::Authenticated;
 use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
@@ -9,7 +10,7 @@ use gstreamer as gst;
 use gstreamer::{ClockTime, Element, Pipeline};
 use gstreamer::prelude::{ElementExt, GstObjectExt, Cast};
 use gstreamer_app::AppSrc;
-use std::sync::mpsc::Receiver;
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
 use tokio;
 use tokio::sync::watch;
@@ -25,14 +26,23 @@ pub struct CareChordsServer {
     spotify: SpotifyState,
     pipeline: Arc<AudioPipeline>,
     monitor_url: String,
+    audio_bridge: Arc<AudioBridge>,
+    audio_sender: SyncSender<SinkEvent>,
 }
 
 impl CareChordsServer {
     pub fn new(settings: &ApplicationSettings) -> Self {
+        let (sender, receiver) = sync_channel::<SinkEvent>(10);
+        let audio_bridge = Arc::new(AudioBridge::new(receiver));
+
         Self {
-            spotify: SpotifyState::Unauthenticated(Arc::new(SpotifyClient::new())),
+            spotify: SpotifyState::Unauthenticated(Arc::new(SpotifyClient::new_with_sender(
+                sender.clone(),
+            ))),
             pipeline: Arc::new(AudioPipeline::new(&settings).unwrap()),
             monitor_url: settings.monitor_url.clone(),
+            audio_bridge,
+            audio_sender: sender,
         }
     }
 
@@ -57,11 +67,6 @@ impl CareChordsServer {
                 Ok(mut spotify_client) => {
                     log::info!("Authenticated with Spotify");
 
-                    let receiver = spotify_client.audio_stream_channel().take().unwrap();
-                    let app_src = self.pipeline.spotify.app_source.clone();
-                    let pipeline = self.pipeline.gstreamer_pipeline.clone();
-
-                    Self::push_audio_app_src(pipeline, app_src, receiver);
                     Self::watch_events(spotify_client.player_info_channel());
                     
                     // Trigger cache population
@@ -93,88 +98,48 @@ impl CareChordsServer {
 
     fn start_gstreamer(&mut self) {
         log::info!("Starting GStreamer!");
-        let bus = self
-            .pipeline
-            .get_bus()
-            .expect("Pipeline without bus. Shouldn't happen!");
-        let pipeline = self.pipeline.gstreamer_pipeline.clone();
+        let pipeline = self.pipeline.clone();
+        let audio_bridge = self.audio_bridge.clone();
 
         tokio::spawn(async move {
-            handle_gst_bus_messages(bus, pipeline.into()).await;
-        });
+            loop {
+                log::info!("Initializing GStreamer pipeline...");
+                let bus = pipeline
+                    .get_bus()
+                    .expect("Pipeline without bus. Shouldn't happen!");
 
-        self.pipeline
-            .set_state(gst::State::Playing)
-            .expect("Failed to set pipeline to Playing");
-    }
+                // Update the bridge with the current app_src
+                let app_src = pipeline
+                    .spotify
+                    .app_source
+                    .clone()
+                    .dynamic_cast::<AppSrc>()
+                    .expect("Source element is not an AppSrc!");
+                audio_bridge.set_app_src(app_src);
 
-    // Start a new thread that consumes all audio packets from librespot's audio sink and sends it to the gstreamer app src
-    fn push_audio_app_src(pipeline: Pipeline, app_src: Element, receiver: Receiver<SinkEvent>) {
-        let app_src = app_src
-            .dynamic_cast::<AppSrc>()
-            .expect("Source element is not an AppSrc!");
-
-        tokio::spawn(async move {
-            let mut timestamp: u64 = 0;
-
-            while let Ok(event) = receiver.recv() {
-                match event {
-                    SinkEvent::Start => {
-                    }
-                    SinkEvent::Stop => {
-                    }
-                    SinkEvent::Packet(samples) => {
-                        // Skip empty packets.
-                        if samples.is_empty() {
-                            continue;
-                        }
-
-                        // Calculate the total number of bytes.
-                        let byte_len = samples.len() * std::mem::size_of::<f64>();
-                        // Create a new buffer for the audio data.
-                        let mut buffer = gst::Buffer::with_size(byte_len)
-                            .expect("Failed to allocate buffer for audio data");
-                        {
-                            // Get a writable map of the buffer.
-                            let buffer_mut = buffer.get_mut().unwrap();
-                            let mut map = buffer_mut
-                                .map_writable()
-                                .expect("Failed to map buffer writable");
-                            // Safety: samples are stored contiguously in memory.
-                            let sample_bytes = unsafe {
-                                std::slice::from_raw_parts(samples.as_ptr() as *const u8, byte_len)
-                            };
-                            map.copy_from_slice(sample_bytes);
-                        }
-
-                        let frames = (samples.len() as u64) / 2;
-                        // Duration in nanoseconds: (frames / sample_rate) seconds converted to ns.
-                        let duration_ns = frames * 1_000_000_000 / 44100;
-                        {
-                            let buffer_mut = buffer.get_mut().unwrap();
-                            buffer_mut.set_pts(gst::ClockTime::from_nseconds(timestamp));
-                            buffer_mut.set_duration(gst::ClockTime::from_nseconds(duration_ns));
-                        }
-                        // log::warn!("Pushed @ {}", timestamp);
-                        timestamp += duration_ns;
-
-                        match app_src.push_buffer(buffer) {
-                            Err(err) => {
-                                eprintln!("Failed to push buffer: {:?}", err);
-                                break;
-                            }
-                            _ => {}
-                        }
-                    }
+                // Start the pipeline
+                if let Err(e) = pipeline.set_state(gst::State::Playing) {
+                    log::error!("Failed to set pipeline to Playing: {}", e);
+                    tokio::time::sleep(tokio::time::Duration::from_secs(5)).await;
+                    continue;
                 }
-            }
 
-            // When no more packets are available, send an EOS event.
-            if let Err(err) = app_src.end_of_stream() {
-                eprintln!("Failed to send EOS: {:?}", err);
+                // Monitor the bus
+                handle_gst_bus_messages(bus, pipeline.gstreamer_pipeline.clone().into()).await;
+
+                // If we are here, the pipeline has stopped or failed.
+                log::warn!("GStreamer pipeline stopped. Restarting in 1 second...");
+                audio_bridge.clear_app_src();
+                
+                // Ensure pipeline is stopped before restarting
+                let _ = pipeline.set_state(gst::State::Null);
+                
+                tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         });
     }
+
+
 }
 
 

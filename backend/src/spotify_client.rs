@@ -248,12 +248,6 @@ impl SpotifyClient {
                 .as_ref()
                 .map(|c| c.items.len())
                 .unwrap_or(0);
-            log::info!(
-                "Rootlist page fetched: {} top-level items, {} content items, next_offset={:?}",
-                rootlist.items.len(),
-                content_items,
-                rootlist.next_offset
-            );
             let mut returned_items = if !rootlist.items.is_empty() {
                 rootlist.items
             } else {
@@ -263,11 +257,6 @@ impl SpotifyClient {
                     .unwrap_or_else(Vec::new)
             };
             if returned_items.is_empty() {
-                let snippet = String::from_utf8_lossy(&response);
-                log::info!(
-                    "Rootlist response body (truncated to 500 chars): {}",
-                    &snippet[..snippet.len().min(500)]
-                );
             }
 
             for item in returned_items.drain(..) {
@@ -318,16 +307,7 @@ impl SpotifyClient {
             let snippet = String::from_utf8_lossy(&response);
             anyhow!("Failed to parse profile response: {e}; body_snippet={}", &snippet[..snippet.len().min(500)])
         })?;
-        log::info!(
-            "Profile playlists fetched: {} items",
-            profile.playlists.items.len()
-        );
         if profile.playlists.items.is_empty() {
-            let snippet = String::from_utf8_lossy(&response);
-            log::info!(
-                "Profile response body (truncated to 500 chars): {}",
-                &snippet[..snippet.len().min(500)]
-            );
         }
 
         let mut map = HashMap::new();
@@ -381,16 +361,11 @@ impl SpotifyClient {
         // Fallback to internal API if librespot metadata is missing cover
         if image.is_none() {
              if let Some(id) = uri.strip_prefix("spotify:playlist:") {
-                 log::info!("No cover in attributes for '{}', trying internal API", playlist.name());
                  image = self.fetch_playlist_via_api(id).await;
              }
         }
 
         if image.is_none() {
-            log::info!(
-                "No cover from API for '{}', trying OEmbed",
-                playlist.name()
-            );
             image = self.fetch_oembed_cover(uri).await;
             if image.is_none() {
                 log::warn!("Failed to find cover for '{}' via OEmbed", playlist.name());
@@ -445,13 +420,18 @@ impl SpotifyClient {
 
         // 4. Fallback: Try to get the first track's album art
         if let Some(items) = json.pointer("/contents/items").and_then(|v| v.as_array()) {
+            // DEBUG: Log JSON for Sleep Fantasy Forest
+            if playlist_id == "4jrxitD9zZ4C1VNB19ksLb" {
+                 let json_str = serde_json::to_string_pretty(&json).unwrap_or_default();
+                 log::info!("Sleep Fantasy Forest JSON: {}", &json_str[..json_str.len().min(5000)]);
+            }
+
             for item in items {
                 if let Some(uri) = item.get("uri").and_then(|v| v.as_str()) {
                     if uri.starts_with("spotify:track:") {
                         if let Ok(parsed_uri) = SpotifyUri::from_uri(uri) {
                             if let Ok(track) = Track::get(&self.session, &parsed_uri).await {
                                 if let Some(cover) = self.get_track_cover(&track) {
-                                    log::info!("Using first track cover for playlist {} (track: {})", playlist_id, track.name);
                                     return Some(cover);
                                 }
                             }
@@ -462,7 +442,6 @@ impl SpotifyClient {
         }
 
         let json_str = serde_json::to_string_pretty(&json).unwrap_or_default();
-        log::info!("No image found in API response for playlist {}. JSON: {}", playlist_id, &json_str[..json_str.len().min(2000)]);
         None
     }
 
