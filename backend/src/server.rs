@@ -59,6 +59,15 @@ impl CareChordsServer {
 
                     Self::push_audio_app_src(pipeline, app_src, receiver);
                     Self::watch_events(spotify_client.player_info_channel());
+                    
+                    // Trigger cache population
+                    log::info!("Populating playlist cache...");
+                    if let Err(e) = spotify_client.playlists().await {
+                        log::warn!("Failed to populate playlist cache: {}", e);
+                    } else {
+                        log::info!("Playlist cache populated");
+                    }
+
                     self.spotify = Authenticated(Arc::new(spotify_client));
                 }
                 Err(e) => {
