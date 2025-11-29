@@ -22,7 +22,7 @@ use std::fs::File;
 use std::io::BufReader;
 use std::collections::HashMap;
 use std::path::PathBuf;
-use std::sync::mpsc::sync_channel;
+use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Mutex;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::{watch, RwLock};
@@ -30,6 +30,7 @@ use std::sync::Arc;
 
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,
+    audio_sender: Option<SyncSender<SinkEvent>>,
 }
 
 pub struct SpotifyClient {
@@ -120,6 +121,14 @@ impl SpotifyClient {
     pub fn new() -> UnauthenticatedSpotifyClient {
         UnauthenticatedSpotifyClient {
             cache_folder: PathBuf::from("cache"),
+            audio_sender: None,
+        }
+    }
+
+    pub fn new_with_sender(sender: SyncSender<SinkEvent>) -> UnauthenticatedSpotifyClient {
+        UnauthenticatedSpotifyClient {
+            cache_folder: PathBuf::from("cache"),
+            audio_sender: Some(sender),
         }
     }
     /// This channel can push commands to the player
@@ -418,25 +427,36 @@ impl SpotifyClient {
             return normalize_image(Some(url.to_string()));
         }
 
-        // 4. Fallback: Try to get the first track's album art
+        // 4. Fallback: Try to get the first track's album art (or mosaic if possible)
         if let Some(items) = json.pointer("/contents/items").and_then(|v| v.as_array()) {
-            // DEBUG: Log JSON for Sleep Fantasy Forest
-            if playlist_id == "4jrxitD9zZ4C1VNB19ksLb" {
-                 let json_str = serde_json::to_string_pretty(&json).unwrap_or_default();
-                 log::info!("Sleep Fantasy Forest JSON: {}", &json_str[..json_str.len().min(5000)]);
-            }
+            let mut collected_hashes = Vec::new();
 
             for item in items {
+                if collected_hashes.len() >= 4 {
+                    break;
+                }
                 if let Some(uri) = item.get("uri").and_then(|v| v.as_str()) {
                     if uri.starts_with("spotify:track:") {
                         if let Ok(parsed_uri) = SpotifyUri::from_uri(uri) {
                             if let Ok(track) = Track::get(&self.session, &parsed_uri).await {
-                                if let Some(cover) = self.get_track_cover(&track) {
-                                    return Some(cover);
+                                if let Some(image) = track.album.covers.first() {
+                                    let hex = image.id.to_string();
+                                    if !collected_hashes.contains(&hex) {
+                                        collected_hashes.push(hex);
+                                    }
                                 }
                             }
                         }
                     }
+                }
+            }
+
+            if !collected_hashes.is_empty() {
+                if collected_hashes.len() == 4 {
+                    let mosaic = collected_hashes.join(":");
+                    return normalize_image(Some(format!("spotify:mosaic:{}", mosaic)));
+                } else {
+                    return normalize_image(Some(format!("spotify:image:{}", collected_hashes[0])));
                 }
             }
         }
@@ -588,11 +608,16 @@ impl UnauthenticatedSpotifyClient {
 
         let _ = session.connect(credentials, false).await?;
 
-        Ok(Self::from_authenticated_session(session))
+        Ok(Self::from_authenticated_session(session, self.audio_sender.clone()))
     }
 
-    fn from_authenticated_session(session: Session) -> SpotifyClient {
-        let (sender, receiver) = sync_channel::<SinkEvent>(10);
+    fn from_authenticated_session(session: Session, external_sender: Option<SyncSender<SinkEvent>>) -> SpotifyClient {
+        let (sender, receiver) = if let Some(s) = external_sender {
+            (s, None)
+        } else {
+            let (s, r) = sync_channel::<SinkEvent>(10);
+            (s, Some(r))
+        };
 
         let player = SpotifyPlayer::new(session.clone(), sender);
         let command_channel = player.command_channel();
@@ -603,7 +628,7 @@ impl UnauthenticatedSpotifyClient {
         });
 
         SpotifyClient {
-            audio_channel_receiver: Mutex::new(Some(receiver)),
+            audio_channel_receiver: Mutex::new(receiver),
             player_command_channel: command_channel,
             player_info_channel: info_channel,
             session,
