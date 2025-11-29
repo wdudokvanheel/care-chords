@@ -56,7 +56,7 @@ import AVKit
             pipController?.canStartPictureInPictureAutomaticallyFromInline = true
             print("PiP setup successful")
         } else {
-            print("PiP is not supported on this device")
+//            print("PiP is not supported on this device")
         }
     }
     

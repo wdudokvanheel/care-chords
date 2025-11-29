@@ -6,8 +6,8 @@ use crate::spotify_sink::SinkEvent;
 use crate::webserver::start_http_server;
 
 use gstreamer as gst;
-use gstreamer::prelude::*;
 use gstreamer::{ClockTime, Element, Pipeline};
+use gstreamer::prelude::{ElementExt, GstObjectExt, Cast};
 use gstreamer_app::AppSrc;
 use std::sync::mpsc::Receiver;
 use std::sync::Arc;

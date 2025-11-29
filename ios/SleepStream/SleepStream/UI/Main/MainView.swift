@@ -13,7 +13,7 @@ struct MainView: View {
                     NowPlayingView(controller: model.music)
                 }
                 Tab(title: "Playlists") {
-                    PlaylistSelectorView(spotify: model.spotify, playlistSelect: model.selectPlaylist)
+                    PlaylistSelectorView(playlists: model.playlists, playlistSelect: model.selectPlaylist)
                 }
             }
             .padding(0)

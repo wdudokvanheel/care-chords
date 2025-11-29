@@ -12,18 +12,18 @@ class ViewModel: ObservableObject {
     @Published var video: LiveStreamController = .init()
     @Published var nowPlaying: NowPlayingMediator
 
-    let spotify: SpotifyController
+    let playlists: PlaylistController
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(spotify: SpotifyController) {
+    init(playlists: PlaylistController) {
         let music = MusicController()
         let audio = AudioOutputController()
         let gstreamer = GStreamerController()
         let osMediaPlayer = OsMediaPlayerController()
         let nowPlaying = NowPlayingMediator(audioOutput: audio, gstreamer: gstreamer, musicController: music, osMediaPlayer: osMediaPlayer)
 
-        self.spotify = spotify
+        self.playlists = playlists
         self.music = music
         self.audioOutput = audio
         self.gstreamer = gstreamer
@@ -83,6 +83,7 @@ class ViewModel: ObservableObject {
 
     func onAppear() {
         audioOutput.startMonitoringAudioRoute()
+        playlists.loadPlaylists()
     }
 
     func onDisappear() {

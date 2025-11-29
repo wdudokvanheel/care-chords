@@ -22,6 +22,10 @@ enum HTTPMethod: String {
 }
 
 class NetworkService {
+    static func get(_ url: String) -> AnyPublisher<Data, URLError> {
+        sendRequest(with: Optional<EmptyBody>.none, to: url, method: .GET)
+    }
+
     static func sendRequest<T: Encodable>(
         with object: T?,
         to url: String,

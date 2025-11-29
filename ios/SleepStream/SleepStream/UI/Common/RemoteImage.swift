@@ -6,25 +6,29 @@ struct RemoteImageView: View {
     var body: some View {
         ZStack {
             Rectangle()
-                .aspectRatio(1.0, contentMode: .fit)
-                .foregroundColor(.gray.opacity(0.3))
+                .foregroundColor(.gray.opacity(0.15))
+                .aspectRatio(1, contentMode: .fit)
             AsyncImage(url: imageUrl) { phase in
                 switch phase {
                 case .empty:
                     ProgressView()
+                        .frame(maxWidth: .infinity, maxHeight: .infinity)
                 case .success(let image):
                     image
                         .resizable()
-                        .scaledToFit()
+                        .scaledToFill()
+                        .clipped()
                 case .failure:
                     Image(systemName: "photo")
                         .resizable()
                         .scaledToFit()
                         .foregroundColor(.gray)
+                        .padding(12)
                 @unknown default:
                     EmptyView()
                 }
             }
+            .aspectRatio(1, contentMode: .fit)
         }
     }
 }
