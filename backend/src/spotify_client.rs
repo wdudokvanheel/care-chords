@@ -13,6 +13,7 @@ use librespot_discovery::Discovery;
 use librespot_core::SpotifyId;
 use librespot_core::SpotifyUri;
 use librespot_metadata::{Metadata, Playlist};
+use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use std::fs::File;
@@ -41,6 +42,8 @@ pub struct PlaylistSummary {
     pub name: String,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub image_uri: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub folder: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -86,6 +89,8 @@ struct UserProfilePlaylistItem {
     images: Vec<UserProfileImage>,
     #[serde(default)]
     image_url: Option<String>,
+    #[serde(default)]
+    folder: Option<String>,
 }
 
 #[derive(Debug, Deserialize)]
@@ -126,13 +131,19 @@ impl SpotifyClient {
         // First try to collect from the profile API (gives names/images for public playlists).
         let mut by_uri = self.fetch_profile_playlist_map().await.unwrap_or_default();
 
-        // Then augment with the rootlist (may include private playlists); fetch names via metadata when missing.
-        if let Ok(root_uris) = self.fetch_rootlist_uris().await {
-            for uri in root_uris {
-                if by_uri.contains_key(&uri) {
+        // Then augment with the rootlist (may include private playlists or folder grouping).
+        if let Ok(root_entries) = self.fetch_rootlist_entries().await {
+            for (uri, folder) in root_entries {
+                if let Some(existing) = by_uri.get_mut(&uri) {
+                    if existing.folder.is_none() {
+                        existing.folder = folder.clone();
+                    }
                     continue;
                 }
-                if let Some(meta) = self.fetch_playlist_metadata(&uri).await {
+                if let Some(mut meta) = self.fetch_playlist_metadata(&uri).await {
+                    if meta.folder.is_none() {
+                        meta.folder = folder.clone();
+                    }
                     by_uri.insert(uri.clone(), meta);
                 } else {
                     log::warn!("Failed to fetch metadata for playlist uri={uri}; skipping");
@@ -145,11 +156,12 @@ impl SpotifyClient {
         Ok(playlists)
     }
 
-    async fn fetch_rootlist_uris(&self) -> Result<Vec<String>> {
-        let mut uris = Vec::new();
+    async fn fetch_rootlist_entries(&self) -> Result<Vec<(String, Option<String>)>> {
+        let mut entries = Vec::new();
         let mut offset = 0;
         let limit = 200;
         let username = self.session.username();
+        let mut folder_stack: Vec<(String, String)> = Vec::new(); // (group_id, name)
 
         loop {
             let endpoint = format!(
@@ -180,7 +192,7 @@ impl SpotifyClient {
                 content_items,
                 rootlist.next_offset
             );
-            let returned_items = if !rootlist.items.is_empty() {
+            let mut returned_items = if !rootlist.items.is_empty() {
                 rootlist.items
             } else {
                 rootlist
@@ -196,7 +208,25 @@ impl SpotifyClient {
                 );
             }
 
-            uris.extend(returned_items.into_iter().map(|item| item.uri));
+            for item in returned_items.drain(..) {
+                if let Some((group_id, name)) = parse_start_group(&item.uri) {
+                    folder_stack.push((group_id, name));
+                    continue;
+                }
+                if let Some(end_id) = parse_end_group(&item.uri) {
+                    if let Some(pos) = folder_stack.iter().rposition(|(id, _)| id == &end_id) {
+                        folder_stack.truncate(pos);
+                    } else {
+                        folder_stack.pop();
+                    }
+                    continue;
+                }
+
+                let folder = folder_stack
+                    .last()
+                    .map(|(_, name)| name.clone());
+                entries.push((item.uri, folder));
+            }
 
             match rootlist.next_offset {
                 Some(next) if has_items => offset = next,
@@ -204,7 +234,7 @@ impl SpotifyClient {
             }
         }
 
-        Ok(uris)
+        Ok(entries)
     }
 
     async fn fetch_profile_playlist_map(&self) -> Result<HashMap<String, PlaylistSummary>> {
@@ -246,6 +276,7 @@ impl SpotifyClient {
                     uri: item.uri,
                     name: item.name,
                     image_uri: item.images.get(0).and_then(|img| img.url.clone()).or(item.image_url),
+                    folder: item.folder.clone(),
                 },
             );
         }
@@ -254,6 +285,7 @@ impl SpotifyClient {
                 uri: item.uri,
                 name: item.name,
                 image_uri: item.image_url,
+                folder: None,
             });
         }
 
@@ -268,8 +300,38 @@ impl SpotifyClient {
             uri: uri.to_string(),
             name: playlist.name().to_string(),
             image_uri: None,
+            folder: None,
         })
     }
+}
+
+fn parse_start_group(uri: &str) -> Option<(String, String)> {
+    let prefix = "spotify:start-group:";
+    if !uri.starts_with(prefix) {
+        return None;
+    }
+    let rest = uri.trim_start_matches(prefix);
+    let mut parts = rest.splitn(2, ':');
+    let id = parts.next()?.to_string();
+    let raw_name = parts.next().unwrap_or_default();
+    let decoded = decode_group_name(raw_name);
+    Some((id, decoded))
+}
+
+fn parse_end_group(uri: &str) -> Option<String> {
+    let prefix = "spotify:end-group:";
+    if !uri.starts_with(prefix) {
+        return None;
+    }
+    Some(uri.trim_start_matches(prefix).to_string())
+}
+
+fn decode_group_name(raw: &str) -> String {
+    let with_spaces = raw.replace('+', " ");
+    percent_decode_str(&with_spaces)
+        .decode_utf8()
+        .map(|s| s.to_string())
+        .unwrap_or(with_spaces)
 }
 
 impl UnauthenticatedSpotifyClient {
