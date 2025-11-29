@@ -8,6 +8,9 @@
 
 /* Begin PBXBuildFile section */
 		2B0877E72EDB874000C87EDE /* PlaylistController.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0877E62EDB874000C87EDE /* PlaylistController.swift */; };
+		2B0877E92EDB958900C87EDE /* ServerConfig.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0877E82EDB958900C87EDE /* ServerConfig.swift */; };
+		2B0877EB2EDB959F00C87EDE /* SettingsView.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0877EA2EDB959F00C87EDE /* SettingsView.swift */; };
+		2B0877ED2EDB95A600C87EDE /* SettingsButton.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0877EC2EDB95A600C87EDE /* SettingsButton.swift */; };
 		2B0AE66B2CDFBD420073A036 /* NetworkService.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66A2CDFBD420073A036 /* NetworkService.swift */; };
 		2B0AE66E2CDFBDBB0073A036 /* ViewModel.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE66D2CDFBDBB0073A036 /* ViewModel.swift */; };
 		2B0AE6712CE0B2F20073A036 /* AudioState.swift in Sources */ = {isa = PBXBuildFile; fileRef = 2B0AE6702CE0B2F20073A036 /* AudioState.swift */; };
@@ -50,6 +53,9 @@
 
 /* Begin PBXFileReference section */
 		2B0877E62EDB874000C87EDE /* PlaylistController.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = PlaylistController.swift; sourceTree = "<group>"; };
+		2B0877E82EDB958900C87EDE /* ServerConfig.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ServerConfig.swift; sourceTree = "<group>"; };
+		2B0877EA2EDB959F00C87EDE /* SettingsView.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsView.swift; sourceTree = "<group>"; };
+		2B0877EC2EDB95A600C87EDE /* SettingsButton.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SettingsButton.swift; sourceTree = "<group>"; };
 		2B0AE66A2CDFBD420073A036 /* NetworkService.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = NetworkService.swift; sourceTree = "<group>"; };
 		2B0AE66D2CDFBDBB0073A036 /* ViewModel.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = ViewModel.swift; sourceTree = "<group>"; };
 		2B0AE6702CE0B2F20073A036 /* AudioState.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = AudioState.swift; sourceTree = "<group>"; };
@@ -155,6 +161,8 @@
 				2B1D17832CE74333001B6147 /* AudioOutputIcon.swift */,
 				2B1D17852CE754B8001B6147 /* MuteButton.swift */,
 				2B86D4D02CF3837D00E79918 /* ShuffleButton.swift */,
+				2B0877EC2EDB95A600C87EDE /* SettingsButton.swift */,
+				2B0877EA2EDB959F00C87EDE /* SettingsView.swift */,
 				2B1D17752CE63347001B6147 /* SleepTimerButton.swift */,
 			);
 			path = Components;
@@ -189,6 +197,7 @@
 		2B35E86B2CE362F5000FC2D5 /* Controllers */ = {
 			isa = PBXGroup;
 			children = (
+				2B0877E82EDB958900C87EDE /* ServerConfig.swift */,
 				2B3BDCEF2D90599A00E38C36 /* NowPlayingMediator.swift */,
 				2B3BDCED2D90523B00E38C36 /* OsMediaPlayerController.swift */,
 				2BF07A9F2CDA6C2C007D56F7 /* AudioOutputController.swift */,
@@ -331,6 +340,7 @@
 				2BB24D002CE8CAD800786E1C /* RoundedCornerRectangle.swift in Sources */,
 				2B3BDCEE2D90523B00E38C36 /* OsMediaPlayerController.swift in Sources */,
 				2B7020882ED63EB50002AD8E /* GStreamerBackend.m in Sources */,
+				2B0877EB2EDB959F00C87EDE /* SettingsView.swift in Sources */,
 				2B1D17782CE63378001B6147 /* MusicControlsView.swift in Sources */,
 				2BF07AA02CDA6C2C007D56F7 /* AudioOutputController.swift in Sources */,
 				2B35E86D2CE363B5000FC2D5 /* GStreamerController.swift in Sources */,
@@ -347,12 +357,14 @@
 				2B49A9212CDA2B1300734789 /* gst_ios_init.m in Sources */,
 				2BDAEF712CE7616C0075CC11 /* ClearBackground.swift in Sources */,
 				2B1D17812CE634CC001B6147 /* Color.swift in Sources */,
+				2B0877E92EDB958900C87EDE /* ServerConfig.swift in Sources */,
 				2B49A9072CDA2A3100734789 /* SleepStreamApp.swift in Sources */,
 				2B0AE6742CE0B9380073A036 /* MusicController.swift in Sources */,
 				2B1D177D2CE6341A001B6147 /* PlaylistView.swift in Sources */,
 				2BF07A9E2CDA6B46007D56F7 /* MainView.swift in Sources */,
 				2B1D17862CE754B8001B6147 /* MuteButton.swift in Sources */,
 				2B0877E72EDB874000C87EDE /* PlaylistController.swift in Sources */,
+				2B0877ED2EDB95A600C87EDE /* SettingsButton.swift in Sources */,
 				2BF07A982CDA4986007D56F7 /* UIViewWrapper.swift in Sources */,
 				2BF07A9C2CDA6AA0007D56F7 /* GStreamerAudioBackend.m in Sources */,
 				2B70208B2ED646E20002AD8E /* VideoDisplayView.swift in Sources */,
@@ -492,7 +504,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = L23NTUN6KV;
 				ENABLE_PREVIEWS = YES;
@@ -515,7 +527,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				OTHER_LDFLAGS = (
 					"-lresolv",
 					"-lc++",
@@ -567,7 +579,7 @@
 				ASSETCATALOG_COMPILER_GLOBAL_ACCENT_COLOR_NAME = AccentColor;
 				CLANG_ENABLE_MODULES = YES;
 				CODE_SIGN_STYLE = Automatic;
-				CURRENT_PROJECT_VERSION = 2;
+				CURRENT_PROJECT_VERSION = 1;
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = L23NTUN6KV;
 				ENABLE_ONLY_ACTIVE_RESOURCES = YES;
@@ -591,7 +603,7 @@
 					"@executable_path/Frameworks",
 				);
 				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
-				MARKETING_VERSION = 1.5.0;
+				MARKETING_VERSION = 1.5.1;
 				OTHER_LDFLAGS = (
 					"-lresolv",
 					"-lc++",

@@ -18,6 +18,10 @@ struct MusicControlsView: View {
                     Spacer()
                 }
                 Spacer()
+                VStack {
+                    SettingsButton()
+                    Spacer()
+                }
             }
             .frame(height: 65)
 

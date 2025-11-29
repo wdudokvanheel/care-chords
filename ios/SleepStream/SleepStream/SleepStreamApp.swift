@@ -3,8 +3,6 @@ import MediaPlayer
 
 @main
 struct SleepStreamApp: App {
-    public static let SERVER = "10.0.0.20"
-    
     var audioViewModel: ViewModel
 
     init() {

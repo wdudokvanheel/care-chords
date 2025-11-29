@@ -12,7 +12,7 @@ class GStreamerController: GStreamerAudioBackendDelegate, ObservableObject {
     private var gstBackend: GStreamerAudioBackend?
 
     init() {
-        self.gstBackend = GStreamerAudioBackend(self, serverAddress: SleepStreamApp.SERVER)
+        self.gstBackend = GStreamerAudioBackend(self, serverAddress: ServerConfig.shared.getURL())
     }
 
     func pause() {

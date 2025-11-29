@@ -64,7 +64,8 @@ class MusicController: NSObject, ObservableObject {
      }
 
      private func startStatusStream() {
-         guard let url = URL(string: "http://\(SleepStreamApp.SERVER):7755/status_stream") else { return }
+         let serverURL = ServerConfig.shared.getURL()
+         guard let url = URL(string: "http://\(serverURL):7755/status_stream") else { return }
          var request = URLRequest(url: url)
          request.addValue("text/event-stream", forHTTPHeaderField: "Accept")
          sseSession = URLSession(configuration: .default, delegate: self, delegateQueue: sseDelegateQueue)
@@ -96,7 +97,8 @@ class MusicController: NSObject, ObservableObject {
     }
 
     func setShuffle(_ shuffle: Bool) {
-        let url = "http://\(SleepStreamApp.SERVER):7755/shuffle"
+        let serverURL = ServerConfig.shared.getURL()
+        let url = "http://\(serverURL):7755/shuffle"
         let request = ShuffleRequestDto(shuffle: shuffle)
 
         NetworkService.sendRequest(with: request, to: url, method: .POST)
@@ -112,7 +114,8 @@ class MusicController: NSObject, ObservableObject {
     }
 
     func startSleepTimer(_ seconds: Int) {
-        let url = "http://\(SleepStreamApp.SERVER):7755/sleep"
+        let serverURL = ServerConfig.shared.getURL()
+        let url = "http://\(serverURL):7755/sleep"
         let request = SleepTimerRequestDto(timer: seconds)
 
         NetworkService.sendRequest(with: request, to: url, method: .POST)
@@ -128,7 +131,8 @@ class MusicController: NSObject, ObservableObject {
     }
 
     private func controlPlayer(_ action: String) {
-        let url = "http://\(SleepStreamApp.SERVER):7755/\(action)"
+        let serverURL = ServerConfig.shared.getURL()
+        let url = "http://\(serverURL):7755/\(action)"
         let request = ActionRequestDto(action: action)
 
         NetworkService.sendRequest(with: request, to: url, method: .POST)

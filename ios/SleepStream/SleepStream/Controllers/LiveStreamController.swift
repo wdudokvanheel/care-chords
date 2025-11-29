@@ -102,7 +102,8 @@ struct MonitorResponse: Codable {
     }
     
     private func fetchMonitorUrl(completion: @escaping (String?) -> Void) {
-        let url = URL(string: "http://\(SleepStreamApp.SERVER):7755/monitor")!
+        let serverURL = ServerConfig.shared.getURL()
+        let url = URL(string: "http://\(serverURL):7755/monitor")!
         URLSession.shared.dataTaskPublisher(for: url)
             .map { $0.data }
             .decode(type: MonitorResponse.self, decoder: JSONDecoder())

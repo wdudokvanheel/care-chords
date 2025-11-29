@@ -15,7 +15,8 @@ final class PlaylistController: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        let url = "http://\(SleepStreamApp.SERVER):7755/playlists"
+        let serverURL = ServerConfig.shared.getURL()
+        let url = "http://\(serverURL):7755/playlists"
         NetworkService.get(url)
             .decode(type: [BackendPlaylist].self, decoder: backendDecoder)
             .map { backend in

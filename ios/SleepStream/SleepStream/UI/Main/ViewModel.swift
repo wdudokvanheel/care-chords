@@ -68,7 +68,8 @@ class ViewModel: ObservableObject {
 
     func selectPlaylist(playlist: Playlist) {
         let request = PlaybackRequestDto(uri: playlist.uri)
-        NetworkService.sendRequest(with: request, to: "http://\(SleepStreamApp.SERVER):7755/playlist", method: .POST).sink(receiveCompletion: { completion in
+        let serverURL = ServerConfig.shared.getURL()
+        NetworkService.sendRequest(with: request, to: "http://\(serverURL):7755/playlist", method: .POST).sink(receiveCompletion: { completion in
             switch completion {
             case .failure(let error):
                 print("Error: \(error.localizedDescription)")
