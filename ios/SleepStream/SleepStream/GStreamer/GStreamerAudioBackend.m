@@ -21,15 +21,18 @@
     GstElement *converter;
     GstElement *sampler;
     GstElement *audio_sink;
+    
+    NSString *serverAddress;
 }
 
 /*
  * Interface methods
  */
 
--(id) init:(id) uiDelegate
+-(id) init:(id) uiDelegate serverAddress:(NSString *)address
 {
     if (self = [super init:uiDelegate]) {
+        self->serverAddress = address;
         [[NSNotificationCenter defaultCenter] addObserver:self
                                                  selector:@selector(handleInterruption:)
                                                      name:AVAudioSessionInterruptionNotification
@@ -165,7 +168,9 @@ static void on_pad_added(GstElement *src, GstPad *new_pad, GStreamerAudioBackend
     }
 
     /* Set element properties */
-    g_object_set(self->rtspsrc, "location", "rtsp://10.0.0.12:7554/sleep", NULL);
+    /* Set element properties */
+    NSString *uri = [NSString stringWithFormat:@"rtsp://%@:8554/sleep", self->serverAddress];
+    g_object_set(self->rtspsrc, "location", [uri UTF8String], NULL);
     g_object_set(self->rtspsrc, "protocols", GST_RTSP_LOWER_TRANS_TCP, NULL);
 
     /* Add elements to the pipeline */
