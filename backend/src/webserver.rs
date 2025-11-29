@@ -35,6 +35,10 @@ fn create_routes(
 ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
     let command_channel = spotify.player_command_channel();
     let info_channel = spotify.player_info_channel();
+    let spotify_filter = {
+        let spotify = spotify.clone();
+        warp::any().map(move || spotify.clone())
+    };
 
     let command_filter = warp::any().map(move || command_channel.clone());
     let info_filter = warp::any().map(move || info_channel.clone());
@@ -44,6 +48,11 @@ fn create_routes(
         .and(warp::body::json::<PlaylistRequest>())
         .and(command_filter.clone())
         .and_then(handle_playlist);
+
+    let playlists_route = warp::path("playlists")
+        .and(warp::get())
+        .and(spotify_filter.clone())
+        .and_then(handle_playlists);
 
     let play_route = warp::path("play")
         .and(warp::post())
@@ -116,6 +125,7 @@ fn create_routes(
         });
 
     playlist_route
+        .or(playlists_route)
         .or(play_route)
         .or(pause_route)
         .or(next_route)
@@ -132,6 +142,26 @@ async fn handle_status(
     let info = info_channel.borrow().clone(); // Get the latest player info
 
     Ok(warp::reply::json(&info))
+}
+
+async fn handle_playlists(spotify: Arc<SpotifyClient>) -> Result<impl Reply, Rejection> {
+    match spotify.playlists().await {
+        Ok(playlists) => Ok(warp::reply::with_status(
+            warp::reply::json(&playlists),
+            StatusCode::OK,
+        )
+        .into_response()),
+        Err(e) => {
+            log::error!("Failed to fetch playlists: {}", e);
+            Ok(warp::reply::with_status(
+                warp::reply::json(&serde_json::json!({
+                    "error": "failed to load playlists"
+                })),
+                StatusCode::INTERNAL_SERVER_ERROR,
+            )
+            .into_response())
+        }
+    }
 }
 
 async fn handle_playlist(
