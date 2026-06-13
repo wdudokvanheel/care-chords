@@ -75,7 +75,7 @@
 		2B49A9032CDA2A3100734789 /* Care Chords.app */ = {isa = PBXFileReference; explicitFileType = wrapper.application; includeInIndex = 0; path = "Care Chords.app"; sourceTree = BUILT_PRODUCTS_DIR; };
 		2B49A9062CDA2A3100734789 /* SleepStreamApp.swift */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.swift; path = SleepStreamApp.swift; sourceTree = "<group>"; };
 		2B49A90A2CDA2A3300734789 /* Assets.xcassets */ = {isa = PBXFileReference; lastKnownFileType = folder.assetcatalog; path = Assets.xcassets; sourceTree = "<group>"; };
-		2B49A9152CDA2A8500734789 /* GStreamer.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GStreamer.xcframework; path = ../../../../Library/Developer/GStreamer/iPhone.sdk/GStreamer.xcframework; sourceTree = "<group>"; };
+		2B49A9152CDA2A8500734789 /* GStreamer.xcframework */ = {isa = PBXFileReference; lastKnownFileType = wrapper.xcframework; name = GStreamer.xcframework; path = /Volumes/ext/Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.xcframework; sourceTree = "<absolute>"; };
 		2B49A91A2CDA2AA600734789 /* libiconv.2.tbd */ = {isa = PBXFileReference; lastKnownFileType = "sourcecode.text-based-dylib-definition"; name = libiconv.2.tbd; path = usr/lib/libiconv.2.tbd; sourceTree = SDKROOT; };
 		2B49A91E2CDA2B1200734789 /* SleepStream-Bridging-Header.h */ = {isa = PBXFileReference; lastKnownFileType = sourcecode.c.h; path = "SleepStream-Bridging-Header.h"; sourceTree = "<group>"; };
 		2B49A91F2CDA2B1300734789 /* gst_ios_init.m */ = {isa = PBXFileReference; fileEncoding = 4; lastKnownFileType = sourcecode.c.objc; path = gst_ios_init.m; sourceTree = "<group>"; };
