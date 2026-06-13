@@ -508,13 +508,14 @@
 				DEVELOPMENT_ASSET_PATHS = "";
 				DEVELOPMENT_TEAM = L23NTUN6KV;
 				ENABLE_PREVIEWS = YES;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",
-					/Users/wesley/Library/Developer/GStreamer/iPhone.sdk/,
+					"$(HOME)/Library/Developer/GStreamer/iPhone.sdk/",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers;
+				HEADER_SEARCH_PATHS = "$(HOME)/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers";
 				INFOPLIST_FILE = SleepStream/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Care Chords";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -526,7 +527,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
+				LIBRARY_SEARCH_PATHS = "$(HOME)/Library/Developer/GStreamer/iPhone.sdk";
 				MARKETING_VERSION = 1.5.1;
 				OTHER_LDFLAGS = (
 					"-lresolv",
@@ -584,13 +585,14 @@
 				DEVELOPMENT_TEAM = L23NTUN6KV;
 				ENABLE_ONLY_ACTIVE_RESOURCES = YES;
 				ENABLE_PREVIEWS = YES;
+				"EXCLUDED_ARCHS[sdk=iphonesimulator*]" = arm64;
 				FRAMEWORK_SEARCH_PATHS = (
 					"$(inherited)",
 					"$(PROJECT_DIR)",
-					/Users/wesley/Library/Developer/GStreamer/iPhone.sdk/,
+					"$(HOME)/Library/Developer/GStreamer/iPhone.sdk/",
 				);
 				GENERATE_INFOPLIST_FILE = YES;
-				HEADER_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers;
+				HEADER_SEARCH_PATHS = "$(HOME)/Library/Developer/GStreamer/iPhone.sdk/GStreamer.framework/Headers";
 				INFOPLIST_FILE = SleepStream/Info.plist;
 				INFOPLIST_KEY_CFBundleDisplayName = "Care Chords";
 				INFOPLIST_KEY_UIApplicationSceneManifest_Generation = YES;
@@ -602,7 +604,7 @@
 					"$(inherited)",
 					"@executable_path/Frameworks",
 				);
-				LIBRARY_SEARCH_PATHS = /Users/wesley/Library/Developer/GStreamer/iPhone.sdk;
+				LIBRARY_SEARCH_PATHS = "$(HOME)/Library/Developer/GStreamer/iPhone.sdk";
 				MARKETING_VERSION = 1.5.1;
 				OTHER_LDFLAGS = (
 					"-lresolv",
