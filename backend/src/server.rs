@@ -1,21 +1,21 @@
-use crate::pipeline::audio_bridge::AudioBridge;
 use crate::pipeline::AudioPipeline;
+use crate::pipeline::audio_bridge::AudioBridge;
 use crate::server::SpotifyState::Authenticated;
 use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
 use crate::spotify_player::SpotifyPlayerInfo;
 use crate::spotify_sink::SinkEvent;
 use crate::webserver::start_http_server;
 
+use crate::app_settings::ApplicationSettings;
 use gstreamer as gst;
-use gstreamer::{ClockTime, Element, Pipeline};
-use gstreamer::prelude::{ElementExt, GstObjectExt, Cast};
+use gstreamer::prelude::{Cast, ElementExt, GstObjectExt};
+use gstreamer::{ClockTime, Element};
 use gstreamer_app::AppSrc;
-use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
+use std::sync::mpsc::{SyncSender, sync_channel};
 use tokio;
 use tokio::sync::watch;
 use tokio::task;
-use crate::app_settings::ApplicationSettings;
 
 pub enum SpotifyState {
     Unauthenticated(Arc<UnauthenticatedSpotifyClient>),
@@ -52,9 +52,7 @@ impl CareChordsServer {
         self.start_spotify().await;
 
         if let Authenticated(spot) = &self.spotify {
-        if let Authenticated(spot) = &self.spotify {
             start_http_server(spot.clone(), self.monitor_url.clone());
-        }
         }
     }
 
@@ -64,11 +62,11 @@ impl CareChordsServer {
                 .try_cache_authentication_with_discovery_fallback()
                 .await
             {
-                Ok(mut spotify_client) => {
+                Ok(spotify_client) => {
                     log::info!("Authenticated with Spotify");
 
                     Self::watch_events(spotify_client.player_info_channel());
-                    
+
                     // Trigger cache population
                     log::info!("Populating playlist cache...");
                     if let Err(e) = spotify_client.playlists().await {
@@ -130,18 +128,15 @@ impl CareChordsServer {
                 // If we are here, the pipeline has stopped or failed.
                 log::warn!("GStreamer pipeline stopped. Restarting in 1 second...");
                 audio_bridge.clear_app_src();
-                
+
                 // Ensure pipeline is stopped before restarting
                 let _ = pipeline.set_state(gst::State::Null);
-                
+
                 tokio::time::sleep(tokio::time::Duration::from_secs(1)).await;
             }
         });
     }
-
-
 }
-
 
 async fn handle_gst_bus_messages(bus: gst::Bus, pipeline: Element) {
     for msg in bus.iter_timed(ClockTime::NONE) {
