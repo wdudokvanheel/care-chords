@@ -3,8 +3,8 @@
 #import <UIKit/UIKit.h>
 #import <AVFoundation/AVFoundation.h>
 
-#import <GStreamer/gst/gst.h>
-#import <GStreamer/gst/rtsp/rtsp.h>
+#import <gst/gst.h>
+#import <gst/rtsp/rtsp.h>
 #import "SleepStream-Bridging-Header.h"
 #import "Care_Chords-Swift.h"
 

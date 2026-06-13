@@ -1,7 +1,7 @@
 #ifndef __GST_IOS_INIT_H__
 #define __GST_IOS_INIT_H__
 
-#include <GStreamer/gst/gst.h>
+#include <gst/gst.h>
 
 G_BEGIN_DECLS
 

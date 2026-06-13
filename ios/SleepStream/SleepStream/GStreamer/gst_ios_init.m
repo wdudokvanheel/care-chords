@@ -2,6 +2,44 @@
 
 #include <gio/gio.h>
 #include <Foundation/Foundation.h>
+#include <TargetConditionals.h>
+#include <errno.h>
+#include <fcntl.h>
+#include <unistd.h>
+
+#if TARGET_OS_SIMULATOR
+int pipe2(int pipefd[2], int flags)
+{
+    int supportedFlags = O_CLOEXEC | O_NONBLOCK;
+    if ((flags & ~supportedFlags) != 0) {
+        errno = EINVAL;
+        return -1;
+    }
+
+    if (pipe(pipefd) != 0) {
+        return -1;
+    }
+
+    for (int i = 0; i < 2; i++) {
+        if ((flags & O_CLOEXEC) != 0 && fcntl(pipefd[i], F_SETFD, FD_CLOEXEC) == -1) {
+            close(pipefd[0]);
+            close(pipefd[1]);
+            return -1;
+        }
+
+        if ((flags & O_NONBLOCK) != 0) {
+            int currentFlags = fcntl(pipefd[i], F_GETFL, 0);
+            if (currentFlags == -1 || fcntl(pipefd[i], F_SETFL, currentFlags | O_NONBLOCK) == -1) {
+                close(pipefd[0]);
+                close(pipefd[1]);
+                return -1;
+            }
+        }
+    }
+
+    return 0;
+}
+#endif
 
 #if defined(GST_IOS_PLUGIN_COREELEMENTS) || defined(GST_IOS_PLUGINS_CORE)
 GST_PLUGIN_STATIC_DECLARE(coreelements);

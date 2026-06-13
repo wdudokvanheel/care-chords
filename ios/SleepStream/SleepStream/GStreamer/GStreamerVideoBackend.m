@@ -4,10 +4,10 @@
 #import <CoreMedia/CoreMedia.h>
 #import <VideoToolbox/VideoToolbox.h>
 
-#import <GStreamer/gst/gst.h>
-#import <GStreamer/gst/video/video.h>
-#import <GStreamer/gst/rtsp/rtsp.h>
-#import <GStreamer/gst/app/gstappsink.h>
+#import <gst/gst.h>
+#import <gst/video/video.h>
+#import <gst/rtsp/rtsp.h>
+#import <gst/app/gstappsink.h>
 #import "SleepStream-Bridging-Header.h"
 #import "Care_Chords-Swift.h"
 

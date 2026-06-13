@@ -4,7 +4,7 @@
 #include <stdio.h>
 #include <Foundation/Foundation.h>
 #import <UIKit/UIKit.h>
-#import <GStreamer/gst/gst.h>
+#import <gst/gst.h>
 
 @protocol GStreamerBackendDelegate;
 
