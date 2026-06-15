@@ -1,6 +1,28 @@
-FROM fedora:41
+# ---- Builder stage ----
+# Build inside Fedora 41 so the resulting binary's glibc/GStreamer linkage
+# matches the runtime image below.
+FROM fedora:41 AS builder
 
-ARG BINARY_PATH=target/release/carechords
+RUN dnf install -y \
+    gcc gcc-c++ make cmake perl pkgconf-pkg-config \
+    openssl-devel \
+    alsa-lib-devel \
+    gstreamer1-devel \
+    gstreamer1-plugins-base-devel \
+    gstreamer1-rtsp-server-devel && \
+    dnf clean all
+
+# Current stable Rust (the crate uses edition 2024, which needs >= 1.85).
+RUN curl https://sh.rustup.rs -sSf | sh -s -- -y --default-toolchain stable --profile minimal
+ENV PATH="/root/.cargo/bin:${PATH}"
+
+WORKDIR /build
+COPY Cargo.toml Cargo.lock ./
+COPY src ./src
+RUN cargo build --release
+
+# ---- Runtime stage ----
+FROM fedora:41
 
 # Install GStreamer (1.24) and plugin packages required to run carechords
 RUN dnf install -y \
@@ -14,7 +36,7 @@ RUN dnf install -y \
     gstreamer1-plugins-ugly-free && \
     dnf clean all
 
-COPY ${BINARY_PATH} /usr/local/bin/carechords
+COPY --from=builder /build/target/release/carechords /usr/local/bin/carechords
 
 RUN chmod +x /usr/local/bin/carechords
 
