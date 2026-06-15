@@ -526,13 +526,13 @@ where
     F: FnMut() -> Fut,
     Fut: std::future::Future<Output = Result<T, librespot_core::Error>>,
 {
-    const MAX_ATTEMPTS: u32 = 6;
+    const MAX_ATTEMPTS: u32 = 12;
     let mut attempt = 0;
     loop {
         match f().await {
             Ok(v) => return Ok(v),
             Err(e) if e.kind == ErrorKind::ResourceExhausted && attempt < MAX_ATTEMPTS => {
-                let backoff = Duration::from_millis((200u64 << attempt).min(5000));
+                let backoff = Duration::from_millis((200u64 << attempt.min(5)).min(5000));
                 log::warn!(
                     "{label} rate limited (attempt {}); retrying in {:?}",
                     attempt + 1,
