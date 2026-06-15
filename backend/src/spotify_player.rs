@@ -1,5 +1,6 @@
 use crate::spotify_sink::{ChannelSink, SinkEvent};
-use librespot_core::{Session, SpotifyUri};
+use librespot_core::cache::Cache;
+use librespot_core::{Session, SessionConfig, SpotifyUri};
 use librespot_metadata::artist::ArtistRole;
 use librespot_metadata::audio::UniqueFields;
 use librespot_metadata::{Metadata, Playlist, Track};
@@ -62,6 +63,8 @@ pub struct SpotifyPlayer {
     current_song: Option<MusicMetadata>,
     volume: Arc<PlaybackVolume>,
     sleep_timer: Arc<SleepTimer>,
+    audio_sender: SyncSender<SinkEvent>,
+    failed_skips: usize,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -117,29 +120,10 @@ impl VolumeGetter for ArcVolumeWrapper {
 impl SpotifyPlayer {
     pub fn new(session: Session, audio_sender: SyncSender<SinkEvent>) -> Self {
         let (sender, receiver) = channel::<PlayerCommand>(3);
-        let sink = || Box::new(ChannelSink::new(audio_sender)) as Box<dyn Sink>;
-        let player_config = PlayerConfig {
-            bitrate: Default::default(),
-            gapless: true,
-            passthrough: true,
-            normalisation: false,
-            normalisation_type: Default::default(),
-            normalisation_method: Default::default(),
-            normalisation_pregain_db: 0.0,
-            normalisation_threshold_dbfs: 0.0,
-            normalisation_attack_cf: 0.0,
-            normalisation_release_cf: 0.0,
-            normalisation_knee_db: 0.0,
-            local_file_directories: Vec::new(),
-            ditherer: None,
-            position_update_interval: None,
-        };
         let volume = Arc::new(PlaybackVolume::new(0.1));
         let volume_clone = volume.clone();
-        let volume_getter =
-            Box::new(ArcVolumeWrapper::new(volume.clone())) as Box<dyn VolumeGetter + Send>;
 
-        let player = Player::new(player_config, session.clone(), volume_getter, sink);
+        let player = build_player(session.clone(), volume.clone(), audio_sender.clone());
         let info = SpotifyPlayerInfo {
             status: SpotifyPlayerState::Stopped,
             metadata: None,
@@ -163,6 +147,57 @@ impl SpotifyPlayer {
             current_song: None,
             volume,
             sleep_timer: Arc::new(SleepTimer::new(volume_clone)),
+            audio_sender,
+            failed_skips: 0,
+        }
+    }
+
+    /// Re-establish a Spotify session after the previous one was invalidated.
+    ///
+    /// librespot marks a `Session` permanently invalid once its connection drops
+    /// (e.g. a keep-alive ping times out after the app has been idle for hours),
+    /// and a `Session` can only be connected once, so recovery requires building a
+    /// fresh session and a fresh `Player`. The new player reuses the same audio
+    /// channel, so the GStreamer bridge keeps consuming output transparently.
+    async fn reconnect(&mut self) -> Option<UnboundedReceiver<PlayerEvent>> {
+        log::warn!("Spotify session is invalid; attempting to reconnect");
+
+        let cache = create_cache();
+        let credentials = match cache.as_ref().and_then(|c| c.credentials()) {
+            Some(creds) => creds,
+            None => {
+                log::error!("Cannot reconnect: no cached Spotify credentials");
+                return None;
+            }
+        };
+
+        let session = Session::new(SessionConfig::default(), cache);
+        if let Err(e) = session.connect(credentials, false).await {
+            log::error!("Failed to reconnect Spotify session: {e}");
+            return None;
+        }
+
+        let player = build_player(session.clone(), self.volume.clone(), self.audio_sender.clone());
+        let events = player.get_player_event_channel();
+        self.player = player;
+        self.session = session;
+        self.failed_skips = 0;
+        log::info!("Spotify session reconnected");
+        Some(events)
+    }
+
+    /// Ensure the session is live before a playback action, reconnecting if needed.
+    /// Returns `false` when no usable session could be established.
+    async fn ensure_session(&mut self, events: &mut UnboundedReceiver<PlayerEvent>) -> bool {
+        if !self.session.is_invalid() {
+            return true;
+        }
+        match self.reconnect().await {
+            Some(new_events) => {
+                *events = new_events;
+                true
+            }
+            None => false,
         }
     }
 
@@ -213,8 +248,11 @@ impl SpotifyPlayer {
                     log::info!("Received command: {:?}", command);
                     match command {
                         PlayerCommand::Playlist(p) => {
-                            self.load_playlist_to_queue(&p).await;
-                            self.play_next_song().await;
+                            if self.ensure_session(&mut spotify_player_events).await {
+                                self.failed_skips = 0;
+                                self.load_playlist_to_queue(&p).await;
+                                self.play_next_song().await;
+                            }
                         }
                         PlayerCommand::Pause => {
                             if matches!(self.state, SpotifyPlayerState::Playing) {
@@ -223,11 +261,15 @@ impl SpotifyPlayer {
                             }
                         }
                         PlayerCommand::Next => {
-                            self.play_next_song().await;
+                            if self.ensure_session(&mut spotify_player_events).await {
+                                self.play_next_song().await;
+                            }
                         }
                         PlayerCommand::Play => {
-                            if let SpotifyPlayerState::Paused = self.state {
-                                self.player.play();
+                            if self.ensure_session(&mut spotify_player_events).await {
+                                if let SpotifyPlayerState::Paused = self.state {
+                                    self.player.play();
+                                }
                             }
                         }
                         PlayerCommand::Sleep(duration_s) => {
@@ -246,10 +288,28 @@ impl SpotifyPlayer {
                 Some(event) = spotify_player_events.recv() => {
                     log::trace!("Received player event: {:?}", event);
                     match event {
-                        PlayerEvent::Playing{  .. } => self.set_state(SpotifyPlayerState::Playing).await,
+                        PlayerEvent::Playing{  .. } => {
+                            self.failed_skips = 0;
+                            self.set_state(SpotifyPlayerState::Playing).await;
+                        }
                         PlayerEvent::Paused { .. } => self.set_state(SpotifyPlayerState::Paused).await,
                         PlayerEvent::Stopped { .. } => self.set_state(SpotifyPlayerState::Stopped).await,
-                        PlayerEvent::EndOfTrack { .. } => self.play_next_song().await,
+                        PlayerEvent::EndOfTrack { .. } => {
+                            // A dead session makes librespot emit EndOfTrack for every track
+                            // it fails to fetch, which would otherwise burn through the whole
+                            // queue. Reconnect if needed, and stop if a full playlist cycle
+                            // produced no successful playback.
+                            if !self.ensure_session(&mut spotify_player_events).await {
+                                self.set_state(SpotifyPlayerState::Stopped).await;
+                            } else if self.failed_skips >= self.playlist_tracks.len().max(1) {
+                                log::warn!("No track could be played after a full playlist cycle; stopping");
+                                self.failed_skips = 0;
+                                self.set_state(SpotifyPlayerState::Stopped).await;
+                            } else {
+                                self.failed_skips += 1;
+                                self.play_next_song().await;
+                            }
+                        }
                         PlayerEvent::TrackChanged { audio_item} => {
                             // log::trace!("Track changed to {:?}", audio_item);
 
@@ -392,6 +452,39 @@ impl SleepTimer {
         }
         None
     }
+}
+
+fn player_config() -> PlayerConfig {
+    PlayerConfig {
+        bitrate: Default::default(),
+        gapless: true,
+        passthrough: true,
+        normalisation: false,
+        normalisation_type: Default::default(),
+        normalisation_method: Default::default(),
+        normalisation_pregain_db: 0.0,
+        normalisation_threshold_dbfs: 0.0,
+        normalisation_attack_cf: 0.0,
+        normalisation_release_cf: 0.0,
+        normalisation_knee_db: 0.0,
+        local_file_directories: Vec::new(),
+        ditherer: None,
+        position_update_interval: None,
+    }
+}
+
+fn build_player(
+    session: Session,
+    volume: Arc<PlaybackVolume>,
+    audio_sender: SyncSender<SinkEvent>,
+) -> Arc<Player> {
+    let sink = move || Box::new(ChannelSink::new(audio_sender)) as Box<dyn Sink>;
+    let volume_getter = Box::new(ArcVolumeWrapper::new(volume)) as Box<dyn VolumeGetter + Send>;
+    Player::new(player_config(), session, volume_getter, sink)
+}
+
+fn create_cache() -> Option<Cache> {
+    Cache::new(Some("cache"), Some("cache"), Some("cache"), Some(1024 * 1024 * 1024)).ok()
 }
 
 async fn fade_out_volume(volume: Arc<PlaybackVolume>, player: Arc<Player>) {
