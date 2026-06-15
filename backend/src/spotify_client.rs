@@ -12,8 +12,10 @@ use librespot_core::config::DeviceType;
 use librespot_core::Session;
 use librespot_discovery::Discovery;
 
+use librespot_core::error::ErrorKind;
 use librespot_core::SpotifyUri;
 use librespot_metadata::{Metadata, Playlist, Track};
+use std::time::Duration;
 use percent_encoding::percent_decode_str;
 use reqwest::Client;
 use serde::{Deserialize, Serialize};
@@ -174,7 +176,7 @@ impl SpotifyClient {
                     let meta = self.fetch_playlist_metadata(&uri).await;
                     (uri, folder, meta)
                 })
-                .buffer_unordered(10)
+                .buffer_unordered(5)
                 .collect::<Vec<_>>()
                 .await;
 
@@ -202,7 +204,7 @@ impl SpotifyClient {
                 let meta = self.fetch_playlist_metadata(&uri).await;
                 (uri, meta)
             })
-            .buffer_unordered(10)
+            .buffer_unordered(5)
             .collect::<Vec<_>>()
             .await;
 
@@ -357,13 +359,14 @@ impl SpotifyClient {
             }
         };
 
-        let playlist = match Playlist::get(&self.session, &parsed).await {
-            Ok(p) => p,
-            Err(e) => {
-                log::warn!("Failed to get playlist '{}' from librespot: {}", uri, e);
-                return None;
-            }
-        };
+        let playlist =
+            match retry_rate_limited("Playlist::get", || Playlist::get(&self.session, &parsed)).await {
+                Ok(p) => p,
+                Err(e) => {
+                    log::warn!("Failed to get playlist '{}' from librespot: {}", uri, e);
+                    return None;
+                }
+            };
 
         let mut image = playlist_cover(&playlist);
         
@@ -391,7 +394,11 @@ impl SpotifyClient {
 
     async fn fetch_playlist_via_api(&self, playlist_id: &str) -> Option<String> {
         let endpoint = format!("/playlist/v2/playlist/{}?response-format=json", playlist_id);
-        let response = match self.session.spclient().request_as_json(&Method::GET, &endpoint, None, None).await {
+        let response = match retry_rate_limited("playlist API", || {
+            self.session.spclient().request_as_json(&Method::GET, &endpoint, None, None)
+        })
+        .await
+        {
             Ok(res) => res,
             Err(e) => {
                 log::warn!("API request failed for playlist {}: {}", playlist_id, e);
@@ -508,6 +515,33 @@ impl SpotifyClient {
                 log::warn!("OEmbed network error for '{}': {}", uri, e);
                 None
             }
+        }
+    }
+}
+
+/// Retry a librespot call that may fail with a client-side rate limit
+/// (`ResourceExhausted`). Uses exponential backoff capped at 5s.
+async fn retry_rate_limited<T, F, Fut>(label: &str, mut f: F) -> Result<T, librespot_core::Error>
+where
+    F: FnMut() -> Fut,
+    Fut: std::future::Future<Output = Result<T, librespot_core::Error>>,
+{
+    const MAX_ATTEMPTS: u32 = 6;
+    let mut attempt = 0;
+    loop {
+        match f().await {
+            Ok(v) => return Ok(v),
+            Err(e) if e.kind == ErrorKind::ResourceExhausted && attempt < MAX_ATTEMPTS => {
+                let backoff = Duration::from_millis((200u64 << attempt).min(5000));
+                log::warn!(
+                    "{label} rate limited (attempt {}); retrying in {:?}",
+                    attempt + 1,
+                    backoff
+                );
+                tokio::time::sleep(backoff).await;
+                attempt += 1;
+            }
+            Err(e) => return Err(e),
         }
     }
 }
