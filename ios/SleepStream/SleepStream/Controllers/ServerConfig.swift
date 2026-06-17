@@ -27,14 +27,22 @@ class ServerConfig: ObservableObject {
     
     func validateConnection(url: String? = nil, completion: @escaping (Bool, String?) -> Void) -> AnyCancellable {
         let targetURL = url ?? serverURL
-        let urlString = "http://\(targetURL):7755/monitor"
+        let urlString = "http://\(targetURL):7755/sources"
         guard let url = URL(string: urlString) else {
             completion(false, "Invalid URL")
             return AnyCancellable {}
         }
         
         return URLSession.shared.dataTaskPublisher(for: url)
-            .map { $0.data }
+            .tryMap { data, response in
+                guard let httpResponse = response as? HTTPURLResponse else {
+                    throw URLError(.badServerResponse)
+                }
+                guard (200..<300).contains(httpResponse.statusCode) else {
+                    throw URLError(.badServerResponse)
+                }
+                return data
+            }
             .receive(on: RunLoop.main)
             .sink(receiveCompletion: { result in
                 switch result {
