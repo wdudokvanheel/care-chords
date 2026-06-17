@@ -1,10 +1,12 @@
 use crate::local_audio::{LocalAudioLibrary, LocalAudioPlayer};
+use crate::music_timer::{MusicVolume, SleepTimer};
 use crate::spotify_client::{PlaylistSummary, SpotifyClient};
 use crate::spotify_player::{PlayerCommand, SpotifyPlayerInfo, SpotifyPlayerState};
 use crate::system_playlists::{SystemPlaylistItem, SystemPlaylistStore};
 use anyhow::{Result, anyhow};
 use serde::{Deserialize, Serialize};
 use std::sync::{Arc, Mutex};
+use std::time::Duration;
 use tokio::sync::mpsc::Sender;
 use tokio::sync::watch;
 
@@ -17,6 +19,7 @@ pub struct PlaybackController {
     playlists: SystemPlaylistStore,
     system_queue: Arc<Mutex<SystemQueue>>,
     active_source: Arc<Mutex<ActiveSource>>,
+    sleep_timer: Arc<SleepTimer>,
     info_sender: watch::Sender<SpotifyPlayerInfo>,
     info_receiver: watch::Receiver<SpotifyPlayerInfo>,
 }
@@ -97,6 +100,7 @@ impl PlaybackController {
         youtube_library: LocalAudioLibrary,
         local_player: Arc<LocalAudioPlayer>,
         playlists: SystemPlaylistStore,
+        music_volume: Arc<MusicVolume>,
     ) -> Self {
         let (info_sender, info_receiver) = watch::channel(SpotifyPlayerInfo::stopped());
 
@@ -108,6 +112,7 @@ impl PlaybackController {
             playlists,
             system_queue: Arc::new(Mutex::new(SystemQueue::default())),
             active_source: Arc::new(Mutex::new(ActiveSource::None)),
+            sleep_timer: Arc::new(SleepTimer::new(music_volume)),
             info_sender,
             info_receiver,
         };
@@ -422,10 +427,14 @@ impl PlaybackController {
     }
 
     pub async fn sleep(&self, seconds: u32) -> Result<()> {
-        match self.active() {
-            ActiveSource::Spotify => self.send_spotify(PlayerCommand::Sleep(seconds)).await,
-            ActiveSource::Local | ActiveSource::Youtube | ActiveSource::None => Ok(()),
-        }
+        let controller = self.clone();
+        self.sleep_timer
+            .set_timer(Duration::from_secs(seconds as u64), move || async move {
+                controller.pause_active_for_sleep_timer().await;
+            })
+            .await;
+        self.emit_current_info().await;
+        Ok(())
     }
 
     pub async fn shuffle(&self, shuffle: bool) -> Result<SpotifyPlayerInfo> {
@@ -486,6 +495,33 @@ impl PlaybackController {
         Ok(())
     }
 
+    async fn pause_active_for_sleep_timer(&self) {
+        match self.active() {
+            ActiveSource::Spotify => {
+                if let Err(e) = self.send_spotify(PlayerCommand::Pause).await {
+                    log::warn!("Failed to pause Spotify after sleep timer elapsed: {e}");
+                }
+            }
+            ActiveSource::Local | ActiveSource::Youtube => self.local_player.pause(),
+            ActiveSource::None => {}
+        }
+        self.emit_current_info().await;
+    }
+
+    async fn emit_current_info(&self) {
+        let info = self.with_sleep_timer(self.current_info()).await;
+        let _ = self.info_sender.send(info);
+    }
+
+    async fn with_sleep_timer(&self, mut info: SpotifyPlayerInfo) -> SpotifyPlayerInfo {
+        info.sleep_timer = self
+            .sleep_timer
+            .remaining_time()
+            .await
+            .map(|remaining| remaining.as_secs() as u32);
+        info
+    }
+
     fn spotify_client(&self) -> Result<Arc<SpotifyClient>> {
         match &*self.spotify.lock().unwrap() {
             SpotifySlot::Ready(runtime) => Ok(runtime.client.clone()),
@@ -529,6 +565,7 @@ impl PlaybackController {
                     ActiveSource::Local | ActiveSource::Youtube
                 ) {
                     let status = local_status.borrow().clone();
+                    let status = local_controller.with_sleep_timer(status).await;
                     let _ = local_sender.send(status.clone());
                     if status.status == SpotifyPlayerState::Stopped {
                         let _ = local_controller.advance_system_queue().await;
@@ -549,6 +586,7 @@ impl PlaybackController {
             while spotify_status.changed().await.is_ok() {
                 if *spotify_active.lock().unwrap() == ActiveSource::Spotify {
                     let status = spotify_status.borrow().clone();
+                    let status = spotify_controller.with_sleep_timer(status).await;
                     let _ = spotify_sender.send(status.clone());
                     if status.status == SpotifyPlayerState::Stopped {
                         let _ = spotify_controller.advance_system_queue().await;

@@ -1,6 +1,7 @@
 mod app_settings;
 mod data_paths;
 mod local_audio;
+mod music_timer;
 mod pipeline;
 mod playback_controller;
 mod server;

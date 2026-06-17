@@ -1,3 +1,4 @@
+use crate::music_timer::MusicVolume;
 use crate::spotify_sink::SinkEvent;
 use gstreamer::{Buffer, ClockTime};
 use gstreamer_app::AppSrc;
@@ -11,7 +12,7 @@ pub struct AudioBridge {
 }
 
 impl AudioBridge {
-    pub fn new(receiver: Receiver<SinkEvent>) -> Self {
+    pub fn new(receiver: Receiver<SinkEvent>, volume: Arc<MusicVolume>) -> Self {
         let app_src: Arc<Mutex<Option<AppSrc>>> = Arc::new(Mutex::new(None));
         let app_src_clone = app_src.clone();
 
@@ -24,6 +25,15 @@ impl AudioBridge {
                         if samples.is_empty() {
                             continue;
                         }
+                        let volume = volume.get_volume();
+                        let samples = if volume < 1.0 {
+                            samples
+                                .into_iter()
+                                .map(|sample| sample * volume)
+                                .collect::<Vec<_>>()
+                        } else {
+                            samples
+                        };
 
                         // Get the current app_src, if any
                         let current_src = {

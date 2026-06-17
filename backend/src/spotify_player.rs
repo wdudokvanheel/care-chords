@@ -20,9 +20,6 @@ use tokio::sync::mpsc::{Receiver, Sender, UnboundedReceiver, channel};
 use tokio::sync::watch;
 use tokio::time::{Instant, sleep};
 
-use tokio::sync::Mutex as TokioMutex;
-use tokio::task::JoinHandle;
-
 const MIN_VALID_PLAYBACK_DURATION: Duration = Duration::from_secs(5);
 const MAX_CONSECUTIVE_PLAYBACK_FAILURES: usize = 3;
 
@@ -38,7 +35,6 @@ pub struct MusicMetadata {
 #[derive(Clone, Debug)]
 pub enum PlayerCommand {
     PlayRef { uri: String, repeat: bool },
-    Sleep(u32),
     Play,
     Pause,
     Next,
@@ -80,7 +76,6 @@ pub struct SpotifyPlayer {
     repeat: bool,
     current_song: Option<MusicMetadata>,
     volume: Arc<PlaybackVolume>,
-    sleep_timer: Arc<SleepTimer>,
     audio_sender: SyncSender<SinkEvent>,
     failed_skips: usize,
     current_track_uri: Option<SpotifyUri>,
@@ -103,12 +98,6 @@ impl PlaybackVolume {
         Self {
             volume: Mutex::new(initial_volume.min(1.0)),
         }
-    }
-
-    /// Set the volume (0-1)
-    pub fn set_volume(&self, new_volume: f64) {
-        let mut vol = self.volume.lock().unwrap();
-        *vol = new_volume.min(1.0);
     }
 
     pub fn get_volume(&self) -> f64 {
@@ -141,7 +130,6 @@ impl SpotifyPlayer {
     pub fn new(session: Session, audio_sender: SyncSender<SinkEvent>) -> Self {
         let (sender, receiver) = channel::<PlayerCommand>(3);
         let volume = Arc::new(PlaybackVolume::new(0.1));
-        let volume_clone = volume.clone();
 
         let player = build_player(session.clone(), volume.clone(), audio_sender.clone());
         let info = SpotifyPlayerInfo {
@@ -167,7 +155,6 @@ impl SpotifyPlayer {
             repeat: true,
             current_song: None,
             volume,
-            sleep_timer: Arc::new(SleepTimer::new(volume_clone)),
             audio_sender,
             failed_skips: 0,
             current_track_uri: None,
@@ -228,26 +215,12 @@ impl SpotifyPlayer {
         }
     }
 
-    async fn set_sleep_timer(&mut self, delay: Duration) {
-        let volume = self.volume.clone();
-        let player = self.player.clone();
-
-        self.sleep_timer
-            .set_timer(delay, move || async move {
-                fade_out_volume(volume, player).await;
-            })
-            .await;
-    }
-
     async fn emit_player_state(&self) {
-        let remaining = self.sleep_timer.remaining_time().await;
-        let sleep_timer_secs = remaining.map(|d| d.as_secs() as u32);
-
         let state = SpotifyPlayerInfo {
             status: self.state.clone(),
             metadata: self.current_song.clone(),
             shuffle: self.shuffle,
-            sleep_timer: sleep_timer_secs,
+            sleep_timer: None,
         };
 
         self.player_info_sender.send(state).unwrap();
@@ -299,10 +272,6 @@ impl SpotifyPlayer {
                                     self.player.play();
                                 }
                             }
-                        }
-                        PlayerCommand::Sleep(duration_s) => {
-                            self.set_sleep_timer(Duration::from_secs(duration_s as u64)).await;
-                            self.emit_player_state().await;
                         }
                         PlayerCommand::Shuffle(shuffle) => {
                             self.shuffle = shuffle;
@@ -480,70 +449,6 @@ impl SpotifyPlayer {
     }
 }
 
-struct SleepTimerInner {
-    handle: Option<JoinHandle<()>>,
-    initial_volume: f64,
-    deadline: Option<Instant>,
-}
-
-pub struct SleepTimer {
-    inner: TokioMutex<SleepTimerInner>,
-    volume: Arc<PlaybackVolume>,
-}
-
-impl SleepTimer {
-    pub fn new(volume: Arc<PlaybackVolume>) -> Self {
-        Self {
-            inner: TokioMutex::new(SleepTimerInner {
-                handle: None,
-                initial_volume: volume.get_volume(),
-                deadline: None,
-            }),
-            volume,
-        }
-    }
-
-    /// Sets a new sleep timer. When the timer expires (after `delay`), the provided `fade_out_fn`
-    /// will be run.
-    pub async fn set_timer<F, Fut>(&self, delay: Duration, fade_out_fn: F)
-    where
-        F: FnOnce() -> Fut + Send + 'static,
-        Fut: std::future::Future<Output = ()> + Send + 'static,
-    {
-        let mut inner = self.inner.lock().await;
-        if let Some(handle) = inner.handle.take() {
-            handle.abort();
-            self.volume.set_volume(inner.initial_volume);
-        }
-
-        if delay.is_zero() {
-            inner.deadline = None;
-            return;
-        }
-
-        inner.initial_volume = self.volume.get_volume();
-        inner.deadline = Some(Instant::now() + delay);
-
-        let handle = tokio::spawn(async move {
-            sleep(delay).await;
-            fade_out_fn().await;
-        });
-        inner.handle = Some(handle);
-    }
-
-    /// Returns the remaining time until the timer expires, if a timer is active.
-    pub async fn remaining_time(&self) -> Option<Duration> {
-        let inner = self.inner.lock().await;
-        if let Some(deadline) = inner.deadline {
-            let now = Instant::now();
-            if deadline > now {
-                return Some(deadline - now);
-            }
-        }
-        None
-    }
-}
-
 fn player_config() -> PlayerConfig {
     PlayerConfig {
         bitrate: Default::default(),
@@ -584,26 +489,4 @@ fn create_cache() -> Option<Cache> {
         Some(1024 * 1024 * 1024),
     )
     .ok()
-}
-
-async fn fade_out_volume(volume: Arc<PlaybackVolume>, player: Arc<Player>) {
-    log::trace!("Fading out volume");
-    let fade_duration = Duration::from_secs(10);
-    let steps = 100;
-    let step_duration = fade_duration / steps;
-    let initial_volume = volume.get_volume();
-
-    for step in 0..steps {
-        log::trace!("Fading step {}", step);
-        let fraction = (step + 1) as f64 / steps as f64;
-        let new_volume = initial_volume * (1.0 - fraction);
-        volume.set_volume(new_volume);
-        sleep(step_duration).await;
-    }
-    log::trace!("Fading done");
-    player.pause();
-
-    // Restore volume after pausing
-    sleep(Duration::from_secs(1)).await;
-    volume.set_volume(initial_volume);
 }

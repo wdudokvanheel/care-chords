@@ -1,4 +1,5 @@
 use crate::local_audio::{LocalAudioLibrary, LocalAudioPlayer};
+use crate::music_timer::MusicVolume;
 use crate::pipeline::AudioPipeline;
 use crate::pipeline::audio_bridge::AudioBridge;
 use crate::playback_controller::PlaybackController;
@@ -30,12 +31,14 @@ pub struct CareChordsServer {
     local_player: Arc<LocalAudioPlayer>,
     system_playlists: SystemPlaylistStore,
     audio_bridge: Arc<AudioBridge>,
+    music_volume: Arc<MusicVolume>,
 }
 
 impl CareChordsServer {
     pub fn new(settings: &ApplicationSettings) -> Self {
         let (sender, receiver) = sync_channel::<SinkEvent>(10);
-        let audio_bridge = Arc::new(AudioBridge::new(receiver));
+        let music_volume = Arc::new(MusicVolume::new(1.0));
+        let audio_bridge = Arc::new(AudioBridge::new(receiver, music_volume.clone()));
 
         Self {
             spotify: Arc::new(SpotifyClient::new_with_sender(sender.clone())),
@@ -46,6 +49,7 @@ impl CareChordsServer {
             local_player: Arc::new(LocalAudioPlayer::new(sender.clone())),
             system_playlists: SystemPlaylistStore::new(data_paths::system_playlists_file()),
             audio_bridge,
+            music_volume,
         }
     }
 
@@ -58,6 +62,7 @@ impl CareChordsServer {
             self.youtube_library.clone(),
             self.local_player.clone(),
             self.system_playlists.clone(),
+            self.music_volume.clone(),
         ));
         self.start_spotify(playback.clone());
         start_http_server(playback, self.monitor_url.clone());
