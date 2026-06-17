@@ -2,6 +2,7 @@ use crate::playback_controller::{LegacyPlaylistRequest, PlayRefRequest, Playback
 use crate::system_playlists::{AddSystemPlaylistItemRequest, CreateSystemPlaylistRequest};
 use futures_util::StreamExt;
 use serde::Deserialize;
+use std::path::Path;
 use std::sync::Arc;
 use tokio::sync::watch;
 use warp::http::{Response, StatusCode, header};
@@ -21,6 +22,11 @@ struct ShuffleRequest {
 #[derive(Deserialize)]
 struct LocalLibraryQuery {
     path: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct LocalArtworkQuery {
+    path: String,
 }
 
 pub fn start_http_server(playback: Arc<PlaybackController>, monitor_url: String) {
@@ -45,10 +51,17 @@ fn create_routes(
         .and_then(handle_sources);
 
     let local_library_route = warp::path!("library" / "local")
+        .and(warp::path::end())
         .and(warp::get())
         .and(warp::query::<LocalLibraryQuery>())
         .and(playback_filter.clone())
         .and_then(handle_local_library);
+
+    let local_artwork_route = warp::path!("library" / "local" / "artwork")
+        .and(warp::get())
+        .and(warp::query::<LocalArtworkQuery>())
+        .and(playback_filter.clone())
+        .and_then(handle_local_artwork);
 
     let system_playlists_route = warp::path("system-playlists")
         .and(warp::path::end())
@@ -145,6 +158,7 @@ fn create_routes(
 
     sources_route
         .or(local_library_route)
+        .or(local_artwork_route)
         .or(system_playlists_route)
         .or(create_system_playlist_route)
         .or(add_system_playlist_item_route)
@@ -178,6 +192,29 @@ async fn handle_local_library(
         Err(e) => Ok(no_store(error_status(
             &e.to_string(),
             StatusCode::BAD_REQUEST,
+        ))),
+    }
+}
+
+async fn handle_local_artwork(
+    query: LocalArtworkQuery,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    let path = match playback.local_library().resolve_artwork_ref(&query.path) {
+        Ok(path) => path,
+        Err(e) => {
+            return Ok(no_store(error_status(
+                &e.to_string(),
+                StatusCode::NOT_FOUND,
+            )));
+        }
+    };
+
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => Ok(no_store(image_status(bytes, image_content_type(&path)))),
+        Err(e) => Ok(no_store(error_status(
+            &format!("Failed to read local audio artwork: {e}"),
+            StatusCode::NOT_FOUND,
         ))),
     }
 }
@@ -350,6 +387,27 @@ fn error_status(message: &str, status: StatusCode) -> Response<Body> {
 
 fn json_status<T: serde::Serialize>(body: &T, status: StatusCode) -> Response<Body> {
     warp::reply::with_status(warp::reply::json(body), status).into_response()
+}
+
+fn image_status(bytes: Vec<u8>, content_type: &'static str) -> Response<Body> {
+    Response::builder()
+        .status(StatusCode::OK)
+        .header(header::CONTENT_TYPE, content_type)
+        .body(Body::from(bytes))
+        .unwrap()
+}
+
+fn image_content_type(path: &Path) -> &'static str {
+    match path
+        .extension()
+        .and_then(|extension| extension.to_str())
+        .map(|extension| extension.to_ascii_lowercase())
+        .as_deref()
+    {
+        Some("png") => "image/png",
+        Some("webp") => "image/webp",
+        _ => "image/jpeg",
+    }
 }
 
 fn no_store(mut response: Response<Body>) -> Response<Body> {

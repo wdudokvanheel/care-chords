@@ -44,16 +44,21 @@ final class AudioLibraryController: ObservableObject {
 
     func refresh() {
         cancellables.removeAll()
+        URLCache.shared.removeAllCachedResponses()
+        localItems = []
+        isLoading = false
         load()
     }
 
     func openLocalFolder(_ item: AudioItem) {
         localPath = item.reference
+        localItems = []
         load()
     }
 
     func openLocalRoot() {
         localPath = nil
+        localItems = []
         load()
     }
 
@@ -117,6 +122,7 @@ final class AudioLibraryController: ObservableObject {
                         reference: "\(prefix)\($0.path)",
                         source: "local",
                         kind: kind,
+                        image: backendImageURL($0.imageUri),
                         subtitle: $0.metadata?.displaySubtitle
                     )
                 }
@@ -177,7 +183,18 @@ private struct BackendLocalAudioEntry: Decodable {
     let name: String
     let kind: String
     let path: String
+    let imageUri: String?
     let metadata: BackendLocalAudioMetadata?
+}
+
+private func backendImageURL(_ imageUri: String?) -> URL? {
+    guard let imageUri else { return nil }
+    if let url = URL(string: imageUri), url.scheme != nil {
+        return url
+    }
+
+    let path = imageUri.hasPrefix("/") ? imageUri : "/\(imageUri)"
+    return URL(string: "http://\(ServerConfig.shared.getURL()):7755\(path)")
 }
 
 private struct BackendLocalAudioMetadata: Decodable {

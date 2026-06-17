@@ -6,6 +6,7 @@ use gstreamer as gst;
 use gstreamer::prelude::{Cast, ElementExt};
 use gstreamer_app::AppSink;
 use gstreamer_app::prelude::*;
+use percent_encoding::{NON_ALPHANUMERIC, utf8_percent_encode};
 use serde::{Deserialize, Serialize};
 use std::cmp::Ordering as CmpOrdering;
 use std::collections::HashSet;
@@ -27,6 +28,8 @@ pub struct LocalAudioEntry {
     pub name: String,
     pub kind: LocalAudioEntryKind,
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub image_uri: Option<String>,
     #[serde(skip_serializing_if = "Option::is_none")]
     pub metadata: Option<LocalAudioMetadata>,
 }
@@ -107,6 +110,7 @@ impl LocalAudioLibrary {
                     name: name.to_string(),
                     kind: LocalAudioEntryKind::Folder,
                     path: format!("root:{idx}"),
+                    image_uri: self.folder_image_uri(root),
                     metadata: None,
                 }
             })
@@ -133,11 +137,13 @@ impl LocalAudioLibrary {
                 .unwrap_or_else(|| path.display().to_string());
 
             if path.is_dir() {
+                let reference = self.path_to_ref(&path)?;
                 entries.push(LocalAudioEntry {
-                    id: self.path_to_ref(&path)?,
+                    id: reference.clone(),
                     name,
                     kind: LocalAudioEntryKind::Folder,
-                    path: self.path_to_ref(&path)?,
+                    path: reference.clone(),
+                    image_uri: folder_artwork(&path).map(|_| artwork_uri(&reference)),
                     metadata: None,
                 });
             } else if self.is_audio_file(&path) {
@@ -213,8 +219,15 @@ impl LocalAudioLibrary {
             name,
             kind: LocalAudioEntryKind::File,
             path: reference,
+            image_uri: None,
             metadata,
         })
+    }
+
+    pub fn resolve_artwork_ref(&self, reference: &str) -> Result<PathBuf> {
+        let folder = self.resolve_folder_ref(reference)?;
+        folder_artwork(&folder)
+            .ok_or_else(|| anyhow!("Local audio artwork does not exist: {}", folder.display()))
     }
 
     fn resolve_folder_ref(&self, reference: &str) -> Result<PathBuf> {
@@ -274,6 +287,11 @@ impl LocalAudioLibrary {
             .and_then(|ext| ext.to_str())
             .map(|ext| self.allowed_extensions.contains(&ext.to_lowercase()))
             .unwrap_or(false)
+    }
+
+    fn folder_image_uri(&self, path: &Path) -> Option<String> {
+        let reference = self.path_to_ref(path).ok()?;
+        folder_artwork(path).map(|_| artwork_uri(&reference))
     }
 }
 
@@ -507,6 +525,59 @@ fn strip_extension(name: &str) -> String {
         .to_string()
 }
 
+const FOLDER_ARTWORK_NAMES: &[&str] = &[
+    "coverart.jpg",
+    "coverart.jpeg",
+    "coverart.png",
+    "coverart.webp",
+    "cover.jpg",
+    "cover.jpeg",
+    "cover.png",
+    "cover.webp",
+    "folder.jpg",
+    "folder.jpeg",
+    "folder.png",
+    "folder.webp",
+    "front.jpg",
+    "front.jpeg",
+    "front.png",
+    "front.webp",
+];
+
+fn folder_artwork(folder: &Path) -> Option<PathBuf> {
+    for name in FOLDER_ARTWORK_NAMES {
+        let path = folder.join(name);
+        if path.is_file() {
+            return Some(path);
+        }
+    }
+
+    fs::read_dir(folder).ok()?.find_map(|entry| {
+        let path = entry.ok()?.path();
+        if path.is_file() && is_folder_artwork_name(&path) {
+            Some(path)
+        } else {
+            None
+        }
+    })
+}
+
+fn is_folder_artwork_name(path: &Path) -> bool {
+    let name = path
+        .file_name()
+        .and_then(|name| name.to_str())
+        .map(|name| name.to_ascii_lowercase());
+    name.as_deref()
+        .is_some_and(|name| FOLDER_ARTWORK_NAMES.contains(&name))
+}
+
+fn artwork_uri(reference: &str) -> String {
+    format!(
+        "/library/local/artwork?path={}",
+        utf8_percent_encode(reference, NON_ALPHANUMERIC)
+    )
+}
+
 fn read_audio_metadata(path: &Path) -> Option<LocalAudioMetadata> {
     let file = File::open(path).ok()?;
     let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
@@ -699,6 +770,7 @@ mod tests {
             name: name.to_string(),
             kind: LocalAudioEntryKind::File,
             path: path.to_string(),
+            image_uri: None,
             metadata: track.map(|track_number| LocalAudioMetadata {
                 track_number: Some(track_number.to_string()),
                 ..LocalAudioMetadata::default()
@@ -770,6 +842,7 @@ mod tests {
             name: name.to_string(),
             kind: LocalAudioEntryKind::File,
             path: path.to_string(),
+            image_uri: None,
             metadata: Some(LocalAudioMetadata {
                 disc_number: Some(disc_number.to_string()),
                 track_number: Some(track_number.to_string()),

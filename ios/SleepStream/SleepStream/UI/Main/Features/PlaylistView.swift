@@ -60,8 +60,21 @@ struct AudioLibraryView: View {
                         .foregroundColor(.orange)
                 }
             }
-            grid(items: library.localItems)
+            if !localFolders.isEmpty {
+                grid(items: localFolders)
+            }
+            if !localFiles.isEmpty {
+                fileRows(items: localFiles)
+            }
         }
+    }
+
+    private var localFolders: [AudioItem] {
+        library.localItems.filter { $0.kind == .folder }
+    }
+
+    private var localFiles: [AudioItem] {
+        library.localItems.filter { $0.kind == .file }
     }
 
     private func section(_ title: String, items: [AudioItem]) -> some View {
@@ -111,6 +124,52 @@ struct AudioLibraryView: View {
                     .padding(0)
                 }
                 .padding(2)
+            }
+        }
+    }
+
+    private func fileRows(items: [AudioItem]) -> some View {
+        LazyVStack(spacing: 6) {
+            ForEach(items) { item in
+                Button(action: {
+                    itemSelect(item)
+                }) {
+                    HStack(spacing: 10) {
+                        ZStack {
+                            RoundedRectangle(cornerRadius: 8)
+                                .fill(Color.white.opacity(0.08))
+                            Image(systemName: "music.note")
+                                .font(.title3)
+                                .foregroundColor(.orange)
+                        }
+                        .frame(width: 44, height: 44)
+
+                        VStack(alignment: .leading, spacing: 3) {
+                            Text(item.name)
+                                .foregroundColor(Color.playlistItemLabel)
+                                .font(.subheadline)
+                                .fontWeight(.medium)
+                                .lineLimit(1)
+                            if let subtitle = item.subtitle {
+                                Text(subtitle)
+                                    .foregroundColor(Color.playlistItemLabel.opacity(0.72))
+                                    .font(.caption)
+                                    .lineLimit(1)
+                            }
+                        }
+
+                        Spacer(minLength: 8)
+
+                        Image(systemName: "play.fill")
+                            .font(.caption)
+                            .foregroundColor(.orange)
+                    }
+                    .padding(.horizontal, 10)
+                    .padding(.vertical, 8)
+                    .background(Color.playlistItem)
+                    .cornerRadius(8)
+                }
+                .buttonStyle(.plain)
             }
         }
     }
