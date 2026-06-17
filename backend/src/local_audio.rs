@@ -22,6 +22,8 @@ use symphonia::core::meta::{MetadataOptions, MetadataRevision, StandardTagKey};
 use symphonia::core::probe::Hint;
 use tokio::sync::watch;
 
+const LOCAL_FILE_PLAYBACK_VOLUME: f64 = 0.35;
+
 #[derive(Debug, Clone, Serialize, Deserialize)]
 pub struct LocalAudioEntry {
     pub id: String,
@@ -593,7 +595,10 @@ impl LocalAudioPlayer {
                     sleep_timer: None,
                 });
 
-                if let Err(e) = play_file_blocking(&path, audio_sender.clone(), cancel.clone()) {
+                let volume = playback_volume_for_source(&source);
+                if let Err(e) =
+                    play_file_blocking(&path, audio_sender.clone(), cancel.clone(), volume)
+                {
                     log::warn!("Failed to play local audio file {}: {e}", path.display());
                     consecutive_failures += 1;
                 } else {
@@ -637,12 +642,14 @@ fn play_file_blocking(
     path: &Path,
     audio_sender: SyncSender<SinkEvent>,
     cancel: Arc<AtomicBool>,
+    volume: f64,
 ) -> Result<()> {
     let uri = gst::glib::filename_to_uri(path, None)
         .map_err(|_| anyhow!("Failed to build file URI for {}", path.display()))?;
     let pipeline_description = format!(
-        "uridecodebin uri={} ! audioconvert ! audioresample ! audio/x-raw,format=F64LE,channels=2,rate=44100,layout=interleaved ! appsink name=local_audio_sink sync=true",
-        uri.as_str()
+        "uridecodebin uri={} ! audioconvert ! volume volume={} ! audioresample ! audio/x-raw,format=F64LE,channels=2,rate=44100,layout=interleaved ! appsink name=local_audio_sink sync=true",
+        uri.as_str(),
+        volume
     );
 
     let element = gst::parse::launch(&pipeline_description).with_context(|| {
@@ -698,6 +705,14 @@ fn play_file_blocking(
     pipeline.set_state(gst::State::Null)?;
     let _ = audio_sender.send(SinkEvent::Stop);
     Ok(())
+}
+
+fn playback_volume_for_source(source: &str) -> f64 {
+    if source == "local" {
+        LOCAL_FILE_PLAYBACK_VOLUME
+    } else {
+        1.0
+    }
 }
 
 fn parse_local_ref(reference: &str) -> Result<(usize, String)> {
@@ -1032,6 +1047,12 @@ mod tests {
 
         assert_eq!(root, 0);
         assert_eq!(relative, "Channel - Title.webm");
+    }
+
+    #[test]
+    fn local_source_playback_uses_reduced_volume() {
+        assert_eq!(playback_volume_for_source("local"), 0.35);
+        assert_eq!(playback_volume_for_source("youtube"), 1.0);
     }
 
     #[test]
