@@ -12,6 +12,7 @@ final class AudioLibraryController: ObservableObject {
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
 
+    private let youtubeRootPath = "root:0"
     private var cancellables: Set<AnyCancellable> = []
 
     var spotifyAvailable: Bool {
@@ -118,7 +119,7 @@ final class AudioLibraryController: ObservableObject {
     }
 
     private func loadYouTube(path: String?) -> AnyPublisher<[AudioItem], URLError> {
-        loadFileLibrary(path: path, endpoint: "youtube", source: "youtube")
+        loadFileLibrary(path: path ?? youtubeRootPath, endpoint: "youtube", source: "youtube")
     }
 
     private func loadYouTubeItems() {
