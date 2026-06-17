@@ -464,6 +464,10 @@ impl LocalAudioPlayer {
                     .as_ref()
                     .and_then(|metadata| metadata.display_artist())
                     .unwrap_or_else(|| "Local files".to_string());
+                let artwork_url = path
+                    .parent()
+                    .and_then(|folder| library.folder_image_uri(folder))
+                    .unwrap_or_default();
 
                 let _ = info_sender.send(SpotifyPlayerInfo {
                     status: SpotifyPlayerState::Playing,
@@ -471,7 +475,7 @@ impl LocalAudioPlayer {
                     metadata: Some(MusicMetadata {
                         artist,
                         title: entry.name.clone(),
-                        artwork_url: String::new(),
+                        artwork_url,
                         source: Some("local".to_string()),
                     }),
                     sleep_timer: None,

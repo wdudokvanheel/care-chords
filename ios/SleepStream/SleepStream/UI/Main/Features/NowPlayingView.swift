@@ -6,7 +6,7 @@ struct NowPlayingView: View {
     var body: some View {
         VStack {
             if let metadata = controller.status.metadata {
-                if let url = URL(string: metadata.artwork_url) {
+                if let url = artworkURL(metadata.artwork_url) {
                     RemoteImageView(imageUrl: url)
 //                        .clipShape(RoundedRectangle(cornerRadius: 8))
                         .padding([.top, .horizontal])
@@ -41,5 +41,15 @@ struct NowPlayingView: View {
                 Spacer()
             }
         }
+    }
+
+    private func artworkURL(_ artworkURL: String) -> URL? {
+        guard !artworkURL.isEmpty else { return nil }
+        if let url = URL(string: artworkURL), url.scheme != nil {
+            return url
+        }
+
+        let path = artworkURL.hasPrefix("/") ? artworkURL : "/\(artworkURL)"
+        return URL(string: "http://\(ServerConfig.shared.getURL()):7755\(path)")
     }
 }
