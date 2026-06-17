@@ -2,34 +2,35 @@ use futures::StreamExt;
 
 use crate::spotify_player::{PlayerCommand, SpotifyPlayer, SpotifyPlayerInfo};
 use crate::spotify_sink::SinkEvent;
-use anyhow::{anyhow, Result};
+use anyhow::{Result, anyhow};
 use hex::encode as hex_encode;
 use http::Method;
 use librespot::core::SessionConfig;
+use librespot_core::Session;
 use librespot_core::authentication::Credentials;
 use librespot_core::cache::Cache;
 use librespot_core::config::DeviceType;
-use librespot_core::Session;
 use librespot_discovery::Discovery;
 
-use librespot_core::error::ErrorKind;
 use librespot_core::SpotifyUri;
+use librespot_core::error::ErrorKind;
 use librespot_metadata::{Metadata, Playlist};
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
 use std::collections::HashMap;
-use std::fs::File;
+use std::fs::{self, File};
 use std::io::BufReader;
 use std::path::PathBuf;
-use std::sync::mpsc::{sync_channel, SyncSender};
 use std::sync::Arc;
 use std::sync::Mutex;
+use std::sync::mpsc::{SyncSender, sync_channel};
 use std::time::Duration;
 use tokio::sync::mpsc::Sender;
-use tokio::sync::{watch, Mutex as TokioMutex, RwLock};
+use tokio::sync::{Mutex as TokioMutex, RwLock, watch};
 
 const PLAYLIST_METADATA_REQUEST_SPACING: Duration = Duration::from_millis(250);
+const PLAYLIST_METADATA_CACHE_DIR: &str = "cache/playlists";
 
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,
@@ -45,7 +46,7 @@ pub struct SpotifyClient {
     playlists_fetch_lock: Arc<TokioMutex<()>>,
 }
 
-#[derive(Debug, Serialize, Clone)]
+#[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct PlaylistSummary {
     pub uri: String,
     pub name: String,
@@ -150,11 +151,11 @@ impl SpotifyClient {
             return Ok(cached.clone());
         }
 
-        let _fetch_guard = self.playlists_fetch_lock.lock().await;
+        self.refresh_playlists().await
+    }
 
-        if let Some(cached) = self.playlists_cache.read().await.as_ref() {
-            return Ok(cached.clone());
-        }
+    pub async fn refresh_playlists(&self) -> Result<Vec<PlaylistSummary>> {
+        let _fetch_guard = self.playlists_fetch_lock.lock().await;
 
         // First try to collect from the profile API (gives names/images for public playlists).
         let mut by_uri = match self.fetch_profile_playlist_map().await {
@@ -180,16 +181,24 @@ impl SpotifyClient {
                     }
                 }
 
-                if !to_fetch.is_empty() {
-                    log::info!(
-                        "Fetching metadata for {} rootlist-only playlists",
-                        to_fetch.len()
-                    );
+                let mut missing = Vec::new();
+                for (uri, folder) in to_fetch {
+                    if let Some(mut cached) = read_playlist_metadata_cache(&uri) {
+                        cached.folder = folder;
+                        by_uri.insert(uri, cached);
+                    } else {
+                        missing.push((uri, folder));
+                    }
                 }
 
-                for (uri, folder) in to_fetch {
+                if !missing.is_empty() {
+                    log::info!("Fetching metadata for {} uncached playlists", missing.len());
+                }
+
+                for (uri, folder) in missing {
                     let meta = self.fetch_playlist_metadata(&uri).await;
                     if let Some(mut meta) = meta {
+                        write_playlist_metadata_cache(&meta);
                         if meta.folder.is_none() {
                             meta.folder = folder;
                         }
@@ -307,28 +316,29 @@ impl SpotifyClient {
 
         let mut map = HashMap::new();
         for item in profile.playlists.items {
-            map.insert(
-                item.uri.clone(),
-                PlaylistSummary {
-                    uri: item.uri,
-                    name: item.name,
-                    image_uri: normalize_image(
-                        item.images
-                            .iter()
-                            .find_map(|img| img.url.clone())
-                            .or(item.image_url),
-                    ),
-                    folder: item.folder.clone(),
-                },
-            );
+            let summary = PlaylistSummary {
+                uri: item.uri,
+                name: item.name,
+                image_uri: normalize_image(
+                    item.images
+                        .iter()
+                        .find_map(|img| img.url.clone())
+                        .or(item.image_url),
+                ),
+                folder: item.folder.clone(),
+            };
+            write_playlist_metadata_cache(&summary);
+            map.insert(summary.uri.clone(), summary);
         }
         for item in profile.public_playlists.unwrap_or_default() {
-            map.entry(item.uri.clone()).or_insert(PlaylistSummary {
+            let summary = PlaylistSummary {
                 uri: item.uri,
                 name: item.name,
                 image_uri: normalize_image(item.image_url),
                 folder: None,
-            });
+            };
+            write_playlist_metadata_cache(&summary);
+            map.entry(summary.uri.clone()).or_insert(summary);
         }
 
         Ok(map)
@@ -444,6 +454,68 @@ fn normalize_image(raw: Option<String>) -> Option<String> {
     }
 
     None
+}
+
+fn read_playlist_metadata_cache(uri: &str) -> Option<PlaylistSummary> {
+    let path = playlist_metadata_cache_path(uri);
+    let file = File::open(&path).ok()?;
+    let reader = BufReader::new(file);
+    let mut summary: PlaylistSummary = match serde_json::from_reader(reader) {
+        Ok(summary) => summary,
+        Err(e) => {
+            log::warn!(
+                "Failed to parse cached playlist metadata {}: {e}",
+                path.display()
+            );
+            return None;
+        }
+    };
+
+    if summary.uri != uri {
+        log::warn!(
+            "Ignoring cached playlist metadata {} with mismatched uri {}",
+            path.display(),
+            summary.uri
+        );
+        return None;
+    }
+
+    summary.folder = None;
+    Some(summary)
+}
+
+fn write_playlist_metadata_cache(summary: &PlaylistSummary) {
+    if let Err(e) = fs::create_dir_all(PLAYLIST_METADATA_CACHE_DIR) {
+        log::warn!("Failed to create playlist metadata cache dir: {e}");
+        return;
+    }
+
+    let path = playlist_metadata_cache_path(&summary.uri);
+    let mut cached = summary.clone();
+    cached.folder = None;
+
+    let file = match File::create(&path) {
+        Ok(file) => file,
+        Err(e) => {
+            log::warn!(
+                "Failed to open playlist metadata cache {}: {e}",
+                path.display()
+            );
+            return;
+        }
+    };
+
+    if let Err(e) = serde_json::to_writer_pretty(file, &cached) {
+        log::warn!(
+            "Failed to write playlist metadata cache {}: {e}",
+            path.display()
+        );
+    }
+}
+
+fn playlist_metadata_cache_path(uri: &str) -> PathBuf {
+    let digest = hex::encode(Sha1::digest(uri.as_bytes()));
+    PathBuf::from(PLAYLIST_METADATA_CACHE_DIR).join(format!("{digest}.json"))
 }
 
 fn playlist_cover(playlist: &Playlist) -> Option<String> {

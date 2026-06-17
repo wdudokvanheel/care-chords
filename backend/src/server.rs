@@ -67,6 +67,11 @@ impl CareChordsServer {
 
                     Self::watch_events(spotify_client.player_info_channel());
 
+                    log::info!("Refreshing playlist cache...");
+                    if let Err(e) = spotify_client.refresh_playlists().await {
+                        log::warn!("Failed to refresh playlist cache: {e}");
+                    }
+
                     self.spotify = Authenticated(Arc::new(spotify_client));
                 }
                 Err(e) => {
