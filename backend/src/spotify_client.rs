@@ -1,4 +1,4 @@
-use futures::{stream, StreamExt};
+use futures::StreamExt;
 
 use crate::spotify_player::{PlayerCommand, SpotifyPlayer, SpotifyPlayerInfo};
 use crate::spotify_sink::SinkEvent;
@@ -14,21 +14,22 @@ use librespot_discovery::Discovery;
 
 use librespot_core::error::ErrorKind;
 use librespot_core::SpotifyUri;
-use librespot_metadata::{Metadata, Playlist, Track};
-use std::time::Duration;
+use librespot_metadata::{Metadata, Playlist};
 use percent_encoding::percent_decode_str;
-use reqwest::Client;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
+use std::collections::HashMap;
 use std::fs::File;
 use std::io::BufReader;
-use std::collections::HashMap;
 use std::path::PathBuf;
 use std::sync::mpsc::{sync_channel, SyncSender};
-use std::sync::Mutex;
-use tokio::sync::mpsc::Sender;
-use tokio::sync::{watch, RwLock};
 use std::sync::Arc;
+use std::sync::Mutex;
+use std::time::Duration;
+use tokio::sync::mpsc::Sender;
+use tokio::sync::{watch, Mutex as TokioMutex, RwLock};
+
+const PLAYLIST_METADATA_REQUEST_SPACING: Duration = Duration::from_millis(250);
 
 pub struct UnauthenticatedSpotifyClient {
     cache_folder: PathBuf,
@@ -41,6 +42,7 @@ pub struct SpotifyClient {
     player_info_channel: watch::Receiver<SpotifyPlayerInfo>,
     session: Session,
     playlists_cache: Arc<RwLock<Option<Vec<PlaylistSummary>>>>,
+    playlists_fetch_lock: Arc<TokioMutex<()>>,
 }
 
 #[derive(Debug, Serialize, Clone)]
@@ -113,12 +115,6 @@ struct UserProfileImage {
     url: Option<String>,
 }
 
-#[derive(Debug, Deserialize)]
-struct OEmbedResponse {
-    #[serde(default)]
-    thumbnail_url: Option<String>,
-}
-
 impl SpotifyClient {
     pub fn new() -> UnauthenticatedSpotifyClient {
         UnauthenticatedSpotifyClient {
@@ -154,78 +150,70 @@ impl SpotifyClient {
             return Ok(cached.clone());
         }
 
-        // First try to collect from the profile API (gives names/images for public playlists).
-        let mut by_uri = self.fetch_profile_playlist_map().await.unwrap_or_default();
+        let _fetch_guard = self.playlists_fetch_lock.lock().await;
 
-        // Then augment with the rootlist (may include private playlists or folder grouping).
-        if let Ok(root_entries) = self.fetch_rootlist_entries().await {
-            let mut to_fetch = Vec::new();
-
-            for (uri, folder) in root_entries {
-                if let Some(existing) = by_uri.get_mut(&uri) {
-                    if existing.folder.is_none() {
-                        existing.folder = folder;
-                    }
-                } else {
-                    to_fetch.push((uri, folder));
-                }
-            }
-
-            let fetched_metas = stream::iter(to_fetch)
-                .map(|(uri, folder)| async move {
-                    let meta = self.fetch_playlist_metadata(&uri).await;
-                    (uri, folder, meta)
-                })
-                .buffer_unordered(5)
-                .collect::<Vec<_>>()
-                .await;
-
-            for (uri, folder, meta_opt) in fetched_metas {
-                if let Some(mut meta) = meta_opt {
-                    if meta.folder.is_none() {
-                        meta.folder = folder;
-                    }
-                    by_uri.insert(uri, meta);
-                } else {
-                    log::warn!("Failed to fetch metadata for playlist uri={uri}; skipping");
-                }
-            }
+        if let Some(cached) = self.playlists_cache.read().await.as_ref() {
+            return Ok(cached.clone());
         }
 
-        // Backfill missing images using metadata/oembed for any playlist that still lacks art.
-        let missing_images: Vec<String> = by_uri
-            .iter()
-            .filter(|(_, p)| p.image_uri.is_none())
-            .map(|(u, _)| u.clone())
-            .collect();
+        // First try to collect from the profile API (gives names/images for public playlists).
+        let mut by_uri = match self.fetch_profile_playlist_map().await {
+            Ok(playlists) => playlists,
+            Err(e) => {
+                log::warn!("Failed to fetch profile playlists: {e}");
+                HashMap::new()
+            }
+        };
 
-        let fetched_images = stream::iter(missing_images)
-            .map(|uri| async move {
-                let meta = self.fetch_playlist_metadata(&uri).await;
-                (uri, meta)
-            })
-            .buffer_unordered(5)
-            .collect::<Vec<_>>()
-            .await;
+        // Then augment with the rootlist (may include private playlists or folder grouping).
+        match self.fetch_rootlist_entries().await {
+            Ok(root_entries) => {
+                let mut to_fetch = Vec::new();
 
-        for (uri, meta_opt) in fetched_images {
-            if let Some(meta) = meta_opt {
-                if let Some(img) = meta.image_uri {
+                for (uri, folder) in root_entries {
                     if let Some(existing) = by_uri.get_mut(&uri) {
-                        if existing.image_uri.is_none() {
-                            existing.image_uri = Some(img);
+                        if existing.folder.is_none() {
+                            existing.folder = folder;
                         }
+                    } else {
+                        to_fetch.push((uri, folder));
                     }
+                }
+
+                if !to_fetch.is_empty() {
+                    log::info!(
+                        "Fetching metadata for {} rootlist-only playlists",
+                        to_fetch.len()
+                    );
+                }
+
+                for (uri, folder) in to_fetch {
+                    let meta = self.fetch_playlist_metadata(&uri).await;
+                    if let Some(mut meta) = meta {
+                        if meta.folder.is_none() {
+                            meta.folder = folder;
+                        }
+                        by_uri.insert(uri, meta);
+                    } else {
+                        log::warn!("Failed to fetch metadata for playlist uri={uri}; skipping");
+                    }
+                    tokio::time::sleep(PLAYLIST_METADATA_REQUEST_SPACING).await;
+                }
+            }
+            Err(e) => {
+                log::warn!("Failed to fetch rootlist playlists: {e}");
+                if by_uri.is_empty() {
+                    return Err(e);
                 }
             }
         }
 
         let mut playlists: Vec<PlaylistSummary> = by_uri.into_values().collect();
         playlists.sort_by(|a, b| a.name.to_lowercase().cmp(&b.name.to_lowercase()));
-        
+
         // Update cache
         *self.playlists_cache.write().await = Some(playlists.clone());
-        
+
         Ok(playlists)
     }
 
@@ -241,34 +229,29 @@ impl SpotifyClient {
                 "/playlist/v2/user/{username}/rootlist?response-format=json&limit={limit}&offset={offset}"
             );
             log::info!("Fetching playlists (rootlist) with endpoint: {endpoint}");
-            let response = self
-                .session
-                .spclient()
-                .request_as_json(&Method::GET, &endpoint, None, None)
-                .await
-                .map_err(|e| anyhow!(e))?;
+            let response = retry_rate_limited("rootlist API", || {
+                self.session
+                    .spclient()
+                    .request_as_json(&Method::GET, &endpoint, None, None)
+            })
+            .await
+            .map_err(|e| anyhow!(e))?;
 
             let rootlist: RootlistResponse = serde_json::from_slice(&response).map_err(|e| {
                 let snippet = String::from_utf8_lossy(&response);
-                anyhow!("Failed to parse rootlist response: {e}; body_snippet={}", &snippet[..snippet.len().min(500)])
+                anyhow!(
+                    "Failed to parse rootlist response: {e}; body_snippet={}",
+                    &snippet[..snippet.len().min(500)]
+                )
             })?;
 
             let has_items = !rootlist.items.is_empty();
-            let content_items = rootlist
-                .contents
-                .as_ref()
-                .map(|c| c.items.len())
-                .unwrap_or(0);
             let mut returned_items = if !rootlist.items.is_empty() {
                 rootlist.items
             } else {
-                rootlist
-                    .contents
-                    .map(|c| c.items)
-                    .unwrap_or_else(Vec::new)
+                rootlist.contents.map(|c| c.items).unwrap_or_else(Vec::new)
             };
-            if returned_items.is_empty() {
-            }
+            if returned_items.is_empty() {}
 
             for item in returned_items.drain(..) {
                 if let Some((group_id, name)) = parse_start_group(&item.uri) {
@@ -284,9 +267,7 @@ impl SpotifyClient {
                     continue;
                 }
 
-                let folder = folder_stack
-                    .last()
-                    .map(|(_, name)| name.clone());
+                let folder = folder_stack.last().map(|(_, name)| name.clone());
                 entries.push((item.uri, folder));
             }
 
@@ -307,19 +288,22 @@ impl SpotifyClient {
         );
         log::info!("Fetching playlists (profile fallback) with endpoint: {endpoint}");
 
-        let response = self
-            .session
-            .spclient()
-            .get_user_profile(&username, Some(limit), Some(0))
-            .await
-            .map_err(|e| anyhow!(e))?;
+        let response = retry_rate_limited("profile playlists API", || {
+            self.session
+                .spclient()
+                .get_user_profile(&username, Some(limit), Some(0))
+        })
+        .await
+        .map_err(|e| anyhow!(e))?;
 
         let profile: UserProfileResponse = serde_json::from_slice(&response).map_err(|e| {
             let snippet = String::from_utf8_lossy(&response);
-            anyhow!("Failed to parse profile response: {e}; body_snippet={}", &snippet[..snippet.len().min(500)])
+            anyhow!(
+                "Failed to parse profile response: {e}; body_snippet={}",
+                &snippet[..snippet.len().min(500)]
+            )
         })?;
-        if profile.playlists.items.is_empty() {
-        }
+        if profile.playlists.items.is_empty() {}
 
         let mut map = HashMap::new();
         for item in profile.playlists.items {
@@ -360,7 +344,9 @@ impl SpotifyClient {
         };
 
         let playlist =
-            match retry_rate_limited("Playlist::get", || Playlist::get(&self.session, &parsed)).await {
+            match retry_rate_limited("Playlist::get", || Playlist::get(&self.session, &parsed))
+                .await
+            {
                 Ok(p) => p,
                 Err(e) => {
                     log::warn!("Failed to get playlist '{}' from librespot: {}", uri, e);
@@ -368,21 +354,7 @@ impl SpotifyClient {
                 }
             };
 
-        let mut image = playlist_cover(&playlist);
-        
-        // Fallback to internal API if librespot metadata is missing cover
-        if image.is_none() {
-             if let Some(id) = uri.strip_prefix("spotify:playlist:") {
-                 image = self.fetch_playlist_via_api(id).await;
-             }
-        }
-
-        if image.is_none() {
-            image = self.fetch_oembed_cover(uri).await;
-            if image.is_none() {
-                log::warn!("Failed to find cover for '{}' via OEmbed", playlist.name());
-            }
-        }
+        let image = playlist_cover(&playlist);
 
         Some(PlaylistSummary {
             uri: uri.to_string(),
@@ -390,132 +362,6 @@ impl SpotifyClient {
             image_uri: image,
             folder: None,
         })
-    }
-
-    async fn fetch_playlist_via_api(&self, playlist_id: &str) -> Option<String> {
-        let endpoint = format!("/playlist/v2/playlist/{}?response-format=json", playlist_id);
-        let response = match retry_rate_limited("playlist API", || {
-            self.session.spclient().request_as_json(&Method::GET, &endpoint, None, None)
-        })
-        .await
-        {
-            Ok(res) => res,
-            Err(e) => {
-                log::warn!("API request failed for playlist {}: {}", playlist_id, e);
-                return None;
-            }
-        };
-
-        let json: serde_json::Value = match serde_json::from_slice(&response) {
-            Ok(v) => v,
-            Err(e) => {
-                log::warn!("Failed to parse API response for playlist {}: {}", playlist_id, e);
-                return None;
-            }
-        };
-
-        // Try to find image in various locations
-        // 1. attributes.picture_sizes
-        if let Some(sizes) = json.pointer("/attributes/picture_sizes").and_then(|v| v.as_array()) {
-            if let Some(url) = sizes.iter().filter_map(|v| v.get("url").and_then(|s| s.as_str())).next() {
-                return normalize_image(Some(url.to_string()));
-            }
-        }
-
-        // 2. images (root)
-        if let Some(images) = json.get("images").and_then(|v| v.as_array()) {
-             if let Some(url) = images.iter().filter_map(|v| v.get("url").and_then(|s| s.as_str())).next() {
-                return normalize_image(Some(url.to_string()));
-            }
-        }
-        
-        // 3. attributes.image_url
-        if let Some(url) = json.pointer("/attributes/image_url").and_then(|v| v.as_str()) {
-            return normalize_image(Some(url.to_string()));
-        }
-
-        // 4. Fallback: Try to get the first track's album art (or mosaic if possible)
-        if let Some(items) = json.pointer("/contents/items").and_then(|v| v.as_array()) {
-            let mut collected_hashes = Vec::new();
-
-            for item in items {
-                if collected_hashes.len() >= 4 {
-                    break;
-                }
-                if let Some(uri) = item.get("uri").and_then(|v| v.as_str()) {
-                    if uri.starts_with("spotify:track:") {
-                        if let Ok(parsed_uri) = SpotifyUri::from_uri(uri) {
-                            if let Ok(track) = Track::get(&self.session, &parsed_uri).await {
-                                if let Some(image) = track.album.covers.first() {
-                                    let hex = image.id.to_string();
-                                    if !collected_hashes.contains(&hex) {
-                                        collected_hashes.push(hex);
-                                    }
-                                }
-                            }
-                        }
-                    }
-                }
-            }
-
-            if !collected_hashes.is_empty() {
-                if collected_hashes.len() == 4 {
-                    let mosaic = collected_hashes.join(":");
-                    return normalize_image(Some(format!("spotify:mosaic:{}", mosaic)));
-                } else {
-                    return normalize_image(Some(format!("spotify:image:{}", collected_hashes[0])));
-                }
-            }
-        }
-
-        let json_str = serde_json::to_string_pretty(&json).unwrap_or_default();
-        None
-    }
-
-    fn get_track_cover(&self, track: &Track) -> Option<String> {
-        if let Some(image) = track.album.covers.first() {
-             let hex = image.id.to_string();
-             return normalize_image(Some(format!("spotify:image:{hex}")));
-        }
-        None
-    }
-
-    async fn fetch_oembed_cover(&self, uri: &str) -> Option<String> {
-        let http_url = if uri.starts_with("spotify:playlist:") {
-            uri.replace("spotify:playlist:", "https://open.spotify.com/playlist/")
-        } else {
-            uri.to_string()
-        };
-
-        let client = Client::new();
-        let url = format!(
-            "https://open.spotify.com/oembed?url={}",
-            urlencoding::encode(&http_url)
-        );
-        match client.get(&url).send().await {
-            Ok(resp) => {
-                if !resp.status().is_success() {
-                    log::warn!(
-                        "OEmbed request failed for '{}' (url={}): status {}",
-                        uri,
-                        http_url,
-                        resp.status()
-                    );
-                    return None;
-                }
-                match resp.json::<OEmbedResponse>().await {
-                    Ok(oembed) => normalize_image(oembed.thumbnail_url),
-                    Err(e) => {
-                        log::warn!("Failed to parse OEmbed response for '{}': {}", uri, e);
-                        None
-                    }
-                }
-            }
-            Err(e) => {
-                log::warn!("OEmbed network error for '{}': {}", uri, e);
-                None
-            }
-        }
     }
 }
 
@@ -590,8 +436,11 @@ fn normalize_image(raw: Option<String>) -> Option<String> {
     if let Some(rest) = uri.strip_prefix(prefix_mosaic) {
         // Try the full mosaic hash (colon-separated) and fall back to the first tile.
         let mosaic_hash = rest.replace(':', "");
-        return Some(format!("https://mosaic.scdn.co/640/{mosaic_hash}"))
-            .or_else(|| rest.split(':').next().map(|first| format!("https://i.scdn.co/image/{first}")));
+        return Some(format!("https://mosaic.scdn.co/640/{mosaic_hash}")).or_else(|| {
+            rest.split(':')
+                .next()
+                .map(|first| format!("https://i.scdn.co/image/{first}"))
+        });
     }
 
     None
@@ -622,9 +471,7 @@ impl UnauthenticatedSpotifyClient {
         let credentials = self.fetch_credentials_from_cache().await;
 
         match credentials {
-            Ok(creds) => {
-                Ok(self.authenticate(creds).await?)
-            }
+            Ok(creds) => Ok(self.authenticate(creds).await?),
             Err(_) => {
                 log::info!("Failed to load credentials from cache, going in discovery mode");
                 match self.discover_credentials().await {
@@ -642,10 +489,16 @@ impl UnauthenticatedSpotifyClient {
 
         let _ = session.connect(credentials, false).await?;
 
-        Ok(Self::from_authenticated_session(session, self.audio_sender.clone()))
+        Ok(Self::from_authenticated_session(
+            session,
+            self.audio_sender.clone(),
+        ))
     }
 
-    fn from_authenticated_session(session: Session, external_sender: Option<SyncSender<SinkEvent>>) -> SpotifyClient {
+    fn from_authenticated_session(
+        session: Session,
+        external_sender: Option<SyncSender<SinkEvent>>,
+    ) -> SpotifyClient {
         let (sender, receiver) = if let Some(s) = external_sender {
             (s, None)
         } else {
@@ -667,6 +520,7 @@ impl UnauthenticatedSpotifyClient {
             player_info_channel: info_channel,
             session,
             playlists_cache: Arc::new(RwLock::new(None)),
+            playlists_fetch_lock: Arc::new(TokioMutex::new(())),
         }
     }
 
