@@ -34,6 +34,15 @@ The client communicates with the backend over HTTP to control playback, song sel
 
 ### Docker compose with config file
 
+The container uses one data mount. For this setup the host folder should be:
+
+```
+/media/tank8/carechords/
+  credentials.json
+  cache/
+  music/
+```
+
 ```
 version: '3.8'
 
@@ -45,7 +54,7 @@ services:
     network_mode: "host"
     volumes:
       - ./carechords.toml:/etc/carechords.toml
-      - ./spotify_cache:/cache
+      - /media/tank8/carechords:/data
 
 ```
 
@@ -64,7 +73,7 @@ services:
         CARECHORDS_RTSP_PORT: 8554
         CARECHORDS_MONITOR_URL: "rtsp://sleepstream:sleepstream@10.0.0.51"
         CARECHORDS_NOISE_FILTER: true
+        CARECHORDS_DATA_DIR: /data
     volumes:
-      - ./spotify_cache:/cache
+      - /media/tank8/carechords:/data
 ```
-

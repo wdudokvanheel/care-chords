@@ -1,5 +1,6 @@
 use futures::StreamExt;
 
+use crate::data_paths;
 use crate::spotify_player::{PlayerCommand, SpotifyPlayer, SpotifyPlayerInfo};
 use crate::spotify_sink::SinkEvent;
 use anyhow::{Result, anyhow};
@@ -31,10 +32,7 @@ use tokio::sync::{Mutex as TokioMutex, RwLock, watch};
 
 const PLAYLIST_METADATA_REQUEST_SPACING: Duration = Duration::from_millis(250);
 const PLAYLIST_ARTWORK_REQUEST_SPACING: Duration = Duration::from_millis(500);
-const PLAYLIST_METADATA_CACHE_DIR: &str = "cache/playlists";
-
 pub struct UnauthenticatedSpotifyClient {
-    cache_folder: PathBuf,
     audio_sender: Option<SyncSender<SinkEvent>>,
 }
 
@@ -149,15 +147,11 @@ impl PlaylistMetadataCache {
 
 impl SpotifyClient {
     pub fn new() -> UnauthenticatedSpotifyClient {
-        UnauthenticatedSpotifyClient {
-            cache_folder: PathBuf::from("cache"),
-            audio_sender: None,
-        }
+        UnauthenticatedSpotifyClient { audio_sender: None }
     }
 
     pub fn new_with_sender(sender: SyncSender<SinkEvent>) -> UnauthenticatedSpotifyClient {
         UnauthenticatedSpotifyClient {
-            cache_folder: PathBuf::from("cache"),
             audio_sender: Some(sender),
         }
     }
@@ -625,7 +619,8 @@ fn read_playlist_metadata_cache(uri: &str) -> Option<PlaylistMetadataCache> {
 }
 
 fn write_playlist_metadata_cache(cache: &PlaylistMetadataCache) {
-    if let Err(e) = fs::create_dir_all(PLAYLIST_METADATA_CACHE_DIR) {
+    let cache_dir = data_paths::playlist_metadata_cache_dir();
+    if let Err(e) = fs::create_dir_all(&cache_dir) {
         log::warn!("Failed to create playlist metadata cache dir: {e}");
         return;
     }
@@ -653,7 +648,7 @@ fn write_playlist_metadata_cache(cache: &PlaylistMetadataCache) {
 
 fn playlist_metadata_cache_path(uri: &str) -> PathBuf {
     let digest = hex::encode(Sha1::digest(uri.as_bytes()));
-    PathBuf::from(PLAYLIST_METADATA_CACHE_DIR).join(format!("{digest}.json"))
+    data_paths::playlist_metadata_cache_dir().join(format!("{digest}.json"))
 }
 
 fn extract_playlist_image_from_json(json: &serde_json::Value) -> Option<String> {
@@ -809,14 +804,21 @@ impl UnauthenticatedSpotifyClient {
     }
 
     pub async fn fetch_credentials_from_cache(&self) -> Result<Credentials> {
-        let path = self.cache_folder.join("credentials.json");
-        log::info!("Loading cache from: {}", path.display());
-        if !path.exists() {
-            return Err(anyhow::anyhow!(format!(
-                "File {} does not exist.",
-                path.display()
-            )));
-        }
+        let path = [
+            data_paths::credentials_file(),
+            data_paths::legacy_credentials_file(),
+        ]
+        .into_iter()
+        .find(|path| path.exists())
+        .ok_or_else(|| {
+            anyhow::anyhow!(
+                "No Spotify credentials found at {} or {}",
+                data_paths::credentials_file().display(),
+                data_paths::legacy_credentials_file().display()
+            )
+        })?;
+
+        log::info!("Loading Spotify credentials from: {}", path.display());
 
         let file =
             File::open(path).map_err(|e| anyhow::anyhow!(format!("Failed to open file: {}", e)))?;
@@ -866,10 +868,15 @@ impl UnauthenticatedSpotifyClient {
 }
 
 fn create_spotify_cache() -> Option<Cache> {
-    let credentials_path = Some("cache");
-    let volume_path = Some("cache");
-    let audio_path = Some("cache");
+    let credentials_path = data_paths::data_dir();
+    let cache_path = data_paths::cache_dir();
     let size_limit = Some(1024 * 1024 * 1024);
 
-    Cache::new(credentials_path, volume_path, audio_path, size_limit).ok()
+    Cache::new(
+        Some(credentials_path),
+        Some(cache_path.clone()),
+        Some(cache_path),
+        size_limit,
+    )
+    .ok()
 }

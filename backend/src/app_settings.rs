@@ -1,12 +1,16 @@
+use crate::data_paths;
 use anyhow::Result;
 use clap::Parser;
 use config::{Config, Environment, File};
 use serde::{Deserialize, Serialize};
 use std::env;
-use std::path::Path;
+use std::path::{Path, PathBuf};
 
 #[derive(Debug, Serialize, Deserialize)]
 pub struct ApplicationSettings {
+    /// The folder containing credentials.json, cache/, and music/
+    #[serde(default = "default_data_dir")]
+    pub data_dir: String,
     /// The target RTSP server port
     #[serde(default = "default_rtsp_port")]
     pub rtsp_port: u16,
@@ -28,6 +32,7 @@ pub struct LocalAudioSettings {
 
 #[derive(Debug, Default, Deserialize)]
 struct ConfigSettings {
+    data_dir: Option<String>,
     rtsp_port: Option<u16>,
     monitor_url: Option<String>,
     #[serde(default)]
@@ -38,6 +43,10 @@ struct ConfigSettings {
 
 fn default_rtsp_port() -> u16 {
     8554
+}
+
+fn default_data_dir() -> String {
+    ".".to_string()
 }
 
 fn default_local_roots() -> Vec<String> {
@@ -53,8 +62,14 @@ fn default_allowed_extensions() -> Vec<String> {
 
 impl Default for LocalAudioSettings {
     fn default() -> Self {
+        Self::for_data_dir(default_data_dir())
+    }
+}
+
+impl LocalAudioSettings {
+    fn for_data_dir(data_dir: impl Into<PathBuf>) -> Self {
         Self {
-            roots: default_local_roots(),
+            roots: vec![data_dir.into().join("music").to_string_lossy().to_string()],
             allowed_extensions: default_allowed_extensions(),
         }
     }
@@ -81,6 +96,11 @@ struct Cli {
     monitor_url: Option<String>,
     #[arg(long = "noise-filter", help = "Enable noise filtering")]
     noise_filter: bool,
+    #[arg(
+        long = "data-dir",
+        help = "Set the folder containing credentials.json, cache/, and music/"
+    )]
+    data_dir: Option<String>,
 }
 
 impl ApplicationSettings {
@@ -125,14 +145,25 @@ impl ApplicationSettings {
         // Build configuration. Required values may still be supplied by CLI flags,
         // so deserialize into an optional representation first.
         let loaded_settings: ConfigSettings = config_builder.build()?.try_deserialize()?;
+        let data_dir = loaded_settings.data_dir.unwrap_or_else(default_data_dir);
+        let local_audio_configured = loaded_settings.local_audio.is_some();
         let mut settings = ApplicationSettings {
+            data_dir: data_dir.clone(),
             rtsp_port: loaded_settings.rtsp_port.unwrap_or_else(default_rtsp_port),
             monitor_url: loaded_settings.monitor_url.unwrap_or_default(),
             noise_filter: loaded_settings.noise_filter,
-            local_audio: loaded_settings.local_audio.unwrap_or_default(),
+            local_audio: loaded_settings
+                .local_audio
+                .unwrap_or_else(|| LocalAudioSettings::for_data_dir(&data_dir)),
         };
 
         // Override with CLI arguments if provided
+        if let Some(data_dir) = cli.data_dir {
+            settings.data_dir = data_dir;
+            if !local_audio_configured {
+                settings.local_audio = LocalAudioSettings::for_data_dir(&settings.data_dir);
+            }
+        }
         if let Some(rtsp_port) = cli.rtsp_port {
             settings.rtsp_port = rtsp_port;
         }
@@ -149,6 +180,8 @@ impl ApplicationSettings {
                 "monitor_url is required; set it in carechords.toml, CARECHORDS_MONITOR_URL, or --monitor-url"
             );
         }
+
+        data_paths::set_data_dir(&settings.data_dir);
 
         let toml_str =
             toml::to_string_pretty(&settings).expect("Failed to convert settings to TOML format");

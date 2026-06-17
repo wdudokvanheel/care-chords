@@ -1,4 +1,5 @@
 mod app_settings;
+mod data_paths;
 mod local_audio;
 mod pipeline;
 mod playback_controller;

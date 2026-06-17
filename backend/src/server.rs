@@ -9,6 +9,7 @@ use crate::system_playlists::SystemPlaylistStore;
 use crate::webserver::start_http_server;
 
 use crate::app_settings::ApplicationSettings;
+use crate::data_paths;
 use gstreamer as gst;
 use gstreamer::prelude::{Cast, ElementExt, GstObjectExt};
 use gstreamer::{ClockTime, Element};
@@ -41,7 +42,7 @@ impl CareChordsServer {
             monitor_url: settings.monitor_url.clone(),
             local_library: LocalAudioLibrary::new(&settings.local_audio),
             local_player: Arc::new(LocalAudioPlayer::new(sender.clone())),
-            system_playlists: SystemPlaylistStore::new("cache/system_playlists.json".into()),
+            system_playlists: SystemPlaylistStore::new(data_paths::system_playlists_file()),
             audio_bridge,
         }
     }

@@ -1,3 +1,4 @@
+use crate::data_paths;
 use crate::spotify_sink::{ChannelSink, SinkEvent};
 use librespot_core::cache::Cache;
 use librespot_core::{Session, SessionConfig, SpotifyUri};
@@ -570,10 +571,13 @@ fn build_player(
 }
 
 fn create_cache() -> Option<Cache> {
+    let credentials_path = data_paths::data_dir();
+    let cache_path = data_paths::cache_dir();
+
     Cache::new(
-        Some("cache"),
-        Some("cache"),
-        Some("cache"),
+        Some(credentials_path),
+        Some(cache_path.clone()),
+        Some(cache_path),
         Some(1024 * 1024 * 1024),
     )
     .ok()
