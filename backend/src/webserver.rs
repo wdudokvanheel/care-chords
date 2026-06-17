@@ -1,4 +1,7 @@
-use crate::playback_controller::{LegacyPlaylistRequest, PlayRefRequest, PlaybackController};
+use crate::playback_controller::{
+    LegacyPlaylistRequest, PlayRefRequest, PlaybackController, QueueItemRequest,
+    ReorderQueueRequest,
+};
 use crate::system_playlists::{AddSystemPlaylistItemRequest, CreateSystemPlaylistRequest};
 use futures_util::StreamExt;
 use serde::Deserialize;
@@ -101,6 +104,40 @@ fn create_routes(
         .and(playback_filter.clone())
         .and_then(handle_play_ref);
 
+    let queue_route = warp::path("queue")
+        .and(warp::path::end())
+        .and(warp::get())
+        .and(playback_filter.clone())
+        .and_then(handle_queue);
+
+    let clear_queue_route = warp::path("queue")
+        .and(warp::path::end())
+        .and(warp::delete())
+        .and(playback_filter.clone())
+        .and_then(handle_clear_queue);
+
+    let enqueue_route = warp::path!("queue" / "items")
+        .and(warp::post())
+        .and(warp::body::json::<QueueItemRequest>())
+        .and(playback_filter.clone())
+        .and_then(handle_enqueue);
+
+    let remove_queue_item_route = warp::path!("queue" / "items" / String)
+        .and(warp::delete())
+        .and(playback_filter.clone())
+        .and_then(handle_remove_queue_item);
+
+    let reorder_queue_route = warp::path!("queue" / "reorder")
+        .and(warp::post())
+        .and(warp::body::json::<ReorderQueueRequest>())
+        .and(playback_filter.clone())
+        .and_then(handle_reorder_queue);
+
+    let play_queue_index_route = warp::path!("queue" / "play-index" / usize)
+        .and(warp::post())
+        .and(playback_filter.clone())
+        .and_then(handle_play_queue_index);
+
     let play_system_playlist_route = warp::path!("queue" / "play-system-playlist" / String)
         .and(warp::post())
         .and(playback_filter.clone())
@@ -178,6 +215,12 @@ fn create_routes(
         .or(create_system_playlist_route)
         .or(add_system_playlist_item_route)
         .or(play_ref_route)
+        .or(queue_route)
+        .or(clear_queue_route)
+        .or(enqueue_route)
+        .or(remove_queue_item_route)
+        .or(reorder_queue_route)
+        .or(play_queue_index_route)
         .or(play_system_playlist_route)
         .or(playlist_route)
         .or(playlists_route)
@@ -306,6 +349,59 @@ async fn handle_play_ref(
 ) -> Result<Response<Body>, Rejection> {
     match playback.play_ref(&req.reference).await {
         Ok(()) => Ok(ok_status("playing")),
+        Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
+    }
+}
+
+async fn handle_queue(playback: Arc<PlaybackController>) -> Result<impl Reply, Rejection> {
+    Ok(warp::reply::json(&playback.queue_state()))
+}
+
+async fn handle_enqueue(
+    req: QueueItemRequest,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    match playback.enqueue(req).await {
+        Ok(queue) => Ok(json_status(&queue, StatusCode::OK)),
+        Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
+    }
+}
+
+async fn handle_remove_queue_item(
+    item_id: String,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    match playback.remove_queue_item(&item_id).await {
+        Ok(queue) => Ok(json_status(&queue, StatusCode::OK)),
+        Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
+    }
+}
+
+async fn handle_clear_queue(
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    match playback.clear_queue().await {
+        Ok(queue) => Ok(json_status(&queue, StatusCode::OK)),
+        Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
+    }
+}
+
+async fn handle_reorder_queue(
+    req: ReorderQueueRequest,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    match playback.reorder_queue(req).await {
+        Ok(queue) => Ok(json_status(&queue, StatusCode::OK)),
+        Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
+    }
+}
+
+async fn handle_play_queue_index(
+    index: usize,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    match playback.play_queue_index(index).await {
+        Ok(queue) => Ok(json_status(&queue, StatusCode::OK)),
         Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
     }
 }

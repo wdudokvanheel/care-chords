@@ -466,11 +466,22 @@ impl LocalAudioPlayer {
         library: LocalAudioLibrary,
         source: impl Into<String>,
     ) -> Result<()> {
+        self.play_queue_with_repeat(queue, start_index, library, source, true)
+    }
+
+    pub fn play_queue_with_repeat(
+        &self,
+        queue: Vec<LocalAudioEntry>,
+        start_index: usize,
+        library: LocalAudioLibrary,
+        source: impl Into<String>,
+        repeat: bool,
+    ) -> Result<()> {
         if queue.is_empty() {
             self.stop();
             return Ok(());
         }
-        self.start_from(queue, start_index, library, source.into());
+        self.start_from(queue, start_index, library, source.into(), repeat);
         Ok(())
     }
 
@@ -480,7 +491,7 @@ impl LocalAudioPlayer {
             (state.queue.clone(), state.current_index)
         };
         if !queue.is_empty() {
-            self.start_from(queue, index, library, source.into());
+            self.start_from(queue, index, library, source.into(), true);
         }
     }
 
@@ -507,7 +518,7 @@ impl LocalAudioPlayer {
         }
 
         let next_index = (current_index + 1) % queue.len();
-        self.start_from(queue, next_index, library, source.into());
+        self.start_from(queue, next_index, library, source.into(), true);
     }
 
     fn start_from(
@@ -516,6 +527,7 @@ impl LocalAudioPlayer {
         index: usize,
         library: LocalAudioLibrary,
         source: String,
+        repeat: bool,
     ) {
         self.cancel_current();
         if queue.is_empty() {
@@ -593,7 +605,15 @@ impl LocalAudioPlayer {
                     break;
                 }
 
-                current_index = (current_index + 1) % queue.len();
+                if current_index + 1 >= queue.len() {
+                    if repeat {
+                        current_index = 0;
+                    } else {
+                        break;
+                    }
+                } else {
+                    current_index += 1;
+                }
             }
 
             if !cancel.load(Ordering::Relaxed) {

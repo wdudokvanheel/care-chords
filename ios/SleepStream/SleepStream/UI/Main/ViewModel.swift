@@ -11,6 +11,7 @@ class ViewModel: ObservableObject {
     @Published var gstreamer: GStreamerController
     @Published var video: LiveStreamController = .init()
     @Published var nowPlaying: NowPlayingMediator
+    @Published var queue: QueueController
 
     let audioLibrary: AudioLibraryController
 
@@ -20,6 +21,7 @@ class ViewModel: ObservableObject {
         let music = MusicController()
         let audio = AudioOutputController()
         let gstreamer = GStreamerController()
+        let queue = QueueController()
         let osMediaPlayer = OsMediaPlayerController()
         let nowPlaying = NowPlayingMediator(audioOutput: audio, gstreamer: gstreamer, musicController: music, osMediaPlayer: osMediaPlayer)
 
@@ -27,6 +29,7 @@ class ViewModel: ObservableObject {
         self.music = music
         self.audioOutput = audio
         self.gstreamer = gstreamer
+        self.queue = queue
         self.nowPlaying = nowPlaying
 
         audioOutput.$currentOutput
@@ -89,6 +92,7 @@ class ViewModel: ObservableObject {
     func onAppear() {
         audioOutput.startMonitoringAudioRoute()
         audioLibrary.load()
+        queue.load()
     }
 
     func onDisappear() {

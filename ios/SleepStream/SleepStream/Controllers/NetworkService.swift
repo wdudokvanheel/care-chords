@@ -23,6 +23,7 @@ struct ShuffleRequestDto: Encodable {
 enum HTTPMethod: String {
     case GET
     case POST
+    case DELETE
 }
 
 class NetworkService {

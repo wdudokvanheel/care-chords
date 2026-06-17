@@ -38,3 +38,27 @@ enum AudioItemKind: String {
 }
 
 typealias Playlist = AudioItem
+
+struct QueueState: Decodable {
+    let items: [QueueItem]
+    let currentIndex: Int?
+    let repeatLast: Bool
+
+    static let empty = QueueState(items: [], currentIndex: nil, repeatLast: true)
+}
+
+struct QueueItem: Identifiable, Decodable {
+    let id: String
+    let source: String
+    let kind: String
+    let reference: String
+    let title: String
+
+    enum CodingKeys: String, CodingKey {
+        case id
+        case source
+        case kind
+        case reference = "ref"
+        case title
+    }
+}

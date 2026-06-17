@@ -12,6 +12,9 @@ struct MainView: View {
                 Tab(title: "Now playing") {
                     NowPlayingView(controller: model.music)
                 }
+                Tab(title: "Queue") {
+                    QueueView(queue: model.queue, library: model.audioLibrary)
+                }
                 Tab(title: "Library") {
                     AudioLibraryView(library: model.audioLibrary, itemSelect: model.selectAudioItem)
                 }

@@ -3,7 +3,21 @@ import SwiftUI
 struct AudioLibraryView: View {
     @ObservedObject var library: AudioLibraryController
     let itemSelect: (AudioItem) -> Void
+    let collectionSelect: ((AudioItem) -> Void)?
+    let actionIconName: String
     @State private var selectedSource: PlaybackSource = .local
+
+    init(
+        library: AudioLibraryController,
+        itemSelect: @escaping (AudioItem) -> Void,
+        collectionSelect: ((AudioItem) -> Void)? = nil,
+        actionIconName: String = "play.fill"
+    ) {
+        self.library = library
+        self.itemSelect = itemSelect
+        self.collectionSelect = collectionSelect
+        self.actionIconName = actionIconName
+    }
 
     private let columns: [GridItem] = [
         GridItem(.flexible()),
@@ -189,41 +203,53 @@ struct AudioLibraryView: View {
     private func grid(items: [AudioItem]) -> some View {
         LazyVGrid(columns: columns, spacing: 6) {
             ForEach(items) { item in
-                Button(action: {
-                    if item.kind == .folder && item.source == "local" {
-                        library.openLocalFolder(item)
-                    } else if item.kind == .folder && item.source == "youtube" {
-                        library.openYouTubeFolder(item)
-                    } else {
-                        itemSelect(item)
-                    }
-                }) {
-                    VStack(spacing: 0) {
-                        artwork(for: item)
-                        Text(item.name)
-                            .foregroundColor(Color.playlistItemLabel)
-                            .font(.caption)
-                            .fontWeight(.light)
-                            .lineLimit(1)
-                            .multilineTextAlignment(.center)
-                            .padding(.horizontal, 4)
-                            .padding(.top, 1)
-                        if let subtitle = item.subtitle {
-                            Text(subtitle)
-                                .foregroundColor(Color.playlistItemLabel.opacity(0.75))
-                                .font(.caption2)
+                ZStack(alignment: .topTrailing) {
+                    Button(action: {
+                        performPrimaryAction(for: item)
+                    }) {
+                        VStack(spacing: 0) {
+                            artwork(for: item)
+                            Text(item.name)
+                                .foregroundColor(Color.playlistItemLabel)
+                                .font(.caption)
                                 .fontWeight(.light)
                                 .lineLimit(1)
                                 .multilineTextAlignment(.center)
                                 .padding(.horizontal, 4)
-                                .padding(.bottom, 2)
-                        } else {
-                            Spacer()
-                                .frame(height: 2)
+                                .padding(.top, 1)
+                            if let subtitle = item.subtitle {
+                                Text(subtitle)
+                                    .foregroundColor(Color.playlistItemLabel.opacity(0.75))
+                                    .font(.caption2)
+                                    .fontWeight(.light)
+                                    .lineLimit(1)
+                                    .multilineTextAlignment(.center)
+                                    .padding(.horizontal, 4)
+                                    .padding(.bottom, 2)
+                            } else {
+                                Spacer()
+                                    .frame(height: 2)
+                            }
                         }
+                        .background(Color.playlistItem)
+                        .padding(0)
                     }
-                    .background(Color.playlistItem)
-                    .padding(0)
+                    .buttonStyle(.plain)
+
+                    if let collectionSelect {
+                        Button(action: {
+                            collectionSelect(item)
+                        }) {
+                            Image(systemName: "plus")
+                                .font(.caption.weight(.bold))
+                                .foregroundColor(.white)
+                                .frame(width: 28, height: 28)
+                                .background(Color.orange)
+                                .clipShape(Circle())
+                        }
+                        .buttonStyle(.plain)
+                        .padding(6)
+                    }
                 }
                 .padding(2)
             }
@@ -262,7 +288,7 @@ struct AudioLibraryView: View {
 
                         Spacer(minLength: 8)
 
-                        Image(systemName: "play.fill")
+                        Image(systemName: actionIconName)
                             .font(.caption)
                             .foregroundColor(.orange)
                     }
@@ -300,6 +326,16 @@ struct AudioLibraryView: View {
             return item.source == "spotify" ? "music.note.list" : "text.badge.plus"
         case .file:
             return item.source == "youtube" ? "play.rectangle" : "music.note"
+        }
+    }
+
+    private func performPrimaryAction(for item: AudioItem) {
+        if item.kind == .folder && item.source == "local" {
+            library.openLocalFolder(item)
+        } else if item.kind == .folder && item.source == "youtube" {
+            library.openYouTubeFolder(item)
+        } else {
+            itemSelect(item)
         }
     }
 }

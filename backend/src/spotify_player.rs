@@ -37,7 +37,7 @@ pub struct MusicMetadata {
 
 #[derive(Clone, Debug)]
 pub enum PlayerCommand {
-    PlayRef(String),
+    PlayRef { uri: String, repeat: bool },
     Sleep(u32),
     Play,
     Pause,
@@ -77,6 +77,7 @@ pub struct SpotifyPlayer {
     playlist_tracks: Vec<SpotifyUri>,
     player: Arc<Player>,
     shuffle: bool,
+    repeat: bool,
     current_song: Option<MusicMetadata>,
     volume: Arc<PlaybackVolume>,
     sleep_timer: Arc<SleepTimer>,
@@ -163,6 +164,7 @@ impl SpotifyPlayer {
             session,
             player,
             shuffle: false,
+            repeat: true,
             current_song: None,
             volume,
             sleep_timer: Arc::new(SleepTimer::new(volume_clone)),
@@ -272,10 +274,10 @@ impl SpotifyPlayer {
                 Some(command) = self.command_receiver.recv() => {
                     log::info!("Received command: {:?}", command);
                     match command {
-                        PlayerCommand::PlayRef(uri) => {
+                        PlayerCommand::PlayRef { uri, repeat } => {
                             if self.ensure_session(&mut spotify_player_events).await {
                                 self.failed_skips = 0;
-                                self.load_ref_to_queue(&uri).await;
+                                self.load_ref_to_queue(&uri, repeat).await;
                                 self.play_next_song().await;
                             }
                         }
@@ -374,7 +376,7 @@ impl SpotifyPlayer {
     }
 
     async fn play_next_song(&mut self) {
-        if self.queue.is_empty() && !self.playlist_tracks.is_empty() {
+        if self.queue.is_empty() && self.repeat && !self.playlist_tracks.is_empty() {
             self.rebuild_queue();
         }
 
@@ -449,7 +451,8 @@ impl SpotifyPlayer {
         self.rebuild_queue();
     }
 
-    async fn load_ref_to_queue(&mut self, uri: &str) {
+    async fn load_ref_to_queue(&mut self, uri: &str, repeat: bool) {
+        self.repeat = repeat;
         if uri.starts_with("spotify:playlist:") {
             self.load_playlist_to_queue(uri).await;
             return;
