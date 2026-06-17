@@ -54,7 +54,7 @@ services:
     network_mode: "host"
     volumes:
       - ./carechords.toml:/etc/carechords.toml
-      - /media/tank8/carechords:/data
+      - /media/tank8/carechords:/media/tank8/carechords
 
 ```
 
@@ -73,7 +73,7 @@ services:
         CARECHORDS_RTSP_PORT: 8554
         CARECHORDS_MONITOR_URL: "rtsp://sleepstream:sleepstream@10.0.0.51"
         CARECHORDS_NOISE_FILTER: true
-        CARECHORDS_DATA_DIR: /data
+        CARECHORDS_DATA_DIR: /media/tank8/carechords
     volumes:
-      - /media/tank8/carechords:/data
+      - /media/tank8/carechords:/media/tank8/carechords
 ```

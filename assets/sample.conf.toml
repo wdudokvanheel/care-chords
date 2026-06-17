@@ -1,8 +1,8 @@
 rtsp_port = 8554
 monitor_url = "rtsp://sleepstream:sleepstream@10.0.0.51"
 noise_filter = true
-data_dir = "/data"
+data_dir = "/media/tank8/carechords"
 
 [local_audio]
-roots = ["/data/music"]
+roots = ["/media/tank8/carechords/music"]
 allowed_extensions = ["mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav"]

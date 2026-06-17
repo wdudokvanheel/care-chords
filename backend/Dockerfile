@@ -38,13 +38,13 @@ RUN dnf install -y \
 
 COPY --from=builder /build/target/release/carechords /usr/local/bin/carechords
 
-ENV CARECHORDS_DATA_DIR=/data
-WORKDIR /data
+ENV CARECHORDS_DATA_DIR=/media/tank8/carechords
+WORKDIR /media/tank8/carechords
 EXPOSE 7755 8554
 
 RUN chmod +x /usr/local/bin/carechords && \
-    mkdir -p /data/cache /data/music
+    mkdir -p /media/tank8/carechords/cache /media/tank8/carechords/music
 
-VOLUME ["/data"]
+VOLUME ["/media/tank8/carechords"]
 
 ENTRYPOINT ["/usr/local/bin/carechords"]
