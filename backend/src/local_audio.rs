@@ -65,6 +65,7 @@ pub enum LocalAudioEntryKind {
 pub struct LocalAudioLibrary {
     roots: Arc<Vec<PathBuf>>,
     allowed_extensions: Arc<HashSet<String>>,
+    artwork_path: &'static str,
 }
 
 pub struct LocalAudioPlayer {
@@ -98,7 +99,14 @@ impl LocalAudioLibrary {
         Self {
             roots: Arc::new(roots),
             allowed_extensions: Arc::new(allowed_extensions),
+            artwork_path: "/library/local/artwork",
         }
+    }
+
+    pub fn new_youtube(settings: &LocalAudioSettings) -> Self {
+        let mut library = Self::new(settings);
+        library.artwork_path = "/library/youtube/artwork";
+        library
     }
 
     pub fn roots(&self) -> Vec<LocalAudioEntry> {
@@ -148,7 +156,7 @@ impl LocalAudioLibrary {
                     name,
                     kind: LocalAudioEntryKind::Folder,
                     path: reference.clone(),
-                    image_uri: folder_artwork(&path).map(|_| artwork_uri(&reference)),
+                    image_uri: folder_artwork(&path).map(|_| self.artwork_uri(&reference)),
                     metadata: None,
                 });
             } else if self.is_audio_file(&path) {
@@ -346,7 +354,15 @@ impl LocalAudioLibrary {
 
     fn folder_image_uri(&self, path: &Path) -> Option<String> {
         let reference = self.path_to_ref(path).ok()?;
-        folder_artwork(path).map(|_| artwork_uri(&reference))
+        folder_artwork(path).map(|_| self.artwork_uri(&reference))
+    }
+
+    fn artwork_uri(&self, reference: &str) -> String {
+        format!(
+            "{}?path={}",
+            self.artwork_path,
+            utf8_percent_encode(reference, NON_ALPHANUMERIC)
+        )
     }
 }
 
@@ -371,22 +387,23 @@ impl LocalAudioPlayer {
         queue: Vec<LocalAudioEntry>,
         start_index: usize,
         library: LocalAudioLibrary,
+        source: impl Into<String>,
     ) -> Result<()> {
         if queue.is_empty() {
             self.stop();
             return Ok(());
         }
-        self.start_from(queue, start_index, library);
+        self.start_from(queue, start_index, library, source.into());
         Ok(())
     }
 
-    pub fn play(&self, library: LocalAudioLibrary) {
+    pub fn play(&self, library: LocalAudioLibrary, source: impl Into<String>) {
         let (queue, index) = {
             let state = self.state.lock().unwrap();
             (state.queue.clone(), state.current_index)
         };
         if !queue.is_empty() {
-            self.start_from(queue, index, library);
+            self.start_from(queue, index, library, source.into());
         }
     }
 
@@ -402,7 +419,7 @@ impl LocalAudioPlayer {
         let _ = self.info_sender.send(SpotifyPlayerInfo::stopped());
     }
 
-    pub fn next(&self, library: LocalAudioLibrary) {
+    pub fn next(&self, library: LocalAudioLibrary, source: impl Into<String>) {
         let (queue, current_index) = {
             let state = self.state.lock().unwrap();
             (state.queue.clone(), state.current_index)
@@ -413,10 +430,16 @@ impl LocalAudioPlayer {
         }
 
         let next_index = (current_index + 1) % queue.len();
-        self.start_from(queue, next_index, library);
+        self.start_from(queue, next_index, library, source.into());
     }
 
-    fn start_from(&self, queue: Vec<LocalAudioEntry>, index: usize, library: LocalAudioLibrary) {
+    fn start_from(
+        &self,
+        queue: Vec<LocalAudioEntry>,
+        index: usize,
+        library: LocalAudioLibrary,
+        source: String,
+    ) {
         self.cancel_current();
         if queue.is_empty() {
             let _ = self.info_sender.send(SpotifyPlayerInfo::stopped());
@@ -476,7 +499,7 @@ impl LocalAudioPlayer {
                         artist,
                         title: entry.name.clone(),
                         artwork_url,
-                        source: Some("local".to_string()),
+                        source: Some(source.clone()),
                     }),
                     sleep_timer: None,
                 });
@@ -584,6 +607,8 @@ fn parse_local_ref(reference: &str) -> Result<(usize, String)> {
     let reference = reference
         .strip_prefix("local:file:")
         .or_else(|| reference.strip_prefix("local:folder:"))
+        .or_else(|| reference.strip_prefix("youtube:file:"))
+        .or_else(|| reference.strip_prefix("youtube:folder:"))
         .unwrap_or(reference);
     let rest = reference
         .strip_prefix("root:")
@@ -649,13 +674,6 @@ fn is_folder_artwork_name(path: &Path) -> bool {
         .map(|name| name.to_ascii_lowercase());
     name.as_deref()
         .is_some_and(|name| FOLDER_ARTWORK_NAMES.contains(&name))
-}
-
-fn artwork_uri(reference: &str) -> String {
-    format!(
-        "/library/local/artwork?path={}",
-        utf8_percent_encode(reference, NON_ALPHANUMERIC)
-    )
 }
 
 fn read_audio_metadata(path: &Path) -> Option<LocalAudioMetadata> {
@@ -909,6 +927,14 @@ mod tests {
             .map(|entry| entry.name)
             .collect::<Vec<_>>();
         assert_eq!(names, ["Track 2", "Track 10"]);
+    }
+
+    #[test]
+    fn parses_youtube_file_refs() {
+        let (root, relative) = parse_local_ref("youtube:file:root:0/Channel - Title.webm").unwrap();
+
+        assert_eq!(root, 0);
+        assert_eq!(relative, "Channel - Title.webm");
     }
 
     #[test]

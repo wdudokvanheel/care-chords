@@ -13,10 +13,10 @@ struct AudioLibraryView: View {
 
     var body: some View {
         VStack(spacing: 0) {
-            if library.isLoading && library.localItems.isEmpty {
+            if library.isLoading && library.localItems.isEmpty && library.youtubeItems.isEmpty {
                 ProgressView("Loading audio…")
                     .padding()
-            } else if let error = library.errorMessage, library.localItems.isEmpty {
+            } else if let error = library.errorMessage, library.localItems.isEmpty && library.youtubeItems.isEmpty {
                 Text(error)
                     .foregroundColor(.red)
                     .padding()
@@ -31,6 +31,8 @@ struct AudioLibraryView: View {
 
                         if activeSource == .local {
                             localSection
+                        } else if activeSource == .youtube {
+                            youtubeSection
                         } else {
                             section("Spotify", items: library.spotifyPlaylists)
                         }
@@ -48,11 +50,15 @@ struct AudioLibraryView: View {
     private var sourcePicker: some View {
         HStack(spacing: 10) {
             sourceButton(.local)
+            sourceButton(.youtube)
             sourceButton(.spotify)
         }
     }
 
     private var activeSource: PlaybackSource {
+        if selectedSource == .youtube && !library.youtubeAvailable {
+            return .local
+        }
         if selectedSource == .spotify && !library.spotifyAvailable {
             return .local
         }
@@ -61,7 +67,7 @@ struct AudioLibraryView: View {
 
     private func sourceButton(_ source: PlaybackSource) -> some View {
         let isSelected = activeSource == source
-        let isEnabled = source != .spotify || library.spotifyAvailable
+        let isEnabled = isSourceEnabled(source)
 
         return Button(action: {
             selectedSource = source
@@ -88,6 +94,17 @@ struct AudioLibraryView: View {
         }
         .buttonStyle(.plain)
         .disabled(!isEnabled)
+    }
+
+    private func isSourceEnabled(_ source: PlaybackSource) -> Bool {
+        switch source {
+        case .local:
+            return true
+        case .youtube:
+            return library.youtubeAvailable
+        case .spotify:
+            return library.spotifyAvailable
+        }
     }
 
     private var localSection: some View {
@@ -117,12 +134,47 @@ struct AudioLibraryView: View {
         }
     }
 
+    private var youtubeSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("YouTube")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                if library.youtubePath != nil {
+                    Button(action: library.openYouTubeRoot) {
+                        Image(systemName: "house")
+                            .foregroundColor(.orange)
+                    }
+                }
+                Button(action: library.refresh) {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundColor(.orange)
+                }
+            }
+            if !youtubeFolders.isEmpty {
+                grid(items: youtubeFolders)
+            }
+            if !youtubeFiles.isEmpty {
+                fileRows(items: youtubeFiles)
+            }
+        }
+    }
+
     private var localFolders: [AudioItem] {
         library.localItems.filter { $0.kind == .folder }
     }
 
     private var localFiles: [AudioItem] {
         library.localItems.filter { $0.kind == .file }
+    }
+
+    private var youtubeFolders: [AudioItem] {
+        library.youtubeItems.filter { $0.kind == .folder }
+    }
+
+    private var youtubeFiles: [AudioItem] {
+        library.youtubeItems.filter { $0.kind == .file }
     }
 
     private func section(_ title: String, items: [AudioItem]) -> some View {
@@ -140,6 +192,8 @@ struct AudioLibraryView: View {
                 Button(action: {
                     if item.kind == .folder && item.source == "local" {
                         library.openLocalFolder(item)
+                    } else if item.kind == .folder && item.source == "youtube" {
+                        library.openYouTubeFolder(item)
                     } else {
                         itemSelect(item)
                     }
@@ -245,7 +299,7 @@ struct AudioLibraryView: View {
         case .playlist:
             return item.source == "spotify" ? "music.note.list" : "text.badge.plus"
         case .file:
-            return "music.note"
+            return item.source == "youtube" ? "play.rectangle" : "music.note"
         }
     }
 }
@@ -254,12 +308,15 @@ typealias PlaylistSelectorView = AudioLibraryView
 
 private enum PlaybackSource {
     case local
+    case youtube
     case spotify
 
     var title: String {
         switch self {
         case .local:
             return "Local"
+        case .youtube:
+            return "YouTube"
         case .spotify:
             return "Spotify"
         }
@@ -269,6 +326,8 @@ private enum PlaybackSource {
         switch self {
         case .local:
             return "folder"
+        case .youtube:
+            return "play.rectangle"
         case .spotify:
             return "music.note.list"
         }

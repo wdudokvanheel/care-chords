@@ -63,6 +63,19 @@ fn create_routes(
         .and(playback_filter.clone())
         .and_then(handle_local_artwork);
 
+    let youtube_library_route = warp::path!("library" / "youtube")
+        .and(warp::path::end())
+        .and(warp::get())
+        .and(warp::query::<LocalLibraryQuery>())
+        .and(playback_filter.clone())
+        .and_then(handle_youtube_library);
+
+    let youtube_artwork_route = warp::path!("library" / "youtube" / "artwork")
+        .and(warp::get())
+        .and(warp::query::<LocalArtworkQuery>())
+        .and(playback_filter.clone())
+        .and_then(handle_youtube_artwork);
+
     let system_playlists_route = warp::path("system-playlists")
         .and(warp::path::end())
         .and(warp::get())
@@ -159,6 +172,8 @@ fn create_routes(
     sources_route
         .or(local_library_route)
         .or(local_artwork_route)
+        .or(youtube_library_route)
+        .or(youtube_artwork_route)
         .or(system_playlists_route)
         .or(create_system_playlist_route)
         .or(add_system_playlist_item_route)
@@ -196,6 +211,19 @@ async fn handle_local_library(
     }
 }
 
+async fn handle_youtube_library(
+    query: LocalLibraryQuery,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    match playback.youtube_library().list(query.path.as_deref()) {
+        Ok(entries) => Ok(no_store(json_status(&entries, StatusCode::OK))),
+        Err(e) => Ok(no_store(error_status(
+            &e.to_string(),
+            StatusCode::BAD_REQUEST,
+        ))),
+    }
+}
+
 async fn handle_local_artwork(
     query: LocalArtworkQuery,
     playback: Arc<PlaybackController>,
@@ -214,6 +242,29 @@ async fn handle_local_artwork(
         Ok(bytes) => Ok(no_store(image_status(bytes, image_content_type(&path)))),
         Err(e) => Ok(no_store(error_status(
             &format!("Failed to read local audio artwork: {e}"),
+            StatusCode::NOT_FOUND,
+        ))),
+    }
+}
+
+async fn handle_youtube_artwork(
+    query: LocalArtworkQuery,
+    playback: Arc<PlaybackController>,
+) -> Result<Response<Body>, Rejection> {
+    let path = match playback.youtube_library().resolve_artwork_ref(&query.path) {
+        Ok(path) => path,
+        Err(e) => {
+            return Ok(no_store(error_status(
+                &e.to_string(),
+                StatusCode::NOT_FOUND,
+            )));
+        }
+    };
+
+    match tokio::fs::read(&path).await {
+        Ok(bytes) => Ok(no_store(image_status(bytes, image_content_type(&path)))),
+        Err(e) => Ok(no_store(error_status(
+            &format!("Failed to read YouTube audio artwork: {e}"),
             StatusCode::NOT_FOUND,
         ))),
     }

@@ -20,6 +20,8 @@ pub struct ApplicationSettings {
     pub noise_filter: bool,
     #[serde(default)]
     pub local_audio: LocalAudioSettings,
+    #[serde(default)]
+    pub youtube_audio: LocalAudioSettings,
 }
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
@@ -39,6 +41,8 @@ struct ConfigSettings {
     noise_filter: bool,
     #[serde(default)]
     local_audio: Option<LocalAudioSettings>,
+    #[serde(default)]
+    youtube_audio: Option<LocalAudioSettings>,
 }
 
 fn default_rtsp_port() -> u16 {
@@ -54,10 +58,12 @@ fn default_local_roots() -> Vec<String> {
 }
 
 fn default_allowed_extensions() -> Vec<String> {
-    ["mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav"]
-        .iter()
-        .map(|ext| ext.to_string())
-        .collect()
+    [
+        "mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav", "webm",
+    ]
+    .iter()
+    .map(|ext| ext.to_string())
+    .collect()
 }
 
 impl Default for LocalAudioSettings {
@@ -70,6 +76,19 @@ impl LocalAudioSettings {
     fn for_data_dir(data_dir: impl Into<PathBuf>) -> Self {
         Self {
             roots: vec![data_dir.into().join("music").to_string_lossy().to_string()],
+            allowed_extensions: default_allowed_extensions(),
+        }
+    }
+
+    fn for_youtube_dir(data_dir: impl Into<PathBuf>) -> Self {
+        Self {
+            roots: vec![
+                data_dir
+                    .into()
+                    .join("youtube")
+                    .to_string_lossy()
+                    .to_string(),
+            ],
             allowed_extensions: default_allowed_extensions(),
         }
     }
@@ -147,6 +166,7 @@ impl ApplicationSettings {
         let loaded_settings: ConfigSettings = config_builder.build()?.try_deserialize()?;
         let data_dir = loaded_settings.data_dir.unwrap_or_else(default_data_dir);
         let local_audio_configured = loaded_settings.local_audio.is_some();
+        let youtube_audio_configured = loaded_settings.youtube_audio.is_some();
         let mut settings = ApplicationSettings {
             data_dir: data_dir.clone(),
             rtsp_port: loaded_settings.rtsp_port.unwrap_or_else(default_rtsp_port),
@@ -155,6 +175,9 @@ impl ApplicationSettings {
             local_audio: loaded_settings
                 .local_audio
                 .unwrap_or_else(|| LocalAudioSettings::for_data_dir(&data_dir)),
+            youtube_audio: loaded_settings
+                .youtube_audio
+                .unwrap_or_else(|| LocalAudioSettings::for_youtube_dir(&data_dir)),
         };
 
         // Override with CLI arguments if provided
@@ -162,6 +185,9 @@ impl ApplicationSettings {
             settings.data_dir = data_dir;
             if !local_audio_configured {
                 settings.local_audio = LocalAudioSettings::for_data_dir(&settings.data_dir);
+            }
+            if !youtube_audio_configured {
+                settings.youtube_audio = LocalAudioSettings::for_youtube_dir(&settings.data_dir);
             }
         }
         if let Some(rtsp_port) = cli.rtsp_port {

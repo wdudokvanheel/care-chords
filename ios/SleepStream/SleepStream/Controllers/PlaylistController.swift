@@ -4,9 +4,11 @@ import Foundation
 final class AudioLibraryController: ObservableObject {
     @Published var sources: [AudioSourceStatus] = []
     @Published var localItems: [AudioItem] = []
+    @Published var youtubeItems: [AudioItem] = []
     @Published var spotifyPlaylists: [AudioItem] = []
     @Published var systemPlaylists: [AudioItem] = []
     @Published var localPath: String? = nil
+    @Published var youtubePath: String? = nil
     @Published var isLoading: Bool = false
     @Published var errorMessage: String? = nil
 
@@ -16,23 +18,28 @@ final class AudioLibraryController: ObservableObject {
         sources.first { $0.id == "spotify" }?.available == true
     }
 
+    var youtubeAvailable: Bool {
+        sources.first { $0.id == "youtube" }?.available != false
+    }
+
     func load() {
         guard !isLoading else { return }
         isLoading = true
         errorMessage = nil
 
-        Publishers.Zip3(loadSources(), loadSystemPlaylists(), loadLocal(path: localPath))
+        Publishers.Zip4(loadSources(), loadSystemPlaylists(), loadLocal(path: localPath), loadYouTube(path: youtubePath))
             .sink { [weak self] completion in
                 guard let self else { return }
                 self.isLoading = false
                 if case .failure(let error) = completion {
                     self.errorMessage = error.localizedDescription
                 }
-            } receiveValue: { [weak self] sources, systemPlaylists, localItems in
+            } receiveValue: { [weak self] sources, systemPlaylists, localItems, youtubeItems in
                 guard let self else { return }
                 self.sources = sources
                 self.systemPlaylists = systemPlaylists
                 self.localItems = localItems
+                self.youtubeItems = youtubeItems
                 if sources.first(where: { $0.id == "spotify" })?.available == true {
                     self.loadSpotifyPlaylists()
                 } else {
@@ -46,6 +53,7 @@ final class AudioLibraryController: ObservableObject {
         cancellables.removeAll()
         URLCache.shared.removeAllCachedResponses()
         localItems = []
+        youtubeItems = []
         isLoading = false
         load()
     }
@@ -59,6 +67,18 @@ final class AudioLibraryController: ObservableObject {
     func openLocalRoot() {
         localPath = nil
         localItems = []
+        load()
+    }
+
+    func openYouTubeFolder(_ item: AudioItem) {
+        youtubePath = item.reference
+        youtubeItems = []
+        load()
+    }
+
+    func openYouTubeRoot() {
+        youtubePath = nil
+        youtubeItems = []
         load()
     }
 
@@ -93,8 +113,16 @@ final class AudioLibraryController: ObservableObject {
             .eraseToAnyPublisher()
     }
 
+    private func loadYouTube(path: String?) -> AnyPublisher<[AudioItem], URLError> {
+        loadFileLibrary(path: path, endpoint: "youtube", source: "youtube")
+    }
+
     private func loadLocal(path: String?) -> AnyPublisher<[AudioItem], URLError> {
-        var components = URLComponents(string: "http://\(ServerConfig.shared.getURL()):7755/library/local")
+        loadFileLibrary(path: path, endpoint: "local", source: "local")
+    }
+
+    private func loadFileLibrary(path: String?, endpoint: String, source: String) -> AnyPublisher<[AudioItem], URLError> {
+        var components = URLComponents(string: "http://\(ServerConfig.shared.getURL()):7755/library/\(endpoint)")
         var queryItems = [
             URLQueryItem(
                 name: "_",
@@ -115,12 +143,12 @@ final class AudioLibraryController: ObservableObject {
             .map { entries in
                 entries.map {
                     let kind: AudioItemKind = $0.kind == "folder" ? .folder : .file
-                    let prefix = kind == .folder ? "local:folder:" : "local:file:"
+                    let prefix = kind == .folder ? "\(source):folder:" : "\(source):file:"
                     return AudioItem(
                         id: $0.id,
                         name: $0.name,
                         reference: "\(prefix)\($0.path)",
-                        source: "local",
+                        source: source,
                         kind: kind,
                         image: backendImageURL($0.imageUri),
                         subtitle: $0.metadata?.displaySubtitle

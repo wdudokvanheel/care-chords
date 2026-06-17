@@ -26,6 +26,7 @@ pub struct CareChordsServer {
     pipeline: Arc<AudioPipeline>,
     monitor_url: String,
     local_library: LocalAudioLibrary,
+    youtube_library: LocalAudioLibrary,
     local_player: Arc<LocalAudioPlayer>,
     system_playlists: SystemPlaylistStore,
     audio_bridge: Arc<AudioBridge>,
@@ -41,6 +42,7 @@ impl CareChordsServer {
             pipeline: Arc::new(AudioPipeline::new(&settings).unwrap()),
             monitor_url: settings.monitor_url.clone(),
             local_library: LocalAudioLibrary::new(&settings.local_audio),
+            youtube_library: LocalAudioLibrary::new_youtube(&settings.youtube_audio),
             local_player: Arc::new(LocalAudioPlayer::new(sender.clone())),
             system_playlists: SystemPlaylistStore::new(data_paths::system_playlists_file()),
             audio_bridge,
@@ -53,6 +55,7 @@ impl CareChordsServer {
 
         let playback = Arc::new(PlaybackController::new(
             self.local_library.clone(),
+            self.youtube_library.clone(),
             self.local_player.clone(),
             self.system_playlists.clone(),
         ));

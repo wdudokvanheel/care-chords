@@ -6,3 +6,7 @@ data_dir = "/media/tank8/carechords"
 [local_audio]
 roots = ["/media/tank8/carechords/music"]
 allowed_extensions = ["mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav"]
+
+[youtube_audio]
+roots = ["/media/tank8/carechords/youtube"]
+allowed_extensions = ["mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav", "webm"]

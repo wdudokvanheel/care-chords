@@ -12,6 +12,7 @@ use tokio::sync::watch;
 pub struct PlaybackController {
     spotify: Arc<Mutex<SpotifySlot>>,
     local_library: LocalAudioLibrary,
+    youtube_library: LocalAudioLibrary,
     local_player: Arc<LocalAudioPlayer>,
     playlists: SystemPlaylistStore,
     system_queue: Arc<Mutex<SystemQueue>>,
@@ -36,6 +37,7 @@ enum ActiveSource {
     None,
     Spotify,
     Local,
+    Youtube,
 }
 
 #[derive(Default)]
@@ -67,6 +69,7 @@ pub struct LegacyPlaylistRequest {
 impl PlaybackController {
     pub fn new(
         local_library: LocalAudioLibrary,
+        youtube_library: LocalAudioLibrary,
         local_player: Arc<LocalAudioPlayer>,
         playlists: SystemPlaylistStore,
     ) -> Self {
@@ -75,6 +78,7 @@ impl PlaybackController {
         let controller = Self {
             spotify: Arc::new(Mutex::new(SpotifySlot::AuthPending)),
             local_library,
+            youtube_library,
             local_player,
             playlists,
             system_queue: Arc::new(Mutex::new(SystemQueue::default())),
@@ -110,6 +114,12 @@ impl PlaybackController {
                 reason: None,
             },
             AudioSourceStatus {
+                id: "youtube",
+                name: "YouTube",
+                available: true,
+                reason: None,
+            },
+            AudioSourceStatus {
                 id: "spotify",
                 name: "Spotify",
                 available: spotify_available,
@@ -124,6 +134,10 @@ impl PlaybackController {
 
     pub fn local_library(&self) -> LocalAudioLibrary {
         self.local_library.clone()
+    }
+
+    pub fn youtube_library(&self) -> LocalAudioLibrary {
+        self.youtube_library.clone()
     }
 
     pub fn system_playlists(&self) -> SystemPlaylistStore {
@@ -157,7 +171,22 @@ impl PlaybackController {
             || reference.starts_with("local:folder:")
             || reference.starts_with("root:")
         {
-            self.play_local_ref(reference)?;
+            self.play_local_ref(
+                reference,
+                self.local_library.clone(),
+                ActiveSource::Local,
+                "local",
+            )?;
+            return Ok(());
+        }
+
+        if reference.starts_with("youtube:file:") || reference.starts_with("youtube:folder:") {
+            self.play_local_ref(
+                reference,
+                self.youtube_library.clone(),
+                ActiveSource::Youtube,
+                "youtube",
+            )?;
             return Ok(());
         }
 
@@ -191,7 +220,12 @@ impl PlaybackController {
         match self.active() {
             ActiveSource::Spotify => self.send_spotify(PlayerCommand::Play).await,
             ActiveSource::Local => {
-                self.local_player.play(self.local_library.clone());
+                self.local_player.play(self.local_library.clone(), "local");
+                Ok(())
+            }
+            ActiveSource::Youtube => {
+                self.local_player
+                    .play(self.youtube_library.clone(), "youtube");
                 Ok(())
             }
             ActiveSource::None => Ok(()),
@@ -201,7 +235,7 @@ impl PlaybackController {
     pub async fn pause(&self) -> Result<()> {
         match self.active() {
             ActiveSource::Spotify => self.send_spotify(PlayerCommand::Pause).await,
-            ActiveSource::Local => {
+            ActiveSource::Local | ActiveSource::Youtube => {
                 self.local_player.pause();
                 Ok(())
             }
@@ -217,7 +251,12 @@ impl PlaybackController {
         match self.active() {
             ActiveSource::Spotify => self.send_spotify(PlayerCommand::Next).await,
             ActiveSource::Local => {
-                self.local_player.next(self.local_library.clone());
+                self.local_player.next(self.local_library.clone(), "local");
+                Ok(())
+            }
+            ActiveSource::Youtube => {
+                self.local_player
+                    .next(self.youtube_library.clone(), "youtube");
                 Ok(())
             }
             ActiveSource::None => Ok(()),
@@ -227,7 +266,7 @@ impl PlaybackController {
     pub async fn sleep(&self, seconds: u32) -> Result<()> {
         match self.active() {
             ActiveSource::Spotify => self.send_spotify(PlayerCommand::Sleep(seconds)).await,
-            ActiveSource::Local | ActiveSource::None => Ok(()),
+            ActiveSource::Local | ActiveSource::Youtube | ActiveSource::None => Ok(()),
         }
     }
 
@@ -238,7 +277,13 @@ impl PlaybackController {
         Ok(self.current_info())
     }
 
-    fn play_local_ref(&self, reference: &str) -> Result<()> {
+    fn play_local_ref(
+        &self,
+        reference: &str,
+        library: LocalAudioLibrary,
+        active_source: ActiveSource,
+        source_name: &str,
+    ) -> Result<()> {
         if self.active() == ActiveSource::Spotify {
             if let Ok(commands) = self.spotify_commands() {
                 tokio::spawn(async move {
@@ -246,12 +291,13 @@ impl PlaybackController {
                 });
             }
         }
-        self.set_active(ActiveSource::Local);
-        let queue = self.local_library.resolve_playback_queue(reference)?;
+        self.set_active(active_source);
+        let queue = library.resolve_playback_queue(reference)?;
         self.local_player.play_queue(
             queue.entries,
             queue.start_index,
-            self.local_library.clone(),
+            library,
+            source_name.to_string(),
         )?;
         Ok(())
     }
@@ -304,7 +350,10 @@ impl PlaybackController {
         let local_controller = self.clone();
         tokio::spawn(async move {
             while local_status.changed().await.is_ok() {
-                if *local_active.lock().unwrap() == ActiveSource::Local {
+                if matches!(
+                    *local_active.lock().unwrap(),
+                    ActiveSource::Local | ActiveSource::Youtube
+                ) {
                     let status = local_status.borrow().clone();
                     let _ = local_sender.send(status.clone());
                     if status.status == SpotifyPlayerState::Stopped {

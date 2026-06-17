@@ -43,7 +43,9 @@ WORKDIR /media/tank8/carechords
 EXPOSE 7755 8554
 
 RUN chmod +x /usr/local/bin/carechords && \
-    mkdir -p /media/tank8/carechords/cache /media/tank8/carechords/music
+    mkdir -p /media/tank8/carechords/cache \
+        /media/tank8/carechords/music \
+        /media/tank8/carechords/youtube
 
 VOLUME ["/media/tank8/carechords"]
 
