@@ -16,8 +16,6 @@ impl AudioBridge {
         let app_src_clone = app_src.clone();
 
         let handle = tokio::task::spawn_blocking(move || {
-            let mut timestamp: u64 = 0;
-
             while let Ok(event) = receiver.recv() {
                 match event {
                     SinkEvent::Start => {}
@@ -56,10 +54,8 @@ impl AudioBridge {
 
                             {
                                 let buffer_mut = buffer.get_mut().unwrap();
-                                buffer_mut.set_pts(ClockTime::from_nseconds(timestamp));
                                 buffer_mut.set_duration(ClockTime::from_nseconds(duration_ns));
                             }
-                            timestamp += duration_ns;
 
                             if let Err(err) = src.push_buffer(buffer) {
                                 log::warn!("Failed to push buffer to AppSrc: {:?}", err);

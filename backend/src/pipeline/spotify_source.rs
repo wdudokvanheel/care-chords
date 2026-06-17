@@ -35,7 +35,7 @@ impl SpotifySourcePipeline {
         app_source.set_property("is-live", &true);
         app_source.set_property("format", &gstreamer::Format::Time);
         app_source.set_property("max-bytes", &500_000u64);
-        app_source.set_property("do-timestamp", &false);
+        app_source.set_property("do-timestamp", &true);
         app_source.set_property("block", &true);
         app_source.set_property("min-latency", &1000000000i64); // 1 second in nanoseconds
         app_source.set_property("max-latency", &3000000000i64); // 3 seconds in nanoseconds
