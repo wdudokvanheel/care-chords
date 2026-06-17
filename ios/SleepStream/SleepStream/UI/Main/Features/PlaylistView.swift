@@ -1,48 +1,35 @@
 import SwiftUI
 
-struct PlaylistSelectorView: View {
-    @ObservedObject var playlists: PlaylistController
-    let playlistSelect: (Playlist) -> Void
+struct AudioLibraryView: View {
+    @ObservedObject var library: AudioLibraryController
+    let itemSelect: (AudioItem) -> Void
 
-    private let playlistSize: CGFloat = 110.0
-    
-    let columns: [GridItem] = [
-         GridItem(.flexible()),
-         GridItem(.flexible()),
-         GridItem(.flexible())
-     ]
-    
+    private let columns: [GridItem] = [
+        GridItem(.flexible()),
+        GridItem(.flexible()),
+        GridItem(.flexible())
+    ]
+
     var body: some View {
-        VStack {
-            if playlists.isLoading {
-                ProgressView("Loading playlists…")
+        VStack(spacing: 0) {
+            if library.isLoading && library.localItems.isEmpty {
+                ProgressView("Loading audio…")
                     .padding()
-            } else if let error = playlists.errorMessage {
+            } else if let error = library.errorMessage, library.localItems.isEmpty {
                 Text(error)
                     .foregroundColor(.red)
                     .padding()
             } else {
                 ScrollView {
-                    LazyVGrid(columns: columns, spacing: 6) {
-                        ForEach(playlists.playlists) { playlist in
-                            Button(action: {
-                                self.playlistSelect(playlist)
-                            }) {
-                                VStack(spacing: 0) {
-                                    artwork(for: playlist)
-                                    Text(playlist.name)
-                                        .foregroundColor(Color.playlistItemLabel)
-                                        .font(.caption)
-                                        .fontWeight(.light)
-                                        .lineLimit(1)
-                                        .multilineTextAlignment(.center)
-                                        .padding(.horizontal, 4)
-                                        .padding(.vertical, 1)
-                                }
-                                .background(Color.playlistItem)
-                                .padding(0)
-                            }
-                            .padding(2)
+                    VStack(alignment: .leading, spacing: 16) {
+                        if !library.systemPlaylists.isEmpty {
+                            section("Playlists", items: library.systemPlaylists)
+                        }
+
+                        localSection
+
+                        if library.spotifyAvailable {
+                            section("Spotify", items: library.spotifyPlaylists)
                         }
                     }
                     .padding(.vertical, 8)
@@ -51,31 +38,96 @@ struct PlaylistSelectorView: View {
             }
         }
         .onAppear {
-            playlists.loadPlaylists()
+            library.load()
+        }
+    }
+
+    private var localSection: some View {
+        VStack(alignment: .leading, spacing: 8) {
+            HStack {
+                Text("Local")
+                    .font(.headline)
+                    .foregroundColor(.white)
+                Spacer()
+                if library.localPath != nil {
+                    Button(action: library.openLocalRoot) {
+                        Image(systemName: "house")
+                            .foregroundColor(.orange)
+                    }
+                }
+                Button(action: library.refresh) {
+                    Image(systemName: "arrow.clockwise")
+                        .foregroundColor(.orange)
+                }
+            }
+            grid(items: library.localItems)
+        }
+    }
+
+    private func section(_ title: String, items: [AudioItem]) -> some View {
+        VStack(alignment: .leading, spacing: 8) {
+            Text(title)
+                .font(.headline)
+                .foregroundColor(.white)
+            grid(items: items)
+        }
+    }
+
+    private func grid(items: [AudioItem]) -> some View {
+        LazyVGrid(columns: columns, spacing: 6) {
+            ForEach(items) { item in
+                Button(action: {
+                    if item.kind == .folder && item.source == "local" {
+                        library.openLocalFolder(item)
+                    } else {
+                        itemSelect(item)
+                    }
+                }) {
+                    VStack(spacing: 0) {
+                        artwork(for: item)
+                        Text(item.name)
+                            .foregroundColor(Color.playlistItemLabel)
+                            .font(.caption)
+                            .fontWeight(.light)
+                            .lineLimit(1)
+                            .multilineTextAlignment(.center)
+                            .padding(.horizontal, 4)
+                            .padding(.vertical, 1)
+                    }
+                    .background(Color.playlistItem)
+                    .padding(0)
+                }
+                .padding(2)
+            }
         }
     }
 
     @ViewBuilder
-    private func artwork(for playlist: Playlist) -> some View {
-        if let img = playlist.image {
+    private func artwork(for item: AudioItem) -> some View {
+        if let img = item.image {
             RemoteImageView(imageUrl: img)
         } else {
             ZStack {
                 Rectangle()
                     .foregroundColor(Color.playlistItem)
-                Text(placeholderText(for: playlist.name))
-                    .font(.headline)
+                Image(systemName: iconName(for: item))
+                    .font(.largeTitle)
                     .foregroundColor(.secondary)
             }
             .aspectRatio(1, contentMode: .fit)
         }
     }
 
-    private func placeholderText(for name: String) -> String {
-        let words = name.split(separator: " ")
-        if let first = words.first {
-            return String(first.prefix(2)).uppercased()
+    private func iconName(for item: AudioItem) -> String {
+        switch item.kind {
+        case .folder:
+            return "folder"
+        case .playlist:
+            return item.source == "spotify" ? "music.note.list" : "text.badge.plus"
+        case .file:
+            return "music.note"
         }
-        return String(name.prefix(2)).uppercased()
     }
 }
+
+typealias PlaylistSelectorView = AudioLibraryView

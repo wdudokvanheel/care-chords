@@ -1,5 +1,4 @@
 use crate::spotify_sink::SinkEvent;
-use gstreamer::prelude::{ElementExt, ElementExtManual};
 use gstreamer::{Buffer, ClockTime};
 use gstreamer_app::AppSrc;
 use std::sync::mpsc::Receiver;

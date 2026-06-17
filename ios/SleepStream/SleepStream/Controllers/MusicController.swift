@@ -23,6 +23,7 @@ struct MusicMetadata: Decodable {
     let artist: String
     let title: String
     let artwork_url: String
+    let source: String?
 }
 
 class MusicController: NSObject, ObservableObject {

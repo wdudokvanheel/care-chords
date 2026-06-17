@@ -14,6 +14,16 @@ pub struct ApplicationSettings {
     /// Enable noise filtering
     #[serde(default)]
     pub noise_filter: bool,
+    #[serde(default)]
+    pub local_audio: LocalAudioSettings,
+}
+
+#[derive(Debug, Serialize, Deserialize, Clone)]
+pub struct LocalAudioSettings {
+    #[serde(default = "default_local_roots")]
+    pub roots: Vec<String>,
+    #[serde(default = "default_allowed_extensions")]
+    pub allowed_extensions: Vec<String>,
 }
 
 #[derive(Debug, Default, Deserialize)]
@@ -22,10 +32,34 @@ struct ConfigSettings {
     monitor_url: Option<String>,
     #[serde(default)]
     noise_filter: bool,
+    #[serde(default)]
+    local_audio: Option<LocalAudioSettings>,
 }
 
 fn default_rtsp_port() -> u16 {
     8554
+}
+
+fn default_local_roots() -> Vec<String> {
+    vec!["music".to_string()]
+}
+
+fn default_allowed_extensions() -> Vec<String> {
+    [
+        "mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav",
+    ]
+    .iter()
+    .map(|ext| ext.to_string())
+    .collect()
+}
+
+impl Default for LocalAudioSettings {
+    fn default() -> Self {
+        Self {
+            roots: default_local_roots(),
+            allowed_extensions: default_allowed_extensions(),
+        }
+    }
 }
 
 #[derive(Parser, Debug)]
@@ -97,6 +131,7 @@ impl ApplicationSettings {
             rtsp_port: loaded_settings.rtsp_port.unwrap_or_else(default_rtsp_port),
             monitor_url: loaded_settings.monitor_url.unwrap_or_default(),
             noise_filter: loaded_settings.noise_filter,
+            local_audio: loaded_settings.local_audio.unwrap_or_default(),
         };
 
         // Override with CLI arguments if provided

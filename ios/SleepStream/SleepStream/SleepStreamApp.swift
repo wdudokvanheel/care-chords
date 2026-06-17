@@ -10,8 +10,8 @@ struct SleepStreamApp: App {
         setenv("GST_DEBUG_NO_COLOR", "1", 1)
         gst_ios_init()
       
-        let playlists: PlaylistController = .init()
-        audioViewModel = .init(playlists: playlists)
+        let audioLibrary: AudioLibraryController = .init()
+        audioViewModel = .init(audioLibrary: audioLibrary)
     }
 
     var body: some Scene {

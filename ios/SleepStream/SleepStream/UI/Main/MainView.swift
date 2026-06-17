@@ -12,8 +12,8 @@ struct MainView: View {
                 Tab(title: "Now playing") {
                     NowPlayingView(controller: model.music)
                 }
-                Tab(title: "Playlists") {
-                    PlaylistSelectorView(playlists: model.playlists, playlistSelect: model.selectPlaylist)
+                Tab(title: "Audio") {
+                    AudioLibraryView(library: model.audioLibrary, itemSelect: model.selectAudioItem)
                 }
             }
             .padding(0)

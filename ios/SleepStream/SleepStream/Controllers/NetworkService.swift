@@ -8,6 +8,10 @@ struct PlaybackRequestDto: Encodable {
     let uri: String
 }
 
+struct PlayRefRequestDto: Encodable {
+    let ref: String
+}
+
 struct SleepTimerRequestDto: Encodable {
     let timer: Int
 }

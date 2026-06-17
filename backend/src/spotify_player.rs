@@ -27,14 +27,16 @@ const MAX_CONSECUTIVE_PLAYBACK_FAILURES: usize = 3;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MusicMetadata {
-    artist: String,
-    title: String,
-    artwork_url: String,
+    pub artist: String,
+    pub title: String,
+    pub artwork_url: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub source: Option<String>,
 }
 
 #[derive(Clone, Debug)]
 pub enum PlayerCommand {
-    Playlist(String),
+    PlayRef(String),
     Sleep(u32),
     Play,
     Pause,
@@ -44,12 +46,23 @@ pub enum PlayerCommand {
 
 #[derive(Clone, Debug, Serialize)]
 pub struct SpotifyPlayerInfo {
-    status: SpotifyPlayerState,
-    shuffle: bool,
+    pub status: SpotifyPlayerState,
+    pub shuffle: bool,
     #[serde(skip_serializing_if = "Option::is_none")]
-    metadata: Option<MusicMetadata>,
+    pub metadata: Option<MusicMetadata>,
     #[serde(skip_serializing_if = "Option::is_none")]
-    sleep_timer: Option<u32>,
+    pub sleep_timer: Option<u32>,
+}
+
+impl SpotifyPlayerInfo {
+    pub fn stopped() -> Self {
+        Self {
+            status: SpotifyPlayerState::Stopped,
+            shuffle: false,
+            metadata: None,
+            sleep_timer: None,
+        }
+    }
 }
 
 pub struct SpotifyPlayer {
@@ -73,7 +86,7 @@ pub struct SpotifyPlayer {
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
-enum SpotifyPlayerState {
+pub enum SpotifyPlayerState {
     Stopped,
     Playing,
     Paused,
@@ -258,10 +271,10 @@ impl SpotifyPlayer {
                 Some(command) = self.command_receiver.recv() => {
                     log::info!("Received command: {:?}", command);
                     match command {
-                        PlayerCommand::Playlist(p) => {
+                        PlayerCommand::PlayRef(uri) => {
                             if self.ensure_session(&mut spotify_player_events).await {
                                 self.failed_skips = 0;
-                                self.load_playlist_to_queue(&p).await;
+                                self.load_ref_to_queue(&uri).await;
                                 self.play_next_song().await;
                             }
                         }
@@ -347,6 +360,7 @@ impl SpotifyPlayer {
                                 artwork_url: audio_item.covers.get(0)
                                     .map(|c| c.url.clone())
                                     .unwrap_or_else(|| "".to_string()),
+                                source: Some("spotify".to_string()),
                             };
                             self.current_song = Some(metadata);
                             self.emit_player_state().await;
@@ -431,6 +445,17 @@ impl SpotifyPlayer {
         log::trace!("Playlist Uri {}", play_list.name());
         let tracks = play_list.tracks();
         self.playlist_tracks = tracks.cloned().collect();
+        self.rebuild_queue();
+    }
+
+    async fn load_ref_to_queue(&mut self, uri: &str) {
+        if uri.starts_with("spotify:playlist:") {
+            self.load_playlist_to_queue(uri).await;
+            return;
+        }
+
+        let parsed = SpotifyUri::from_uri(uri).expect("Spotify URI could not be parsed.");
+        self.playlist_tracks = vec![parsed];
         self.rebuild_queue();
     }
 

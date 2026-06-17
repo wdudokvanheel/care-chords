@@ -1,9 +1,12 @@
 mod app_settings;
+mod local_audio;
 mod pipeline;
+mod playback_controller;
 mod server;
 mod spotify_client;
 mod spotify_player;
 mod spotify_sink;
+mod system_playlists;
 mod webserver;
 
 use crate::app_settings::ApplicationSettings;

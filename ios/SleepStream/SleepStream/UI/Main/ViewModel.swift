@@ -12,18 +12,18 @@ class ViewModel: ObservableObject {
     @Published var video: LiveStreamController = .init()
     @Published var nowPlaying: NowPlayingMediator
 
-    let playlists: PlaylistController
+    let audioLibrary: AudioLibraryController
 
     private var cancellables = Set<AnyCancellable>()
 
-    init(playlists: PlaylistController) {
+    init(audioLibrary: AudioLibraryController) {
         let music = MusicController()
         let audio = AudioOutputController()
         let gstreamer = GStreamerController()
         let osMediaPlayer = OsMediaPlayerController()
         let nowPlaying = NowPlayingMediator(audioOutput: audio, gstreamer: gstreamer, musicController: music, osMediaPlayer: osMediaPlayer)
 
-        self.playlists = playlists
+        self.audioLibrary = audioLibrary
         self.music = music
         self.audioOutput = audio
         self.gstreamer = gstreamer
@@ -66,10 +66,10 @@ class ViewModel: ObservableObject {
         music.setShuffle(shuffle)
     }
 
-    func selectPlaylist(playlist: Playlist) {
-        let request = PlaybackRequestDto(uri: playlist.uri)
+    func selectAudioItem(_ item: AudioItem) {
+        let request = PlayRefRequestDto(ref: item.reference)
         let serverURL = ServerConfig.shared.getURL()
-        NetworkService.sendRequest(with: request, to: "http://\(serverURL):7755/playlist", method: .POST).sink(receiveCompletion: { completion in
+        NetworkService.sendRequest(with: request, to: "http://\(serverURL):7755/queue/play-ref", method: .POST).sink(receiveCompletion: { completion in
             switch completion {
             case .failure(let error):
                 print("Error: \(error.localizedDescription)")
@@ -82,9 +82,13 @@ class ViewModel: ObservableObject {
         .store(in: &cancellables)
     }
 
+    func selectPlaylist(playlist: Playlist) {
+        selectAudioItem(playlist)
+    }
+
     func onAppear() {
         audioOutput.startMonitoringAudioRoute()
-        playlists.loadPlaylists()
+        audioLibrary.load()
     }
 
     func onDisappear() {

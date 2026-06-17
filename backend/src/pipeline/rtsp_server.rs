@@ -1,5 +1,4 @@
 use anyhow::Error;
-use gstreamer::prelude::*;
 use gstreamer_rtsp_server::prelude::*;
 use gstreamer_rtsp_server::{RTSPMediaFactory, RTSPServer};
 

@@ -1,9 +1,11 @@
 use crate::pipeline::AudioPipeline;
 use crate::pipeline::audio_bridge::AudioBridge;
-use crate::server::SpotifyState::Authenticated;
+use crate::local_audio::{LocalAudioLibrary, LocalAudioPlayer};
+use crate::playback_controller::PlaybackController;
 use crate::spotify_client::{SpotifyClient, UnauthenticatedSpotifyClient};
 use crate::spotify_player::SpotifyPlayerInfo;
 use crate::spotify_sink::SinkEvent;
+use crate::system_playlists::SystemPlaylistStore;
 use crate::webserver::start_http_server;
 
 use crate::app_settings::ApplicationSettings;
@@ -12,10 +14,13 @@ use gstreamer::prelude::{Cast, ElementExt, GstObjectExt};
 use gstreamer::{ClockTime, Element};
 use gstreamer_app::AppSrc;
 use std::sync::Arc;
-use std::sync::mpsc::{SyncSender, sync_channel};
+use std::sync::mpsc::sync_channel;
 use tokio;
 use tokio::sync::watch;
 use tokio::task;
+use tokio::time::{Duration, timeout};
+
+const SPOTIFY_STARTUP_AUTH_TIMEOUT: Duration = Duration::from_secs(8);
 
 pub enum SpotifyState {
     Unauthenticated(Arc<UnauthenticatedSpotifyClient>),
@@ -26,8 +31,10 @@ pub struct CareChordsServer {
     spotify: SpotifyState,
     pipeline: Arc<AudioPipeline>,
     monitor_url: String,
+    local_library: LocalAudioLibrary,
+    local_player: Arc<LocalAudioPlayer>,
+    system_playlists: SystemPlaylistStore,
     audio_bridge: Arc<AudioBridge>,
-    audio_sender: SyncSender<SinkEvent>,
 }
 
 impl CareChordsServer {
@@ -41,8 +48,10 @@ impl CareChordsServer {
             ))),
             pipeline: Arc::new(AudioPipeline::new(&settings).unwrap()),
             monitor_url: settings.monitor_url.clone(),
+            local_library: LocalAudioLibrary::new(&settings.local_audio),
+            local_player: Arc::new(LocalAudioPlayer::new(sender.clone())),
+            system_playlists: SystemPlaylistStore::new("cache/system_playlists.json".into()),
             audio_bridge,
-            audio_sender: sender,
         }
     }
 
@@ -51,37 +60,57 @@ impl CareChordsServer {
         self.start_gstreamer();
         self.start_spotify().await;
 
-        if let Authenticated(spot) = &self.spotify {
-            start_http_server(spot.clone(), self.monitor_url.clone());
-        }
+        let spotify = match &self.spotify {
+            SpotifyState::Authenticated(spotify) => Some(spotify.clone()),
+            SpotifyState::Unauthenticated(_) => None,
+        };
+        let playback = PlaybackController::new(
+            spotify,
+            self.local_library.clone(),
+            self.local_player.clone(),
+            self.system_playlists.clone(),
+        );
+        start_http_server(Arc::new(playback), self.monitor_url.clone());
     }
 
     async fn start_spotify(&mut self) {
         if let SpotifyState::Unauthenticated(spotify) = &self.spotify {
-            match spotify
-                .try_cache_authentication_with_discovery_fallback()
-                .await
+            match timeout(
+                SPOTIFY_STARTUP_AUTH_TIMEOUT,
+                spotify.try_cache_authentication_with_discovery_fallback(),
+            )
+            .await
             {
-                Ok(spotify_client) => {
-                    log::info!("Authenticated with Spotify");
-
-                    Self::watch_events(spotify_client.player_info_channel());
-
-                    log::info!("Refreshing playlist cache...");
-                    if let Err(e) = spotify_client.refresh_playlists().await {
-                        log::warn!("Failed to refresh playlist cache: {e}");
-                    }
-
-                    let spotify_client = Arc::new(spotify_client);
-                    spotify_client.clone().spawn_playlist_artwork_refresh();
-
-                    self.spotify = Authenticated(spotify_client);
+                Ok(Ok(spotify_client)) => {
+                    self.finish_spotify_authentication(spotify_client).await;
                 }
-                Err(e) => {
+                Ok(Err(e)) => {
                     log::error!("Failed to authenticate with Spotify: {}", e);
+                }
+                Err(_) => {
+                    log::warn!(
+                        "Spotify authentication timed out after {:?}; starting without Spotify",
+                        SPOTIFY_STARTUP_AUTH_TIMEOUT
+                    );
                 }
             }
         }
+    }
+
+    async fn finish_spotify_authentication(&mut self, spotify_client: SpotifyClient) {
+        log::info!("Authenticated with Spotify");
+
+        Self::watch_events(spotify_client.player_info_channel());
+
+        log::info!("Refreshing playlist cache...");
+        if let Err(e) = spotify_client.refresh_playlists().await {
+            log::warn!("Failed to refresh playlist cache: {e}");
+        }
+
+        let spotify_client = Arc::new(spotify_client);
+        spotify_client.clone().spawn_playlist_artwork_refresh();
+
+        self.spotify = SpotifyState::Authenticated(spotify_client);
     }
 
     fn watch_events(receiver: watch::Receiver<SpotifyPlayerInfo>) {
