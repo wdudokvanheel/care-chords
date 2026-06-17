@@ -19,7 +19,7 @@ final class AudioLibraryController: ObservableObject {
     }
 
     var youtubeAvailable: Bool {
-        sources.first { $0.id == "youtube" }?.available != false
+        sources.first { $0.id == "youtube" }?.available == true
     }
 
     func load() {
@@ -27,19 +27,23 @@ final class AudioLibraryController: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        Publishers.Zip4(loadSources(), loadSystemPlaylists(), loadLocal(path: localPath), loadYouTube(path: youtubePath))
+        Publishers.Zip3(loadSources(), loadSystemPlaylists(), loadLocal(path: localPath))
             .sink { [weak self] completion in
                 guard let self else { return }
                 self.isLoading = false
                 if case .failure(let error) = completion {
                     self.errorMessage = error.localizedDescription
                 }
-            } receiveValue: { [weak self] sources, systemPlaylists, localItems, youtubeItems in
+            } receiveValue: { [weak self] sources, systemPlaylists, localItems in
                 guard let self else { return }
                 self.sources = sources
                 self.systemPlaylists = systemPlaylists
                 self.localItems = localItems
-                self.youtubeItems = youtubeItems
+                if self.youtubeAvailable {
+                    self.loadYouTubeItems()
+                } else {
+                    self.youtubeItems = []
+                }
                 if sources.first(where: { $0.id == "spotify" })?.available == true {
                     self.loadSpotifyPlaylists()
                 } else {
@@ -115,6 +119,19 @@ final class AudioLibraryController: ObservableObject {
 
     private func loadYouTube(path: String?) -> AnyPublisher<[AudioItem], URLError> {
         loadFileLibrary(path: path, endpoint: "youtube", source: "youtube")
+    }
+
+    private func loadYouTubeItems() {
+        loadYouTube(path: youtubePath)
+            .sink { [weak self] completion in
+                if case .failure(let error) = completion {
+                    self?.youtubeItems = []
+                    self?.errorMessage = error.localizedDescription
+                }
+            } receiveValue: { [weak self] items in
+                self?.youtubeItems = items
+            }
+            .store(in: &cancellables)
     }
 
     private func loadLocal(path: String?) -> AnyPublisher<[AudioItem], URLError> {
