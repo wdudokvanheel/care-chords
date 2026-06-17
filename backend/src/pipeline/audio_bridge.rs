@@ -57,8 +57,7 @@ impl AudioBridge {
                             {
                                 let buffer_mut = buffer.get_mut().unwrap();
                                 buffer_mut.set_pts(ClockTime::from_nseconds(timestamp));
-                                buffer_mut
-                                    .set_duration(ClockTime::from_nseconds(duration_ns));
+                                buffer_mut.set_duration(ClockTime::from_nseconds(duration_ns));
                             }
                             timestamp += duration_ns;
 

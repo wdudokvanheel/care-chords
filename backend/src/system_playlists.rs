@@ -89,7 +89,11 @@ impl SystemPlaylistStore {
         Ok(playlist)
     }
 
-    pub fn add_item(&self, playlist_id: &str, item: AddSystemPlaylistItemRequest) -> Result<SystemPlaylist> {
+    pub fn add_item(
+        &self,
+        playlist_id: &str,
+        item: AddSystemPlaylistItemRequest,
+    ) -> Result<SystemPlaylist> {
         let mut playlists = self.playlists.lock().unwrap();
         let playlist = playlists
             .iter_mut()

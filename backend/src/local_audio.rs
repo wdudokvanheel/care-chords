@@ -53,11 +53,7 @@ struct LocalPlaybackState {
 
 impl LocalAudioLibrary {
     pub fn new(settings: &LocalAudioSettings) -> Self {
-        let roots = settings
-            .roots
-            .iter()
-            .map(PathBuf::from)
-            .collect::<Vec<_>>();
+        let roots = settings.roots.iter().map(PathBuf::from).collect::<Vec<_>>();
         let allowed_extensions = settings
             .allowed_extensions
             .iter()
@@ -97,9 +93,9 @@ impl LocalAudioLibrary {
         let folder = self.resolve_folder_ref(requested_path.unwrap())?;
         let mut entries = Vec::new();
 
-        for entry in fs::read_dir(&folder).with_context(|| {
-            format!("Failed to read local audio folder {}", folder.display())
-        })? {
+        for entry in fs::read_dir(&folder)
+            .with_context(|| format!("Failed to read local audio folder {}", folder.display()))?
+        {
             let entry = entry?;
             let path = entry.path();
             let name = entry
@@ -146,7 +142,10 @@ impl LocalAudioLibrary {
         let path = self.resolve_ref(reference)?;
         if path.is_file() {
             if !self.is_audio_file(&path) {
-                anyhow::bail!("Local file is not an allowed audio type: {}", path.display());
+                anyhow::bail!(
+                    "Local file is not an allowed audio type: {}",
+                    path.display()
+                );
             }
             return Ok(vec![self.file_entry(path)?]);
         }
@@ -231,7 +230,10 @@ impl LocalAudioLibrary {
                 return Ok(format!("root:{idx}/{relative}"));
             }
         }
-        anyhow::bail!("Path is outside configured local audio roots: {}", path.display())
+        anyhow::bail!(
+            "Path is outside configured local audio roots: {}",
+            path.display()
+        )
     }
 
     fn is_audio_file(&self, path: &Path) -> bool {
@@ -258,7 +260,11 @@ impl LocalAudioPlayer {
         self.info_receiver.clone()
     }
 
-    pub fn play_queue(&self, queue: Vec<LocalAudioEntry>, library: LocalAudioLibrary) -> Result<()> {
+    pub fn play_queue(
+        &self,
+        queue: Vec<LocalAudioEntry>,
+        library: LocalAudioLibrary,
+    ) -> Result<()> {
         if queue.is_empty() {
             self.stop();
             return Ok(());
@@ -382,8 +388,12 @@ fn play_file_blocking(
         uri.as_str()
     );
 
-    let element = gst::parse::launch(&pipeline_description)
-        .with_context(|| format!("Failed to create local audio pipeline for {}", path.display()))?;
+    let element = gst::parse::launch(&pipeline_description).with_context(|| {
+        format!(
+            "Failed to create local audio pipeline for {}",
+            path.display()
+        )
+    })?;
     let pipeline = element
         .dynamic_cast::<gst::Pipeline>()
         .map_err(|_| anyhow!("Local audio GStreamer description did not create a pipeline"))?;
@@ -416,10 +426,9 @@ fn play_file_blocking(
             }
 
             let sample_count = bytes.len() / std::mem::size_of::<f64>();
-            let samples = unsafe {
-                std::slice::from_raw_parts(bytes.as_ptr() as *const f64, sample_count)
-            }
-            .to_vec();
+            let samples =
+                unsafe { std::slice::from_raw_parts(bytes.as_ptr() as *const f64, sample_count) }
+                    .to_vec();
             audio_sender.send(SinkEvent::Packet(samples))?;
             continue;
         }

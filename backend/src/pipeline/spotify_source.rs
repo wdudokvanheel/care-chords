@@ -39,7 +39,7 @@ impl SpotifySourcePipeline {
         app_source.set_property("block", &true);
         app_source.set_property("min-latency", &1000000000i64); // 1 second in nanoseconds
         app_source.set_property("max-latency", &3000000000i64); // 3 seconds in nanoseconds
-        
+
         // Configure buffering to smooth out playback
         queue.set_property("use-buffering", &true);
         queue.set_property("max-size-time", &3_000_000_000u64); // 3 seconds
@@ -58,12 +58,24 @@ impl SpotifySourcePipeline {
 
 impl PipeLineBranch for SpotifySourcePipeline {
     fn add_to_pipeline(&self, pipeline: &Pipeline) -> Result<(), Error> {
-        pipeline.add_many(&[&self.app_source, &self.audiorate, &self.queue, &self.convert, &self.resample])?;
+        pipeline.add_many(&[
+            &self.app_source,
+            &self.audiorate,
+            &self.queue,
+            &self.convert,
+            &self.resample,
+        ])?;
         Ok(())
     }
 
     fn link_elements(&self) -> Result<(), Error> {
-        Element::link_many(&[&self.app_source, &self.audiorate, &self.queue, &self.convert, &self.resample])?;
+        Element::link_many(&[
+            &self.app_source,
+            &self.audiorate,
+            &self.queue,
+            &self.convert,
+            &self.resample,
+        ])?;
         Ok(())
     }
 

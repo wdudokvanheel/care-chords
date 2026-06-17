@@ -191,7 +191,10 @@ async fn handle_create_system_playlist(
 ) -> Result<Response<Body>, Rejection> {
     match playback.system_playlists().create(req.name) {
         Ok(playlist) => Ok(json_status(&playlist, StatusCode::CREATED)),
-        Err(e) => Ok(error_status(&e.to_string(), StatusCode::INTERNAL_SERVER_ERROR)),
+        Err(e) => Ok(error_status(
+            &e.to_string(),
+            StatusCode::INTERNAL_SERVER_ERROR,
+        )),
     }
 }
 
@@ -232,7 +235,10 @@ async fn handle_legacy_playlist(
 ) -> Result<Response<Body>, Rejection> {
     match playback.play_ref(&req.uri).await {
         Ok(()) => Ok(ok_status("ok")),
-        Err(e) => Ok(error_status(&e.to_string(), StatusCode::SERVICE_UNAVAILABLE)),
+        Err(e) => Ok(error_status(
+            &e.to_string(),
+            StatusCode::SERVICE_UNAVAILABLE,
+        )),
     }
 }
 
@@ -244,7 +250,7 @@ async fn handle_spotify_playlists(
         Err(e) => {
             log::warn!("Failed to fetch Spotify playlists: {e}");
             Ok(error_status(
-                "spotify unavailable",
+                &e.to_string(),
                 StatusCode::SERVICE_UNAVAILABLE,
             ))
         }

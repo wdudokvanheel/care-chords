@@ -10,8 +10,7 @@ use tokio::sync::watch;
 
 #[derive(Clone)]
 pub struct PlaybackController {
-    spotify: Option<Arc<SpotifyClient>>,
-    spotify_commands: Option<Sender<PlayerCommand>>,
+    spotify: Arc<Mutex<SpotifySlot>>,
     local_library: LocalAudioLibrary,
     local_player: Arc<LocalAudioPlayer>,
     playlists: SystemPlaylistStore,
@@ -19,6 +18,17 @@ pub struct PlaybackController {
     active_source: Arc<Mutex<ActiveSource>>,
     info_sender: watch::Sender<SpotifyPlayerInfo>,
     info_receiver: watch::Receiver<SpotifyPlayerInfo>,
+}
+
+#[derive(Clone)]
+struct SpotifyRuntime {
+    client: Arc<SpotifyClient>,
+    commands: Sender<PlayerCommand>,
+}
+
+enum SpotifySlot {
+    AuthPending,
+    Ready(SpotifyRuntime),
 }
 
 #[derive(Clone, Copy, Debug, PartialEq, Eq)]
@@ -56,17 +66,14 @@ pub struct LegacyPlaylistRequest {
 
 impl PlaybackController {
     pub fn new(
-        spotify: Option<Arc<SpotifyClient>>,
         local_library: LocalAudioLibrary,
         local_player: Arc<LocalAudioPlayer>,
         playlists: SystemPlaylistStore,
     ) -> Self {
         let (info_sender, info_receiver) = watch::channel(SpotifyPlayerInfo::stopped());
-        let spotify_commands = spotify.as_ref().map(|spotify| spotify.player_command_channel());
 
         let controller = Self {
-            spotify,
-            spotify_commands,
+            spotify: Arc::new(Mutex::new(SpotifySlot::AuthPending)),
             local_library,
             local_player,
             playlists,
@@ -79,7 +86,22 @@ impl PlaybackController {
         controller
     }
 
+    pub fn attach_spotify(&self, spotify: Arc<SpotifyClient>) {
+        let runtime = SpotifyRuntime {
+            commands: spotify.player_command_channel(),
+            client: spotify,
+        };
+
+        {
+            let mut slot = self.spotify.lock().unwrap();
+            *slot = SpotifySlot::Ready(runtime.clone());
+        }
+
+        self.spawn_spotify_status_forwarder(runtime.client.player_info_channel());
+    }
+
     pub fn sources(&self) -> Vec<AudioSourceStatus> {
+        let spotify_available = matches!(*self.spotify.lock().unwrap(), SpotifySlot::Ready(_));
         vec![
             AudioSourceStatus {
                 id: "local",
@@ -90,11 +112,11 @@ impl PlaybackController {
             AudioSourceStatus {
                 id: "spotify",
                 name: "Spotify",
-                available: self.spotify.is_some(),
-                reason: if self.spotify.is_some() {
+                available: spotify_available,
+                reason: if spotify_available {
                     None
                 } else {
-                    Some("not_authenticated")
+                    Some("auth_pending")
                 },
             },
         ]
@@ -109,10 +131,8 @@ impl PlaybackController {
     }
 
     pub async fn spotify_playlists(&self) -> Result<Vec<PlaylistSummary>> {
-        match &self.spotify {
-            Some(spotify) => spotify.playlists().await,
-            None => anyhow::bail!("Spotify is not authenticated"),
-        }
+        let spotify = self.spotify_client()?;
+        spotify.playlists().await
     }
 
     pub fn info_channel(&self) -> watch::Receiver<SpotifyPlayerInfo> {
@@ -220,8 +240,7 @@ impl PlaybackController {
 
     fn play_local_ref(&self, reference: &str) -> Result<()> {
         if self.active() == ActiveSource::Spotify {
-            if let Some(commands) = &self.spotify_commands {
-                let commands = commands.clone();
+            if let Ok(commands) = self.spotify_commands() {
                 tokio::spawn(async move {
                     let _ = commands.send(PlayerCommand::Pause).await;
                 });
@@ -242,12 +261,23 @@ impl PlaybackController {
     }
 
     async fn send_spotify(&self, command: PlayerCommand) -> Result<()> {
-        let commands = self
-            .spotify_commands
-            .as_ref()
-            .ok_or_else(|| anyhow!("Spotify is not authenticated"))?;
+        let commands = self.spotify_commands()?;
         commands.send(command).await?;
         Ok(())
+    }
+
+    fn spotify_client(&self) -> Result<Arc<SpotifyClient>> {
+        match &*self.spotify.lock().unwrap() {
+            SpotifySlot::Ready(runtime) => Ok(runtime.client.clone()),
+            SpotifySlot::AuthPending => anyhow::bail!("Spotify authentication is still pending"),
+        }
+    }
+
+    fn spotify_commands(&self) -> Result<Sender<PlayerCommand>> {
+        match &*self.spotify.lock().unwrap() {
+            SpotifySlot::Ready(runtime) => Ok(runtime.commands.clone()),
+            SpotifySlot::AuthPending => anyhow::bail!("Spotify authentication is still pending"),
+        }
     }
 
     fn active(&self) -> ActiveSource {
@@ -280,24 +310,26 @@ impl PlaybackController {
                 }
             }
         });
+    }
 
-        if let Some(spotify) = &self.spotify {
-            let mut spotify_status = spotify.player_info_channel();
-            let spotify_active = self.active_source.clone();
-            let spotify_sender = self.info_sender.clone();
-            let spotify_controller = self.clone();
-            tokio::spawn(async move {
-                while spotify_status.changed().await.is_ok() {
-                    if *spotify_active.lock().unwrap() == ActiveSource::Spotify {
-                        let status = spotify_status.borrow().clone();
-                        let _ = spotify_sender.send(status.clone());
-                        if status.status == SpotifyPlayerState::Stopped {
-                            let _ = spotify_controller.advance_system_queue().await;
-                        }
+    fn spawn_spotify_status_forwarder(
+        &self,
+        mut spotify_status: watch::Receiver<SpotifyPlayerInfo>,
+    ) {
+        let spotify_active = self.active_source.clone();
+        let spotify_sender = self.info_sender.clone();
+        let spotify_controller = self.clone();
+        tokio::spawn(async move {
+            while spotify_status.changed().await.is_ok() {
+                if *spotify_active.lock().unwrap() == ActiveSource::Spotify {
+                    let status = spotify_status.borrow().clone();
+                    let _ = spotify_sender.send(status.clone());
+                    if status.status == SpotifyPlayerState::Stopped {
+                        let _ = spotify_controller.advance_system_queue().await;
                     }
                 }
-            });
-        }
+            }
+        });
     }
 
     async fn advance_system_queue(&self) -> Result<bool> {

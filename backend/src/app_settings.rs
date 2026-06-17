@@ -45,12 +45,10 @@ fn default_local_roots() -> Vec<String> {
 }
 
 fn default_allowed_extensions() -> Vec<String> {
-    [
-        "mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav",
-    ]
-    .iter()
-    .map(|ext| ext.to_string())
-    .collect()
+    ["mp3", "flac", "m4a", "mp4", "aac", "ogg", "opus", "wav"]
+        .iter()
+        .map(|ext| ext.to_string())
+        .collect()
 }
 
 impl Default for LocalAudioSettings {

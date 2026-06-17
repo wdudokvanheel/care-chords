@@ -89,7 +89,7 @@ impl AudioPipelineElements {
         let stereo_filter =
             ElementFactory::make_with_name("capsfilter", Some("CommonStereoFilter"))
                 .expect("Could not create stereo_filter element.");
-        
+
         // We use udpsink to send the stream to the local RTSP server
         // Use L16 (Raw Audio) for the bridge to avoid AAC config issues
         let rtp_pay = ElementFactory::make_with_name("rtpL16pay", Some("rtp_pay"))
@@ -103,7 +103,7 @@ impl AudioPipelineElements {
 
         udp_sink.set_property("host", "127.0.0.1");
         udp_sink.set_property("port", &5000);
-        
+
         // Set explicit latency on the mixer to avoid latency negotiation issues
         // with unbounded sinks (udpsink reports max_latency=0)
         audio_mixer.set_property("latency", &100_000_000u64); // 100ms in nanoseconds
