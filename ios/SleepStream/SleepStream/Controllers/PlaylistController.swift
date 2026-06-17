@@ -27,7 +27,7 @@ final class AudioLibraryController: ObservableObject {
         isLoading = true
         errorMessage = nil
 
-        Publishers.Zip3(loadSources(), loadSystemPlaylists(), loadLocal(path: localPath))
+        Publishers.Zip3(loadSources(), loadSystemPlaylists(), loadLocalItems())
             .sink { [weak self] completion in
                 guard let self else { return }
                 self.isLoading = false
@@ -136,6 +136,15 @@ final class AudioLibraryController: ObservableObject {
 
     private func loadLocal(path: String?) -> AnyPublisher<[AudioItem], URLError> {
         loadFileLibrary(path: path, endpoint: "local", source: "local")
+    }
+
+    private func loadLocalItems() -> AnyPublisher<[AudioItem], URLError> {
+        loadLocal(path: localPath)
+            .catch { _ in
+                Just<[AudioItem]>([])
+                    .setFailureType(to: URLError.self)
+            }
+            .eraseToAnyPublisher()
     }
 
     private func loadFileLibrary(path: String?, endpoint: String, source: String) -> AnyPublisher<[AudioItem], URLError> {
