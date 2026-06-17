@@ -3,6 +3,7 @@ import SwiftUI
 struct AudioLibraryView: View {
     @ObservedObject var library: AudioLibraryController
     let itemSelect: (AudioItem) -> Void
+    @State private var selectedSource: PlaybackSource = .local
 
     private let columns: [GridItem] = [
         GridItem(.flexible()),
@@ -22,13 +23,15 @@ struct AudioLibraryView: View {
             } else {
                 ScrollView {
                     VStack(alignment: .leading, spacing: 16) {
+                        sourcePicker
+
                         if !library.systemPlaylists.isEmpty {
                             section("Playlists", items: library.systemPlaylists)
                         }
 
-                        localSection
-
-                        if library.spotifyAvailable {
+                        if activeSource == .local {
+                            localSection
+                        } else {
                             section("Spotify", items: library.spotifyPlaylists)
                         }
                     }
@@ -40,6 +43,51 @@ struct AudioLibraryView: View {
         .onAppear {
             library.load()
         }
+    }
+
+    private var sourcePicker: some View {
+        HStack(spacing: 10) {
+            sourceButton(.local)
+            sourceButton(.spotify)
+        }
+    }
+
+    private var activeSource: PlaybackSource {
+        if selectedSource == .spotify && !library.spotifyAvailable {
+            return .local
+        }
+        return selectedSource
+    }
+
+    private func sourceButton(_ source: PlaybackSource) -> some View {
+        let isSelected = activeSource == source
+        let isEnabled = source != .spotify || library.spotifyAvailable
+
+        return Button(action: {
+            selectedSource = source
+        }) {
+            HStack(spacing: 10) {
+                Image(systemName: source.iconName)
+                    .font(.title2)
+                    .foregroundColor(isSelected ? .white : .orange)
+                Text(source.title)
+                    .font(.headline)
+                    .fontWeight(.semibold)
+                    .foregroundColor(.white)
+                Spacer(minLength: 0)
+            }
+            .frame(maxWidth: .infinity, minHeight: 72)
+            .padding(.horizontal, 14)
+            .background(isSelected ? Color.orange : Color.playlistItem)
+            .overlay(
+                RoundedRectangle(cornerRadius: 8)
+                    .stroke(Color.white.opacity(isSelected ? 0 : 0.12), lineWidth: 1)
+            )
+            .cornerRadius(8)
+            .opacity(isEnabled ? 1 : 0.45)
+        }
+        .buttonStyle(.plain)
+        .disabled(!isEnabled)
     }
 
     private var localSection: some View {
@@ -203,3 +251,26 @@ struct AudioLibraryView: View {
 }
 
 typealias PlaylistSelectorView = AudioLibraryView
+
+private enum PlaybackSource {
+    case local
+    case spotify
+
+    var title: String {
+        switch self {
+        case .local:
+            return "Local"
+        case .spotify:
+            return "Spotify"
+        }
+    }
+
+    var iconName: String {
+        switch self {
+        case .local:
+            return "folder"
+        case .spotify:
+            return "music.note.list"
+        }
+    }
+}

@@ -74,6 +74,11 @@ pub struct LocalAudioPlayer {
     state: Arc<Mutex<LocalPlaybackState>>,
 }
 
+pub struct LocalPlaybackQueue {
+    pub entries: Vec<LocalAudioEntry>,
+    pub start_index: usize,
+}
+
 #[derive(Default)]
 struct LocalPlaybackState {
     queue: Vec<LocalAudioEntry>,
@@ -181,6 +186,41 @@ impl LocalAudioLibrary {
         Ok(files)
     }
 
+    pub fn resolve_playback_queue(&self, reference: &str) -> Result<LocalPlaybackQueue> {
+        let path = self.resolve_ref(reference)?;
+        if path.is_file() {
+            if !self.is_audio_file(&path) {
+                anyhow::bail!(
+                    "Local file is not an allowed audio type: {}",
+                    path.display()
+                );
+            }
+
+            let album_folder = path
+                .parent()
+                .ok_or_else(|| anyhow!("Local audio file has no parent folder"))?;
+            let mut entries = Vec::new();
+            self.collect_direct_audio_files(album_folder, &mut entries)?;
+            entries.sort_by(compare_local_entries);
+
+            let selected_ref = self.path_to_ref(&path)?;
+            let start_index = entries
+                .iter()
+                .position(|entry| entry.path == selected_ref)
+                .ok_or_else(|| anyhow!("Selected local audio file was not in its album queue"))?;
+            return Ok(LocalPlaybackQueue {
+                entries,
+                start_index,
+            });
+        }
+
+        let entries = self.resolve_to_files(reference)?;
+        Ok(LocalPlaybackQueue {
+            entries,
+            start_index: 0,
+        })
+    }
+
     fn collect_audio_files(&self, folder: &Path, out: &mut Vec<LocalAudioEntry>) -> Result<()> {
         for entry in fs::read_dir(folder)? {
             let entry = entry?;
@@ -188,6 +228,21 @@ impl LocalAudioLibrary {
             if path.is_dir() {
                 self.collect_audio_files(&path, out)?;
             } else if self.is_audio_file(&path) {
+                out.push(self.file_entry(path)?);
+            }
+        }
+        Ok(())
+    }
+
+    fn collect_direct_audio_files(
+        &self,
+        folder: &Path,
+        out: &mut Vec<LocalAudioEntry>,
+    ) -> Result<()> {
+        for entry in fs::read_dir(folder)? {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_file() && self.is_audio_file(&path) {
                 out.push(self.file_entry(path)?);
             }
         }
@@ -314,13 +369,14 @@ impl LocalAudioPlayer {
     pub fn play_queue(
         &self,
         queue: Vec<LocalAudioEntry>,
+        start_index: usize,
         library: LocalAudioLibrary,
     ) -> Result<()> {
         if queue.is_empty() {
             self.stop();
             return Ok(());
         }
-        self.start_from(queue, 0, library);
+        self.start_from(queue, start_index, library);
         Ok(())
     }
 
@@ -347,19 +403,26 @@ impl LocalAudioPlayer {
     }
 
     pub fn next(&self, library: LocalAudioLibrary) {
-        let (queue, next_index) = {
+        let (queue, current_index) = {
             let state = self.state.lock().unwrap();
-            (state.queue.clone(), state.current_index.saturating_add(1))
+            (state.queue.clone(), state.current_index)
         };
-        if next_index < queue.len() {
-            self.start_from(queue, next_index, library);
-        } else {
+        if queue.is_empty() {
             self.stop();
+            return;
         }
+
+        let next_index = (current_index + 1) % queue.len();
+        self.start_from(queue, next_index, library);
     }
 
     fn start_from(&self, queue: Vec<LocalAudioEntry>, index: usize, library: LocalAudioLibrary) {
         self.cancel_current();
+        if queue.is_empty() {
+            let _ = self.info_sender.send(SpotifyPlayerInfo::stopped());
+            return;
+        }
+        let index = index.min(queue.len() - 1);
 
         let cancel = Arc::new(AtomicBool::new(false));
         {
@@ -374,7 +437,10 @@ impl LocalAudioPlayer {
         let state = self.state.clone();
 
         thread::spawn(move || {
-            for current_index in index..queue.len() {
+            let mut current_index = index;
+            let mut consecutive_failures = 0usize;
+
+            loop {
                 if cancel.load(Ordering::Relaxed) {
                     return;
                 }
@@ -413,7 +479,17 @@ impl LocalAudioPlayer {
 
                 if let Err(e) = play_file_blocking(&path, audio_sender.clone(), cancel.clone()) {
                     log::warn!("Failed to play local audio file {}: {e}", path.display());
+                    consecutive_failures += 1;
+                } else {
+                    consecutive_failures = 0;
                 }
+
+                if consecutive_failures >= queue.len() {
+                    log::warn!("Stopping local playback after every queued file failed");
+                    break;
+                }
+
+                current_index = (current_index + 1) % queue.len();
             }
 
             if !cancel.load(Ordering::Relaxed) {
@@ -829,6 +905,40 @@ mod tests {
             .map(|entry| entry.name)
             .collect::<Vec<_>>();
         assert_eq!(names, ["Track 2", "Track 10"]);
+    }
+
+    #[test]
+    fn selected_file_resolves_to_album_queue_starting_at_that_file() {
+        let root = std::env::temp_dir().join(format!(
+            "carechords-local-audio-queue-test-{}",
+            std::process::id()
+        ));
+        let album = root.join("Artist").join("Album");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&album).unwrap();
+        File::create(album.join("01 - First.ogg")).unwrap();
+        File::create(album.join("02 - Second.ogg")).unwrap();
+        File::create(album.join("03 - Third.ogg")).unwrap();
+        File::create(album.join("coverart.jpg")).unwrap();
+
+        let library = LocalAudioLibrary::new(&LocalAudioSettings {
+            roots: vec![root.to_string_lossy().to_string()],
+            allowed_extensions: vec!["ogg".to_string()],
+        });
+
+        let queue = library
+            .resolve_playback_queue("root:0/Artist/Album/02 - Second.ogg")
+            .unwrap();
+
+        let names = queue
+            .entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["01 - First", "02 - Second", "03 - Third"]);
+        assert_eq!(queue.start_index, 1);
+
+        fs::remove_dir_all(&root).unwrap();
     }
 
     fn file_entry_with_disc(

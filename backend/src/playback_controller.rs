@@ -247,9 +247,12 @@ impl PlaybackController {
             }
         }
         self.set_active(ActiveSource::Local);
-        let queue = self.local_library.resolve_to_files(reference)?;
-        self.local_player
-            .play_queue(queue, self.local_library.clone())?;
+        let queue = self.local_library.resolve_playback_queue(reference)?;
+        self.local_player.play_queue(
+            queue.entries,
+            queue.start_index,
+            self.local_library.clone(),
+        )?;
         Ok(())
     }
 
