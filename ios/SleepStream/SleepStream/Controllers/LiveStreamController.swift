@@ -1,5 +1,6 @@
 import AVKit
 import Combine
+import CoreImage
 import Dispatch
 import Foundation
 import SwiftUI
@@ -28,6 +29,13 @@ struct MonitorResponse: Codable {
     private var isPlaying: Bool = false
     private var cancellables = Set<AnyCancellable>()
     private var monitorUrl: String?
+    private let frameQueue = DispatchQueue(label: "carechords.live_stream.latest_frame")
+    private let ciContext = CIContext()
+    private var latestPixelBuffer: CVPixelBuffer?
+
+    var isStreamPlaying: Bool {
+        isPlaying
+    }
     
     override init() {
         super.init()
@@ -126,6 +134,7 @@ struct MonitorResponse: Codable {
         isPlaying = false
         pipController = nil
         hasVideo = false
+        clearLatestFrame()
         view.reset()
         gstBackend?.stopAndCleanup()
     }
@@ -153,7 +162,8 @@ struct MonitorResponse: Codable {
     @objc func gstreamerDidReceiveSampleBuffer(_ sampleBuffer: CMSampleBuffer) {
         // print("Received sample buffer") // Commented out to avoid spam, uncomment if needed
         guard isPlaying else { return }
-        
+
+        storeLatestFrame(from: sampleBuffer)
         view.enqueue(sampleBuffer)
         
         if !hasVideo {
@@ -166,6 +176,35 @@ struct MonitorResponse: Codable {
             DispatchQueue.main.async {
                 self.setupPiP()
             }
+        }
+    }
+
+    func currentFrameImage() -> UIImage? {
+        guard let pixelBuffer = frameQueue.sync(execute: { latestPixelBuffer }) else {
+            return nil
+        }
+
+        let image = CIImage(cvPixelBuffer: pixelBuffer)
+        guard let cgImage = ciContext.createCGImage(image, from: image.extent) else {
+            return nil
+        }
+
+        return UIImage(cgImage: cgImage)
+    }
+
+    private func storeLatestFrame(from sampleBuffer: CMSampleBuffer) {
+        guard let imageBuffer = CMSampleBufferGetImageBuffer(sampleBuffer) else {
+            return
+        }
+
+        frameQueue.async {
+            self.latestPixelBuffer = imageBuffer
+        }
+    }
+
+    private func clearLatestFrame() {
+        frameQueue.async {
+            self.latestPixelBuffer = nil
         }
     }
     

@@ -41,6 +41,19 @@ struct SettingsView: View {
                 }
                 .padding(.horizontal, 24)
 
+                VStack(alignment: .leading, spacing: 12) {
+                    Toggle(isOn: $serverConfig.streamVideoToNowPlaying) {
+                        Text("Stream to Now Playing")
+                            .foregroundColor(.white)
+                            .font(.headline)
+                    }
+                    .toggleStyle(SwitchToggleStyle(tint: .orange))
+                }
+                .padding()
+                .background(Color.white.opacity(0.08))
+                .cornerRadius(12)
+                .padding(.horizontal, 24)
+
                 // Actions
                 HStack(spacing: 16) {
                     Button(action: testConnection) {

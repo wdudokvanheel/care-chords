@@ -5,6 +5,7 @@ class ServerConfig: ObservableObject {
     static let shared = ServerConfig()
     
     private let key = "server_url"
+    private let streamVideoToNowPlayingKey = "stream_video_to_now_playing"
     private let defaultURL = "10.0.0.20"
     
     @Published var serverURL: String {
@@ -12,9 +13,16 @@ class ServerConfig: ObservableObject {
             UserDefaults.standard.set(serverURL, forKey: key)
         }
     }
+
+    @Published var streamVideoToNowPlaying: Bool {
+        didSet {
+            UserDefaults.standard.set(streamVideoToNowPlaying, forKey: streamVideoToNowPlayingKey)
+        }
+    }
     
     private init() {
         self.serverURL = UserDefaults.standard.string(forKey: key) ?? defaultURL
+        self.streamVideoToNowPlaying = UserDefaults.standard.bool(forKey: streamVideoToNowPlayingKey)
     }
     
     func getURL() -> String {

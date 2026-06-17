@@ -9,7 +9,7 @@ class ViewModel: ObservableObject {
     @Published var music: MusicController
     @Published var audioOutput: AudioOutputController
     @Published var gstreamer: GStreamerController
-    @Published var video: LiveStreamController = .init()
+    @Published var video: LiveStreamController
     @Published var nowPlaying: NowPlayingMediator
     @Published var queue: QueueController
 
@@ -21,14 +21,16 @@ class ViewModel: ObservableObject {
         let music = MusicController()
         let audio = AudioOutputController()
         let gstreamer = GStreamerController()
+        let video = LiveStreamController()
         let queue = QueueController()
         let osMediaPlayer = OsMediaPlayerController()
-        let nowPlaying = NowPlayingMediator(audioOutput: audio, gstreamer: gstreamer, musicController: music, osMediaPlayer: osMediaPlayer)
+        let nowPlaying = NowPlayingMediator(audioOutput: audio, gstreamer: gstreamer, musicController: music, videoController: video, osMediaPlayer: osMediaPlayer)
 
         self.audioLibrary = audioLibrary
         self.music = music
         self.audioOutput = audio
         self.gstreamer = gstreamer
+        self.video = video
         self.queue = queue
         self.nowPlaying = nowPlaying
 

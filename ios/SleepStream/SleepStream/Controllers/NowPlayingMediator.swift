@@ -1,6 +1,7 @@
 import AVKit
 import Combine
 import os
+import UIKit
 
 /// This class mediates the communication between various input and output components
 ///
@@ -18,17 +19,25 @@ class NowPlayingMediator: ObservableObject {
     let audioOutput: AudioOutputController
     let gstreamer: GStreamerController
     let musicController: MusicController
+    let videoController: LiveStreamController
     let osMediaPlayer: OsMediaPlayerController
 
     private var cancellables = Set<AnyCancellable>()
+    private var artworkTimer: DispatchSourceTimer?
+    private var startedVideoForArtwork = false
 
-    init(audioOutput: AudioOutputController, gstreamer: GStreamerController, musicController: MusicController, osMediaPlayer: OsMediaPlayerController, cancellables: Set<AnyCancellable> = Set<AnyCancellable>()) {
+    init(audioOutput: AudioOutputController, gstreamer: GStreamerController, musicController: MusicController, videoController: LiveStreamController, osMediaPlayer: OsMediaPlayerController, cancellables: Set<AnyCancellable> = Set<AnyCancellable>()) {
         self.audioOutput = audioOutput
         self.gstreamer = gstreamer
         self.musicController = musicController
+        self.videoController = videoController
         self.osMediaPlayer = osMediaPlayer
 
         start()
+    }
+
+    deinit {
+        stopNowPlayingArtworkStream()
     }
 
     func start() {
@@ -80,5 +89,69 @@ class NowPlayingMediator: ObservableObject {
             }
         }
         .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UIApplication.didEnterBackgroundNotification)
+            .sink { [weak self] _ in
+                self?.startNowPlayingArtworkStreamIfNeeded()
+            }
+            .store(in: &cancellables)
+
+        NotificationCenter.default.publisher(for: UIApplication.didBecomeActiveNotification)
+            .sink { [weak self] _ in
+                self?.stopNowPlayingArtworkStream()
+            }
+            .store(in: &cancellables)
+
+        ServerConfig.shared.$streamVideoToNowPlaying
+            .removeDuplicates()
+            .sink { [weak self] enabled in
+                if !enabled {
+                    self?.stopNowPlayingArtworkStream()
+                }
+            }
+            .store(in: &cancellables)
+    }
+
+    private func startNowPlayingArtworkStreamIfNeeded() {
+        guard ServerConfig.shared.streamVideoToNowPlaying else {
+            return
+        }
+
+        guard artworkTimer == nil else {
+            return
+        }
+
+        if !videoController.isStreamPlaying {
+            startedVideoForArtwork = true
+            videoController.play()
+        }
+
+        let timer = DispatchSource.makeTimerSource(queue: DispatchQueue.global(qos: .utility))
+        timer.schedule(deadline: .now(), repeating: .seconds(3))
+        timer.setEventHandler { [weak self] in
+            self?.updateNowPlayingArtworkFromVideo()
+        }
+        artworkTimer = timer
+        timer.resume()
+    }
+
+    private func stopNowPlayingArtworkStream() {
+        artworkTimer?.cancel()
+        artworkTimer = nil
+
+        if startedVideoForArtwork {
+            videoController.stop()
+            startedVideoForArtwork = false
+        }
+    }
+
+    private func updateNowPlayingArtworkFromVideo() {
+        guard let image = videoController.currentFrameImage() else {
+            return
+        }
+
+        DispatchQueue.main.async {
+            self.osMediaPlayer.updateNowPlayingArtwork(image)
+        }
     }
 }

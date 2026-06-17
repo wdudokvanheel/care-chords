@@ -2,6 +2,7 @@ import SwiftUI
 
 struct LiveStreamView: View {
     @ObservedObject var controller: LiveStreamController
+    @ObservedObject private var serverConfig = ServerConfig.shared
     @Environment(\.scenePhase) private var scenePhase
     @State var shouldResume = false
 
@@ -64,7 +65,7 @@ struct LiveStreamView: View {
                 }
                 self.controller.flush()
             case .inactive, .background:
-                if !controller.isPipActive {
+                if !controller.isPipActive && !serverConfig.streamVideoToNowPlaying {
                     self.controller.stop()
                     shouldResume = true
                 }
