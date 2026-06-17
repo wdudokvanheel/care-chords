@@ -105,7 +105,8 @@ final class AudioLibraryController: ObservableObject {
                         name: $0.name,
                         reference: "\(prefix)\($0.path)",
                         source: "local",
-                        kind: kind
+                        kind: kind,
+                        subtitle: $0.metadata?.displaySubtitle
                     )
                 }
             }
@@ -165,6 +166,28 @@ private struct BackendLocalAudioEntry: Decodable {
     let name: String
     let kind: String
     let path: String
+    let metadata: BackendLocalAudioMetadata?
+}
+
+private struct BackendLocalAudioMetadata: Decodable {
+    let title: String?
+    let artist: String?
+    let album: String?
+    let albumArtist: String?
+    let trackNumber: String?
+    let discNumber: String?
+    let date: String?
+    let genre: String?
+
+    var displaySubtitle: String? {
+        let primaryArtist = artist ?? albumArtist
+
+        if let primaryArtist, let album {
+            return "\(primaryArtist) - \(album)"
+        }
+
+        return primaryArtist ?? album ?? genre ?? date
+    }
 }
 
 private struct BackendSystemPlaylist: Decodable {

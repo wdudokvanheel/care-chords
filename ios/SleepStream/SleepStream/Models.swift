@@ -8,6 +8,7 @@ struct AudioItem: Identifiable {
     let kind: AudioItemKind
     let image: URL?
     let folder: String?
+    let subtitle: String?
 
     init(
         id: String,
@@ -16,7 +17,8 @@ struct AudioItem: Identifiable {
         source: String,
         kind: AudioItemKind,
         image: URL? = nil,
-        folder: String? = nil
+        folder: String? = nil,
+        subtitle: String? = nil
     ) {
         self.id = id
         self.name = name
@@ -25,6 +27,7 @@ struct AudioItem: Identifiable {
         self.kind = kind
         self.image = image
         self.folder = folder
+        self.subtitle = subtitle
     }
 }
 

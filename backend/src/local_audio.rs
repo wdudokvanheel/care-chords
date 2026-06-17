@@ -8,12 +8,16 @@ use gstreamer_app::AppSink;
 use gstreamer_app::prelude::*;
 use serde::{Deserialize, Serialize};
 use std::collections::HashSet;
-use std::fs;
+use std::fs::{self, File};
 use std::path::{Path, PathBuf};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::mpsc::SyncSender;
 use std::sync::{Arc, Mutex};
 use std::thread;
+use symphonia::core::formats::FormatOptions;
+use symphonia::core::io::{MediaSourceStream, MediaSourceStreamOptions};
+use symphonia::core::meta::{MetadataOptions, MetadataRevision, StandardTagKey};
+use symphonia::core::probe::Hint;
 use tokio::sync::watch;
 
 #[derive(Debug, Clone, Serialize, Deserialize)]
@@ -22,6 +26,28 @@ pub struct LocalAudioEntry {
     pub name: String,
     pub kind: LocalAudioEntryKind,
     pub path: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub metadata: Option<LocalAudioMetadata>,
+}
+
+#[derive(Debug, Clone, Default, Serialize, Deserialize)]
+pub struct LocalAudioMetadata {
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub title: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub artist: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub album_artist: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub track_number: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub disc_number: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub date: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub genre: Option<String>,
 }
 
 #[derive(Debug, Clone, Serialize, Deserialize, PartialEq, Eq)]
@@ -80,6 +106,7 @@ impl LocalAudioLibrary {
                     name: name.to_string(),
                     kind: LocalAudioEntryKind::Folder,
                     path: format!("root:{idx}"),
+                    metadata: None,
                 }
             })
             .collect()
@@ -110,14 +137,10 @@ impl LocalAudioLibrary {
                     name,
                     kind: LocalAudioEntryKind::Folder,
                     path: self.path_to_ref(&path)?,
+                    metadata: None,
                 });
             } else if self.is_audio_file(&path) {
-                entries.push(LocalAudioEntry {
-                    id: self.path_to_ref(&path)?,
-                    name: strip_extension(&name),
-                    kind: LocalAudioEntryKind::File,
-                    path: self.path_to_ref(&path)?,
-                });
+                entries.push(self.file_entry_with_fallback(path, strip_extension(&name))?);
             }
         }
 
@@ -175,12 +198,26 @@ impl LocalAudioLibrary {
             .and_then(|name| name.to_str())
             .map(strip_extension)
             .unwrap_or_else(|| path.display().to_string());
+        self.file_entry_with_fallback(path, name)
+    }
+
+    fn file_entry_with_fallback(
+        &self,
+        path: PathBuf,
+        fallback_name: String,
+    ) -> Result<LocalAudioEntry> {
+        let metadata = read_audio_metadata(&path);
+        let name = metadata
+            .as_ref()
+            .and_then(|metadata| metadata.title.clone())
+            .unwrap_or(fallback_name);
         let reference = self.path_to_ref(&path)?;
         Ok(LocalAudioEntry {
             id: reference.clone(),
             name,
             kind: LocalAudioEntryKind::File,
             path: reference,
+            metadata,
         })
     }
 
@@ -342,11 +379,17 @@ impl LocalAudioPlayer {
                     }
                 };
 
+                let artist = entry
+                    .metadata
+                    .as_ref()
+                    .and_then(|metadata| metadata.display_artist())
+                    .unwrap_or_else(|| "Local files".to_string());
+
                 let _ = info_sender.send(SpotifyPlayerInfo {
                     status: SpotifyPlayerState::Playing,
                     shuffle: false,
                     metadata: Some(MusicMetadata {
-                        artist: "Local files".to_string(),
+                        artist,
                         title: entry.name.clone(),
                         artwork_url: String::new(),
                         source: Some("local".to_string()),
@@ -466,6 +509,138 @@ fn strip_extension(name: &str) -> String {
         .and_then(|stem| stem.to_str())
         .unwrap_or(name)
         .to_string()
+}
+
+fn read_audio_metadata(path: &Path) -> Option<LocalAudioMetadata> {
+    let file = File::open(path).ok()?;
+    let mss = MediaSourceStream::new(Box::new(file), MediaSourceStreamOptions::default());
+
+    let mut hint = Hint::new();
+    if let Some(extension) = path.extension().and_then(|extension| extension.to_str()) {
+        hint.with_extension(extension);
+    }
+
+    let metadata_opts = MetadataOptions::default();
+    let format_opts = FormatOptions::default();
+    let mut probed = symphonia::default::get_probe()
+        .format(&hint, mss, &format_opts, &metadata_opts)
+        .ok()?;
+
+    let mut metadata = LocalAudioMetadata::default();
+
+    if let Some(mut probed_metadata) = probed.metadata.get() {
+        if let Some(revision) = probed_metadata.skip_to_latest() {
+            metadata.apply_revision(revision);
+        }
+    }
+
+    if let Some(revision) = probed.format.metadata().skip_to_latest() {
+        metadata.apply_revision(revision);
+    }
+
+    if metadata.is_empty() {
+        None
+    } else {
+        Some(metadata)
+    }
+}
+
+impl LocalAudioMetadata {
+    fn apply_revision(&mut self, revision: &MetadataRevision) {
+        for tag in revision.tags() {
+            let value = tag.value.to_string();
+            let value = value.trim();
+            if value.is_empty() {
+                continue;
+            }
+
+            match tag.std_key {
+                Some(StandardTagKey::TrackTitle) => self.set_missing_title(value),
+                Some(StandardTagKey::Artist) => self.set_missing_artist(value),
+                Some(StandardTagKey::Album) => self.set_missing_album(value),
+                Some(StandardTagKey::AlbumArtist) => self.set_missing_album_artist(value),
+                Some(StandardTagKey::TrackNumber) => self.set_missing_track_number(value),
+                Some(StandardTagKey::DiscNumber) => self.set_missing_disc_number(value),
+                Some(StandardTagKey::Date) | Some(StandardTagKey::ReleaseDate) => {
+                    self.set_missing_date(value)
+                }
+                Some(StandardTagKey::Genre) => self.set_missing_genre(value),
+                _ => self.apply_legacy_key(&tag.key, value),
+            }
+        }
+    }
+
+    fn apply_legacy_key(&mut self, key: &str, value: &str) {
+        match key.to_ascii_lowercase().as_str() {
+            "title" | "tit2" => self.set_missing_title(value),
+            "artist" | "tpe1" => self.set_missing_artist(value),
+            "album" | "talb" => self.set_missing_album(value),
+            "albumartist" | "album_artist" | "tpe2" => self.set_missing_album_artist(value),
+            "tracknumber" | "track_number" | "track" | "trck" => {
+                self.set_missing_track_number(value)
+            }
+            "discnumber" | "disc_number" | "disc" | "tpos" => self.set_missing_disc_number(value),
+            "date" | "year" | "tdrc" | "tyer" => self.set_missing_date(value),
+            "genre" | "tcon" => self.set_missing_genre(value),
+            _ => {}
+        }
+    }
+
+    fn is_empty(&self) -> bool {
+        self.title.is_none()
+            && self.artist.is_none()
+            && self.album.is_none()
+            && self.album_artist.is_none()
+            && self.track_number.is_none()
+            && self.disc_number.is_none()
+            && self.date.is_none()
+            && self.genre.is_none()
+    }
+
+    fn set_missing_title(&mut self, value: &str) {
+        set_missing(&mut self.title, value);
+    }
+
+    fn set_missing_artist(&mut self, value: &str) {
+        set_missing(&mut self.artist, value);
+    }
+
+    fn set_missing_album(&mut self, value: &str) {
+        set_missing(&mut self.album, value);
+    }
+
+    fn set_missing_album_artist(&mut self, value: &str) {
+        set_missing(&mut self.album_artist, value);
+    }
+
+    fn set_missing_track_number(&mut self, value: &str) {
+        set_missing(&mut self.track_number, value);
+    }
+
+    fn set_missing_disc_number(&mut self, value: &str) {
+        set_missing(&mut self.disc_number, value);
+    }
+
+    fn set_missing_date(&mut self, value: &str) {
+        set_missing(&mut self.date, value);
+    }
+
+    fn set_missing_genre(&mut self, value: &str) {
+        set_missing(&mut self.genre, value);
+    }
+
+    fn display_artist(&self) -> Option<String> {
+        self.artist
+            .clone()
+            .or_else(|| self.album_artist.clone())
+            .or_else(|| self.album.clone())
+    }
+}
+
+fn set_missing(target: &mut Option<String>, value: &str) {
+    if target.is_none() {
+        *target = Some(value.to_string());
+    }
 }
 
 trait LocalEntrySort {

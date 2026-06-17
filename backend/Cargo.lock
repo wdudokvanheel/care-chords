@@ -309,6 +309,7 @@ dependencies = [
  "serde_json",
  "sha1",
  "simple_logger",
+ "symphonia",
  "tokio",
  "toml",
  "urlencoding",

@@ -92,7 +92,20 @@ struct AudioLibraryView: View {
                             .lineLimit(1)
                             .multilineTextAlignment(.center)
                             .padding(.horizontal, 4)
-                            .padding(.vertical, 1)
+                            .padding(.top, 1)
+                        if let subtitle = item.subtitle {
+                            Text(subtitle)
+                                .foregroundColor(Color.playlistItemLabel.opacity(0.75))
+                                .font(.caption2)
+                                .fontWeight(.light)
+                                .lineLimit(1)
+                                .multilineTextAlignment(.center)
+                                .padding(.horizontal, 4)
+                                .padding(.bottom, 2)
+                        } else {
+                            Spacer()
+                                .frame(height: 2)
+                        }
                     }
                     .background(Color.playlistItem)
                     .padding(0)
