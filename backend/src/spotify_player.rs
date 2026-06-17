@@ -3,7 +3,7 @@ use librespot_core::cache::Cache;
 use librespot_core::{Session, SessionConfig, SpotifyUri};
 use librespot_metadata::artist::ArtistRole;
 use librespot_metadata::audio::UniqueFields;
-use librespot_metadata::{Metadata, Playlist, Track};
+use librespot_metadata::{Metadata, Playlist};
 use librespot_playback::audio_backend::Sink;
 use librespot_playback::config::PlayerConfig;
 use librespot_playback::mixer::VolumeGetter;
@@ -21,6 +21,9 @@ use tokio::time::{Instant, sleep};
 
 use tokio::sync::Mutex as TokioMutex;
 use tokio::task::JoinHandle;
+
+const MIN_VALID_PLAYBACK_DURATION: Duration = Duration::from_secs(5);
+const MAX_CONSECUTIVE_PLAYBACK_FAILURES: usize = 3;
 
 #[derive(Debug, Serialize, Deserialize, Clone)]
 pub struct MusicMetadata {
@@ -65,6 +68,8 @@ pub struct SpotifyPlayer {
     sleep_timer: Arc<SleepTimer>,
     audio_sender: SyncSender<SinkEvent>,
     failed_skips: usize,
+    current_track_uri: Option<SpotifyUri>,
+    current_track_started_at: Option<Instant>,
 }
 
 #[derive(Clone, Debug, Serialize, PartialEq)]
@@ -149,6 +154,8 @@ impl SpotifyPlayer {
             sleep_timer: Arc::new(SleepTimer::new(volume_clone)),
             audio_sender,
             failed_skips: 0,
+            current_track_uri: None,
+            current_track_started_at: None,
         }
     }
 
@@ -177,7 +184,11 @@ impl SpotifyPlayer {
             return None;
         }
 
-        let player = build_player(session.clone(), self.volume.clone(), self.audio_sender.clone());
+        let player = build_player(
+            session.clone(),
+            self.volume.clone(),
+            self.audio_sender.clone(),
+        );
         let events = player.get_player_event_channel();
         self.player = player;
         self.session = session;
@@ -262,6 +273,7 @@ impl SpotifyPlayer {
                         }
                         PlayerCommand::Next => {
                             if self.ensure_session(&mut spotify_player_events).await {
+                                self.failed_skips = 0;
                                 self.play_next_song().await;
                             }
                         }
@@ -288,27 +300,32 @@ impl SpotifyPlayer {
                 Some(event) = spotify_player_events.recv() => {
                     log::trace!("Received player event: {:?}", event);
                     match event {
-                        PlayerEvent::Playing{  .. } => {
+                        PlayerEvent::Playing{ track_id, .. } => {
+                            self.current_track_uri = Some(track_id);
+                            self.current_track_started_at = Some(Instant::now());
                             self.failed_skips = 0;
                             self.set_state(SpotifyPlayerState::Playing).await;
                         }
                         PlayerEvent::Paused { .. } => self.set_state(SpotifyPlayerState::Paused).await,
                         PlayerEvent::Stopped { .. } => self.set_state(SpotifyPlayerState::Stopped).await,
-                        PlayerEvent::EndOfTrack { .. } => {
-                            // A dead session makes librespot emit EndOfTrack for every track
-                            // it fails to fetch, which would otherwise burn through the whole
-                            // queue. Reconnect if needed, and stop if a full playlist cycle
-                            // produced no successful playback.
-                            if !self.ensure_session(&mut spotify_player_events).await {
-                                self.set_state(SpotifyPlayerState::Stopped).await;
-                            } else if self.failed_skips >= self.playlist_tracks.len().max(1) {
-                                log::warn!("No track could be played after a full playlist cycle; stopping");
-                                self.failed_skips = 0;
-                                self.set_state(SpotifyPlayerState::Stopped).await;
+                        PlayerEvent::EndOfTrack { track_id, .. } => {
+                            if self.track_ended_too_quickly(&track_id) {
+                                self.handle_track_load_failure(
+                                    &mut spotify_player_events,
+                                    track_id,
+                                    "track ended before stable playback",
+                                ).await;
                             } else {
-                                self.failed_skips += 1;
+                                self.failed_skips = 0;
                                 self.play_next_song().await;
                             }
+                        }
+                        PlayerEvent::Unavailable { track_id, .. } => {
+                            self.handle_track_load_failure(
+                                &mut spotify_player_events,
+                                track_id,
+                                "track unavailable",
+                            ).await;
                         }
                         PlayerEvent::TrackChanged { audio_item} => {
                             // log::trace!("Track changed to {:?}", audio_item);
@@ -347,12 +364,56 @@ impl SpotifyPlayer {
         }
 
         if let Some(next_track_uri) = self.queue.pop_front() {
-            if let Ok(_) = Track::get(&self.session, &next_track_uri).await {
-                self.player.load(next_track_uri, true, 0);
-            }
+            log::info!("Loading Spotify track: {next_track_uri}");
+            self.current_track_uri = Some(next_track_uri.clone());
+            self.current_track_started_at = None;
+            self.player.load(next_track_uri, true, 0);
         } else {
             self.set_state(SpotifyPlayerState::Stopped).await;
         }
+    }
+
+    fn track_ended_too_quickly(&self, track_id: &SpotifyUri) -> bool {
+        if self.current_track_uri.as_ref() != Some(track_id) {
+            return true;
+        }
+
+        match self.current_track_started_at {
+            Some(started_at) => started_at.elapsed() < MIN_VALID_PLAYBACK_DURATION,
+            None => true,
+        }
+    }
+
+    async fn handle_track_load_failure(
+        &mut self,
+        events: &mut UnboundedReceiver<PlayerEvent>,
+        track_id: SpotifyUri,
+        reason: &str,
+    ) {
+        self.failed_skips += 1;
+        log::warn!(
+            "Spotify playback failure for {track_id}: {reason} (consecutive failures: {})",
+            self.failed_skips
+        );
+
+        if self.failed_skips >= MAX_CONSECUTIVE_PLAYBACK_FAILURES {
+            log::warn!("Stopping Spotify playback after repeated track load failures");
+            self.failed_skips = 0;
+            self.current_track_started_at = None;
+            self.set_state(SpotifyPlayerState::Stopped).await;
+            return;
+        }
+
+        if self.failed_skips == 1 {
+            if let Some(new_events) = self.reconnect().await {
+                *events = new_events;
+                self.failed_skips = 1;
+            }
+        }
+
+        self.queue.push_front(track_id);
+        sleep(Duration::from_secs(1)).await;
+        self.play_next_song().await;
     }
 
     async fn set_state(&mut self, state: SpotifyPlayerState) {
@@ -484,7 +545,13 @@ fn build_player(
 }
 
 fn create_cache() -> Option<Cache> {
-    Cache::new(Some("cache"), Some("cache"), Some("cache"), Some(1024 * 1024 * 1024)).ok()
+    Cache::new(
+        Some("cache"),
+        Some("cache"),
+        Some("cache"),
+        Some(1024 * 1024 * 1024),
+    )
+    .ok()
 }
 
 async fn fade_out_volume(volume: Arc<PlaybackVolume>, player: Arc<Player>) {
