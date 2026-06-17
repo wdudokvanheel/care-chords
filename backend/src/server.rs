@@ -72,7 +72,10 @@ impl CareChordsServer {
                         log::warn!("Failed to refresh playlist cache: {e}");
                     }
 
-                    self.spotify = Authenticated(Arc::new(spotify_client));
+                    let spotify_client = Arc::new(spotify_client);
+                    spotify_client.clone().spawn_playlist_artwork_refresh();
+
+                    self.spotify = Authenticated(spotify_client);
                 }
                 Err(e) => {
                     log::error!("Failed to authenticate with Spotify: {}", e);

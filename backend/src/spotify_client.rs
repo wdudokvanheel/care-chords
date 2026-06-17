@@ -14,7 +14,7 @@ use librespot_discovery::Discovery;
 
 use librespot_core::SpotifyUri;
 use librespot_core::error::ErrorKind;
-use librespot_metadata::{Metadata, Playlist};
+use librespot_metadata::{Metadata, Playlist, Track};
 use percent_encoding::percent_decode_str;
 use serde::{Deserialize, Serialize};
 use sha1::{Digest, Sha1};
@@ -30,6 +30,7 @@ use tokio::sync::mpsc::Sender;
 use tokio::sync::{Mutex as TokioMutex, RwLock, watch};
 
 const PLAYLIST_METADATA_REQUEST_SPACING: Duration = Duration::from_millis(250);
+const PLAYLIST_ARTWORK_REQUEST_SPACING: Duration = Duration::from_millis(500);
 const PLAYLIST_METADATA_CACHE_DIR: &str = "cache/playlists";
 
 pub struct UnauthenticatedSpotifyClient {
@@ -116,6 +117,36 @@ struct UserProfileImage {
     url: Option<String>,
 }
 
+#[derive(Debug, Serialize, Deserialize)]
+struct PlaylistMetadataCache {
+    uri: String,
+    name: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    image_uri: Option<String>,
+    #[serde(default)]
+    artwork_lookup_attempted: bool,
+}
+
+impl PlaylistMetadataCache {
+    fn from_summary(summary: &PlaylistSummary, artwork_lookup_attempted: bool) -> Self {
+        Self {
+            uri: summary.uri.clone(),
+            name: summary.name.clone(),
+            image_uri: summary.image_uri.clone(),
+            artwork_lookup_attempted,
+        }
+    }
+
+    fn into_summary(self) -> PlaylistSummary {
+        PlaylistSummary {
+            uri: self.uri,
+            name: self.name,
+            image_uri: self.image_uri,
+            folder: None,
+        }
+    }
+}
+
 impl SpotifyClient {
     pub fn new() -> UnauthenticatedSpotifyClient {
         UnauthenticatedSpotifyClient {
@@ -183,9 +214,10 @@ impl SpotifyClient {
 
                 let mut missing = Vec::new();
                 for (uri, folder) in to_fetch {
-                    if let Some(mut cached) = read_playlist_metadata_cache(&uri) {
-                        cached.folder = folder;
-                        by_uri.insert(uri, cached);
+                    if let Some(cached) = read_playlist_metadata_cache(&uri) {
+                        let mut summary = cached.into_summary();
+                        summary.folder = folder.clone();
+                        by_uri.insert(uri, summary);
                     } else {
                         missing.push((uri, folder));
                     }
@@ -198,7 +230,10 @@ impl SpotifyClient {
                 for (uri, folder) in missing {
                     let meta = self.fetch_playlist_metadata(&uri).await;
                     if let Some(mut meta) = meta {
-                        write_playlist_metadata_cache(&meta);
+                        write_playlist_metadata_cache(&PlaylistMetadataCache::from_summary(
+                            &meta,
+                            meta.image_uri.is_some(),
+                        ));
                         if meta.folder.is_none() {
                             meta.folder = folder;
                         }
@@ -224,6 +259,56 @@ impl SpotifyClient {
         *self.playlists_cache.write().await = Some(playlists.clone());
 
         Ok(playlists)
+    }
+
+    pub fn spawn_playlist_artwork_refresh(self: Arc<Self>) {
+        tokio::spawn(async move {
+            self.refresh_missing_playlist_artwork().await;
+        });
+    }
+
+    async fn refresh_missing_playlist_artwork(&self) {
+        let playlists = match self.playlists().await {
+            Ok(playlists) => playlists,
+            Err(e) => {
+                log::warn!("Skipping playlist artwork refresh: {e}");
+                return;
+            }
+        };
+
+        let mut missing = Vec::new();
+        for playlist in playlists {
+            if playlist.image_uri.is_some() {
+                continue;
+            }
+
+            match read_playlist_metadata_cache(&playlist.uri) {
+                Some(cache) if cache.artwork_lookup_attempted => {}
+                _ => missing.push(playlist),
+            }
+        }
+
+        if missing.is_empty() {
+            return;
+        }
+
+        log::info!("Fetching artwork for {} cached playlists", missing.len());
+
+        for mut playlist in missing {
+            playlist.image_uri = self.fetch_playlist_artwork(&playlist.uri).await;
+            write_playlist_metadata_cache(&PlaylistMetadataCache::from_summary(&playlist, true));
+
+            if playlist.image_uri.is_some() {
+                let mut cache = self.playlists_cache.write().await;
+                if let Some(playlists) = cache.as_mut() {
+                    if let Some(existing) = playlists.iter_mut().find(|p| p.uri == playlist.uri) {
+                        existing.image_uri = playlist.image_uri.clone();
+                    }
+                }
+            }
+
+            tokio::time::sleep(PLAYLIST_ARTWORK_REQUEST_SPACING).await;
+        }
     }
 
     async fn fetch_rootlist_entries(&self) -> Result<Vec<(String, Option<String>)>> {
@@ -327,7 +412,10 @@ impl SpotifyClient {
                 ),
                 folder: item.folder.clone(),
             };
-            write_playlist_metadata_cache(&summary);
+            write_playlist_metadata_cache(&PlaylistMetadataCache::from_summary(
+                &summary,
+                summary.image_uri.is_some(),
+            ));
             map.insert(summary.uri.clone(), summary);
         }
         for item in profile.public_playlists.unwrap_or_default() {
@@ -337,7 +425,10 @@ impl SpotifyClient {
                 image_uri: normalize_image(item.image_url),
                 folder: None,
             };
-            write_playlist_metadata_cache(&summary);
+            write_playlist_metadata_cache(&PlaylistMetadataCache::from_summary(
+                &summary,
+                summary.image_uri.is_some(),
+            ));
             map.entry(summary.uri.clone()).or_insert(summary);
         }
 
@@ -372,6 +463,56 @@ impl SpotifyClient {
             image_uri: image,
             folder: None,
         })
+    }
+
+    async fn fetch_playlist_artwork(&self, uri: &str) -> Option<String> {
+        let playlist_id = uri.strip_prefix("spotify:playlist:")?;
+        let endpoint = format!("/playlist/v2/playlist/{}?response-format=json", playlist_id);
+        let response = match retry_rate_limited("playlist artwork API", || {
+            self.session
+                .spclient()
+                .request_as_json(&Method::GET, &endpoint, None, None)
+        })
+        .await
+        {
+            Ok(res) => res,
+            Err(e) => {
+                log::warn!("Artwork API request failed for playlist {playlist_id}: {e}");
+                return None;
+            }
+        };
+
+        let json: serde_json::Value = match serde_json::from_slice(&response) {
+            Ok(v) => v,
+            Err(e) => {
+                log::warn!("Failed to parse artwork API response for {playlist_id}: {e}");
+                return None;
+            }
+        };
+
+        if let Some(image) = extract_playlist_image_from_json(&json) {
+            return Some(image);
+        }
+
+        let mut collected_hashes = Vec::new();
+        collect_track_uris(&json, &mut collected_hashes);
+
+        for uri in collected_hashes {
+            if let Ok(parsed_uri) = SpotifyUri::from_uri(&uri) {
+                if let Ok(track) = retry_rate_limited("Track::get artwork", || {
+                    Track::get(&self.session, &parsed_uri)
+                })
+                .await
+                {
+                    if let Some(image) = track.album.covers.first() {
+                        let hex = image.id.to_string();
+                        return normalize_image(Some(format!("spotify:image:{hex}")));
+                    }
+                }
+            }
+        }
+
+        None
     }
 }
 
@@ -456,12 +597,12 @@ fn normalize_image(raw: Option<String>) -> Option<String> {
     None
 }
 
-fn read_playlist_metadata_cache(uri: &str) -> Option<PlaylistSummary> {
+fn read_playlist_metadata_cache(uri: &str) -> Option<PlaylistMetadataCache> {
     let path = playlist_metadata_cache_path(uri);
     let file = File::open(&path).ok()?;
     let reader = BufReader::new(file);
-    let mut summary: PlaylistSummary = match serde_json::from_reader(reader) {
-        Ok(summary) => summary,
+    let cache: PlaylistMetadataCache = match serde_json::from_reader(reader) {
+        Ok(cache) => cache,
         Err(e) => {
             log::warn!(
                 "Failed to parse cached playlist metadata {}: {e}",
@@ -471,28 +612,25 @@ fn read_playlist_metadata_cache(uri: &str) -> Option<PlaylistSummary> {
         }
     };
 
-    if summary.uri != uri {
+    if cache.uri != uri {
         log::warn!(
             "Ignoring cached playlist metadata {} with mismatched uri {}",
             path.display(),
-            summary.uri
+            cache.uri
         );
         return None;
     }
 
-    summary.folder = None;
-    Some(summary)
+    Some(cache)
 }
 
-fn write_playlist_metadata_cache(summary: &PlaylistSummary) {
+fn write_playlist_metadata_cache(cache: &PlaylistMetadataCache) {
     if let Err(e) = fs::create_dir_all(PLAYLIST_METADATA_CACHE_DIR) {
         log::warn!("Failed to create playlist metadata cache dir: {e}");
         return;
     }
 
-    let path = playlist_metadata_cache_path(&summary.uri);
-    let mut cached = summary.clone();
-    cached.folder = None;
+    let path = playlist_metadata_cache_path(&cache.uri);
 
     let file = match File::create(&path) {
         Ok(file) => file,
@@ -505,7 +643,7 @@ fn write_playlist_metadata_cache(summary: &PlaylistSummary) {
         }
     };
 
-    if let Err(e) = serde_json::to_writer_pretty(file, &cached) {
+    if let Err(e) = serde_json::to_writer_pretty(file, cache) {
         log::warn!(
             "Failed to write playlist metadata cache {}: {e}",
             path.display()
@@ -516,6 +654,80 @@ fn write_playlist_metadata_cache(summary: &PlaylistSummary) {
 fn playlist_metadata_cache_path(uri: &str) -> PathBuf {
     let digest = hex::encode(Sha1::digest(uri.as_bytes()));
     PathBuf::from(PLAYLIST_METADATA_CACHE_DIR).join(format!("{digest}.json"))
+}
+
+fn extract_playlist_image_from_json(json: &serde_json::Value) -> Option<String> {
+    let candidates = [
+        "/attributes/image_url",
+        "/attributes/picture",
+        "/image_url",
+        "/picture",
+    ];
+
+    for pointer in candidates {
+        if let Some(url) = json.pointer(pointer).and_then(|v| v.as_str()) {
+            if let Some(image) = normalize_image(Some(url.to_string())) {
+                return Some(image);
+            }
+        }
+    }
+
+    if let Some(sizes) = json
+        .pointer("/attributes/picture_sizes")
+        .and_then(|v| v.as_array())
+    {
+        if let Some(image) = sizes
+            .iter()
+            .filter_map(|v| v.get("url").and_then(|s| s.as_str()))
+            .find_map(|url| normalize_image(Some(url.to_string())))
+        {
+            return Some(image);
+        }
+    }
+
+    if let Some(images) = json.get("images").and_then(|v| v.as_array()) {
+        if let Some(image) = images
+            .iter()
+            .filter_map(|v| v.get("url").and_then(|s| s.as_str()))
+            .find_map(|url| normalize_image(Some(url.to_string())))
+        {
+            return Some(image);
+        }
+    }
+
+    None
+}
+
+fn collect_track_uris(json: &serde_json::Value, track_uris: &mut Vec<String>) {
+    if track_uris.len() >= 4 {
+        return;
+    }
+
+    match json {
+        serde_json::Value::Object(map) => {
+            if let Some(uri) = map.get("uri").and_then(|v| v.as_str()) {
+                if uri.starts_with("spotify:track:") && !track_uris.iter().any(|u| u == uri) {
+                    track_uris.push(uri.to_string());
+                }
+            }
+
+            for value in map.values() {
+                collect_track_uris(value, track_uris);
+                if track_uris.len() >= 4 {
+                    break;
+                }
+            }
+        }
+        serde_json::Value::Array(values) => {
+            for value in values {
+                collect_track_uris(value, track_uris);
+                if track_uris.len() >= 4 {
+                    break;
+                }
+            }
+        }
+        _ => {}
+    }
 }
 
 fn playlist_cover(playlist: &Playlist) -> Option<String> {
