@@ -66,6 +66,13 @@ pub struct LocalAudioLibrary {
     roots: Arc<Vec<PathBuf>>,
     allowed_extensions: Arc<HashSet<String>>,
     artwork_path: &'static str,
+    root_listing: RootListing,
+}
+
+#[derive(Clone, Copy)]
+enum RootListing {
+    Roots,
+    Albums,
 }
 
 pub struct LocalAudioPlayer {
@@ -100,12 +107,14 @@ impl LocalAudioLibrary {
             roots: Arc::new(roots),
             allowed_extensions: Arc::new(allowed_extensions),
             artwork_path: "/library/local/artwork",
+            root_listing: RootListing::Albums,
         }
     }
 
     pub fn new_youtube(settings: &LocalAudioSettings) -> Self {
         let mut library = Self::new(settings);
         library.artwork_path = "/library/youtube/artwork";
+        library.root_listing = RootListing::Roots;
         library
     }
 
@@ -132,12 +141,18 @@ impl LocalAudioLibrary {
 
     pub fn list(&self, requested_path: Option<&str>) -> Result<Vec<LocalAudioEntry>> {
         if requested_path.is_none() {
-            return Ok(self.roots());
+            return match self.root_listing {
+                RootListing::Roots => Ok(self.roots()),
+                RootListing::Albums => self.list_albums(),
+            };
         }
 
         let folder = self.resolve_folder_ref(requested_path.unwrap())?;
-        let mut entries = Vec::new();
+        self.list_folder(&folder)
+    }
 
+    fn list_folder(&self, folder: &Path) -> Result<Vec<LocalAudioEntry>> {
+        let mut entries = Vec::new();
         for entry in fs::read_dir(&folder)
             .with_context(|| format!("Failed to read local audio folder {}", folder.display()))?
         {
@@ -166,6 +181,68 @@ impl LocalAudioLibrary {
 
         entries.sort_by(compare_local_entries);
         Ok(entries)
+    }
+
+    fn list_albums(&self) -> Result<Vec<LocalAudioEntry>> {
+        let mut entries = Vec::new();
+        for root in self.roots.iter() {
+            self.collect_album_entries(root, true, &mut entries)?;
+        }
+
+        entries.sort_by(compare_local_entries);
+        Ok(entries)
+    }
+
+    fn collect_album_entries(
+        &self,
+        folder: &Path,
+        is_root: bool,
+        out: &mut Vec<LocalAudioEntry>,
+    ) -> Result<()> {
+        let mut child_folders = Vec::new();
+        let mut direct_files = Vec::new();
+
+        for entry in fs::read_dir(folder)
+            .with_context(|| format!("Failed to read local audio folder {}", folder.display()))?
+        {
+            let entry = entry?;
+            let path = entry.path();
+            if path.is_dir() {
+                child_folders.push(path);
+            } else if self.is_audio_file(&path) {
+                direct_files.push(path);
+            }
+        }
+
+        if !direct_files.is_empty() {
+            if is_root {
+                for file in direct_files {
+                    out.push(self.file_entry(file)?);
+                }
+            } else {
+                let reference = self.path_to_ref(folder)?;
+                let name = folder
+                    .file_name()
+                    .and_then(|name| name.to_str())
+                    .map(|name| name.to_string())
+                    .unwrap_or_else(|| folder.display().to_string());
+                out.push(LocalAudioEntry {
+                    id: reference.clone(),
+                    name,
+                    kind: LocalAudioEntryKind::Folder,
+                    path: reference.clone(),
+                    image_uri: folder_artwork(folder).map(|_| self.artwork_uri(&reference)),
+                    metadata: None,
+                });
+            }
+            return Ok(());
+        }
+
+        for child in child_folders {
+            self.collect_album_entries(&child, false, out)?;
+        }
+
+        Ok(())
     }
 
     pub fn resolve_ref(&self, reference: &str) -> Result<PathBuf> {
@@ -935,6 +1012,41 @@ mod tests {
 
         assert_eq!(root, 0);
         assert_eq!(relative, "Channel - Title.webm");
+    }
+
+    #[test]
+    fn local_root_lists_album_folders_instead_of_music_root() {
+        let root = std::env::temp_dir().join(format!(
+            "carechords-local-audio-albums-test-{}",
+            std::process::id()
+        ));
+        let first_album = root.join("Artist One").join("2024 - First Album");
+        let second_album = root.join("Artist Two").join("2025 - Second Album");
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&first_album).unwrap();
+        fs::create_dir_all(&second_album).unwrap();
+        File::create(first_album.join("01 - First.ogg")).unwrap();
+        File::create(second_album.join("01 - Second.ogg")).unwrap();
+
+        let library = LocalAudioLibrary::new(&LocalAudioSettings {
+            roots: vec![root.to_string_lossy().to_string()],
+            allowed_extensions: vec!["ogg".to_string()],
+        });
+
+        let entries = library.list(None).unwrap();
+        let names = entries
+            .iter()
+            .map(|entry| entry.name.as_str())
+            .collect::<Vec<_>>();
+
+        assert_eq!(names, ["2024 - First Album", "2025 - Second Album"]);
+        assert!(
+            entries
+                .iter()
+                .all(|entry| entry.kind == LocalAudioEntryKind::Folder)
+        );
+
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
