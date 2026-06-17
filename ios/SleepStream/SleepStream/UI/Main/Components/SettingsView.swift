@@ -89,6 +89,10 @@ struct SettingsView: View {
                 }
 
                 Spacer()
+
+                Text(appVersionText)
+                    .font(.footnote)
+                    .foregroundColor(.white.opacity(0.45))
                 
                 // Close Button
                 Button(action: {
@@ -122,5 +126,12 @@ struct SettingsView: View {
     private func saveSettings() {
         serverConfig.saveURL(serverAddress)
         presentationMode.wrappedValue.dismiss()
+    }
+
+    private var appVersionText: String {
+        let info = Bundle.main.infoDictionary
+        let version = info?["CFBundleShortVersionString"] as? String ?? "Unknown"
+        let build = info?["CFBundleVersion"] as? String ?? "Unknown"
+        return "Version \(version) (\(build))"
     }
 }

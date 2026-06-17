@@ -4,7 +4,7 @@ use futures_util::StreamExt;
 use serde::Deserialize;
 use std::sync::Arc;
 use tokio::sync::watch;
-use warp::http::{Response, StatusCode};
+use warp::http::{Response, StatusCode, header};
 use warp::hyper::Body;
 use warp::{Filter, Rejection, Reply};
 
@@ -174,8 +174,11 @@ async fn handle_local_library(
     playback: Arc<PlaybackController>,
 ) -> Result<Response<Body>, Rejection> {
     match playback.local_library().list(query.path.as_deref()) {
-        Ok(entries) => Ok(json_status(&entries, StatusCode::OK)),
-        Err(e) => Ok(error_status(&e.to_string(), StatusCode::BAD_REQUEST)),
+        Ok(entries) => Ok(no_store(json_status(&entries, StatusCode::OK))),
+        Err(e) => Ok(no_store(error_status(
+            &e.to_string(),
+            StatusCode::BAD_REQUEST,
+        ))),
     }
 }
 
@@ -347,4 +350,15 @@ fn error_status(message: &str, status: StatusCode) -> Response<Body> {
 
 fn json_status<T: serde::Serialize>(body: &T, status: StatusCode) -> Response<Body> {
     warp::reply::with_status(warp::reply::json(body), status).into_response()
+}
+
+fn no_store(mut response: Response<Body>) -> Response<Body> {
+    let headers = response.headers_mut();
+    headers.insert(
+        header::CACHE_CONTROL,
+        "no-store, no-cache, must-revalidate".parse().unwrap(),
+    );
+    headers.insert(header::PRAGMA, "no-cache".parse().unwrap());
+    headers.insert(header::EXPIRES, "0".parse().unwrap());
+    response
 }

@@ -7,6 +7,7 @@ use gstreamer::prelude::{Cast, ElementExt};
 use gstreamer_app::AppSink;
 use gstreamer_app::prelude::*;
 use serde::{Deserialize, Serialize};
+use std::cmp::Ordering as CmpOrdering;
 use std::collections::HashSet;
 use std::fs::{self, File};
 use std::path::{Path, PathBuf};
@@ -144,12 +145,7 @@ impl LocalAudioLibrary {
             }
         }
 
-        entries.sort_by(|a, b| {
-            a.kind
-                .cmp_rank()
-                .cmp(&b.kind.cmp_rank())
-                .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
-        });
+        entries.sort_by(compare_local_entries);
         Ok(entries)
     }
 
@@ -175,7 +171,7 @@ impl LocalAudioLibrary {
 
         let mut files = Vec::new();
         self.collect_audio_files(&path, &mut files)?;
-        files.sort_by(|a, b| a.path.cmp(&b.path));
+        files.sort_by(compare_local_entries);
         Ok(files)
     }
 
@@ -643,6 +639,43 @@ fn set_missing(target: &mut Option<String>, value: &str) {
     }
 }
 
+fn compare_local_entries(a: &LocalAudioEntry, b: &LocalAudioEntry) -> CmpOrdering {
+    a.kind
+        .cmp_rank()
+        .cmp(&b.kind.cmp_rank())
+        .then_with(|| compare_track_position(a, b))
+        .then_with(|| a.path.to_lowercase().cmp(&b.path.to_lowercase()))
+        .then_with(|| a.name.to_lowercase().cmp(&b.name.to_lowercase()))
+}
+
+fn compare_track_position(a: &LocalAudioEntry, b: &LocalAudioEntry) -> CmpOrdering {
+    match (track_position(a), track_position(b)) {
+        (Some(a_position), Some(b_position)) => a_position.cmp(&b_position),
+        (Some(_), None) => CmpOrdering::Less,
+        (None, Some(_)) => CmpOrdering::Greater,
+        (None, None) => CmpOrdering::Equal,
+    }
+}
+
+fn track_position(entry: &LocalAudioEntry) -> Option<(u32, u32)> {
+    let metadata = entry.metadata.as_ref()?;
+    let track = parse_metadata_number(metadata.track_number.as_deref())?;
+    let disc = parse_metadata_number(metadata.disc_number.as_deref()).unwrap_or(1);
+    Some((disc, track))
+}
+
+fn parse_metadata_number(value: Option<&str>) -> Option<u32> {
+    let number = value?
+        .trim()
+        .split(['/', '-'])
+        .next()
+        .unwrap_or_default()
+        .trim()
+        .parse::<u32>()
+        .ok()?;
+    (number > 0).then_some(number)
+}
+
 trait LocalEntrySort {
     fn cmp_rank(&self) -> u8;
 }
@@ -652,6 +685,96 @@ impl LocalEntrySort for LocalAudioEntryKind {
         match self {
             LocalAudioEntryKind::Folder => 0,
             LocalAudioEntryKind::File => 1,
+        }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+
+    fn file_entry(path: &str, name: &str, track: Option<&str>) -> LocalAudioEntry {
+        LocalAudioEntry {
+            id: path.to_string(),
+            name: name.to_string(),
+            kind: LocalAudioEntryKind::File,
+            path: path.to_string(),
+            metadata: track.map(|track_number| LocalAudioMetadata {
+                track_number: Some(track_number.to_string()),
+                ..LocalAudioMetadata::default()
+            }),
+        }
+    }
+
+    #[test]
+    fn sorts_files_by_track_number_before_display_title() {
+        let mut entries = vec![
+            file_entry("root:0/10 - Alleluia.ogg", "Alleluia", Some("10")),
+            file_entry("root:0/02 - Ave Maria.ogg", "Ave Maria", Some("2")),
+            file_entry("root:0/01 - Gloria.ogg", "Gloria", Some("1")),
+        ];
+
+        entries.sort_by(compare_local_entries);
+
+        let names = entries
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["Gloria", "Ave Maria", "Alleluia"]);
+    }
+
+    #[test]
+    fn sorts_files_by_disc_then_track_number() {
+        let mut entries = vec![
+            file_entry_with_disc("root:0/disc2-track1.ogg", "Disc 2 Track 1", "2", "1"),
+            file_entry_with_disc("root:0/disc1-track2.ogg", "Disc 1 Track 2", "1", "2"),
+            file_entry_with_disc("root:0/disc1-track1.ogg", "Disc 1 Track 1", "1", "1"),
+        ];
+
+        entries.sort_by(compare_local_entries);
+
+        let names = entries
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect::<Vec<_>>();
+        assert_eq!(
+            names,
+            ["Disc 1 Track 1", "Disc 1 Track 2", "Disc 2 Track 1"]
+        );
+    }
+
+    #[test]
+    fn parses_fractional_track_numbers() {
+        let mut entries = vec![
+            file_entry("root:0/10.ogg", "Track 10", Some("10/12")),
+            file_entry("root:0/02.ogg", "Track 2", Some("2/12")),
+        ];
+
+        entries.sort_by(compare_local_entries);
+
+        let names = entries
+            .into_iter()
+            .map(|entry| entry.name)
+            .collect::<Vec<_>>();
+        assert_eq!(names, ["Track 2", "Track 10"]);
+    }
+
+    fn file_entry_with_disc(
+        path: &str,
+        name: &str,
+        disc_number: &str,
+        track_number: &str,
+    ) -> LocalAudioEntry {
+        LocalAudioEntry {
+            id: path.to_string(),
+            name: name.to_string(),
+            kind: LocalAudioEntryKind::File,
+            path: path.to_string(),
+            metadata: Some(LocalAudioMetadata {
+                disc_number: Some(disc_number.to_string()),
+                track_number: Some(track_number.to_string()),
+                ..LocalAudioMetadata::default()
+            }),
         }
     }
 }

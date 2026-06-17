@@ -89,9 +89,20 @@ final class AudioLibraryController: ObservableObject {
     }
 
     private func loadLocal(path: String?) -> AnyPublisher<[AudioItem], URLError> {
-        var url = "http://\(ServerConfig.shared.getURL()):7755/library/local"
-        if let path, let encoded = path.addingPercentEncoding(withAllowedCharacters: .urlQueryAllowed) {
-            url += "?path=\(encoded)"
+        var components = URLComponents(string: "http://\(ServerConfig.shared.getURL()):7755/library/local")
+        var queryItems = [
+            URLQueryItem(
+                name: "_",
+                value: String(Int(Date().timeIntervalSince1970 * 1000))
+            )
+        ]
+        if let path {
+            queryItems.append(URLQueryItem(name: "path", value: path))
+        }
+        components?.queryItems = queryItems
+
+        guard let url = components?.url?.absoluteString else {
+            return Fail(error: URLError(.badURL)).eraseToAnyPublisher()
         }
 
         return NetworkService.get(url)
