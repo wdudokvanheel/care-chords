@@ -372,7 +372,6 @@ private enum PlaybackSource {
 
 struct QueueView: View {
     @ObservedObject var queue: QueueController
-    @ObservedObject var library: AudioLibraryController
 
     var body: some View {
         VStack(spacing: 10) {
@@ -442,27 +441,9 @@ struct QueueView: View {
                 }
             }
             .padding(.top, 8)
-
-            Divider()
-                .background(Color.white.opacity(0.18))
-
-            VStack(alignment: .leading, spacing: 6) {
-                Text("Add")
-                    .font(.headline)
-                    .foregroundColor(.white)
-                    .padding(.horizontal, 10)
-
-                AudioLibraryView(
-                    library: library,
-                    itemSelect: queue.enqueue,
-                    collectionSelect: queue.enqueue,
-                    actionIconName: "plus"
-                )
-            }
         }
         .onAppear {
             queue.load()
-            library.load()
         }
     }
 }

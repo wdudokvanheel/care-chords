@@ -173,7 +173,7 @@ impl LocalAudioLibrary {
                     name,
                     kind: LocalAudioEntryKind::Folder,
                     path: reference.clone(),
-                    image_uri: folder_artwork(&path).map(|_| self.artwork_uri(&reference)),
+                    image_uri: self.image_uri(&path),
                     metadata: None,
                 });
             } else if self.is_audio_file(&path) {
@@ -233,7 +233,7 @@ impl LocalAudioLibrary {
                     name,
                     kind: LocalAudioEntryKind::Folder,
                     path: reference.clone(),
-                    image_uri: folder_artwork(folder).map(|_| self.artwork_uri(&reference)),
+                    image_uri: self.image_uri(folder),
                     metadata: None,
                 });
             }
@@ -360,16 +360,16 @@ impl LocalAudioLibrary {
             id: reference.clone(),
             name,
             kind: LocalAudioEntryKind::File,
-            path: reference,
-            image_uri: None,
+            path: reference.clone(),
+            image_uri: self.image_uri(&path),
             metadata,
         })
     }
 
     pub fn resolve_artwork_ref(&self, reference: &str) -> Result<PathBuf> {
-        let folder = self.resolve_folder_ref(reference)?;
-        folder_artwork(&folder)
-            .ok_or_else(|| anyhow!("Local audio artwork does not exist: {}", folder.display()))
+        let path = self.resolve_path_ref(reference)?;
+        media_artwork(&path)
+            .ok_or_else(|| anyhow!("Local audio artwork does not exist: {}", path.display()))
     }
 
     fn resolve_folder_ref(&self, reference: &str) -> Result<PathBuf> {
@@ -431,9 +431,13 @@ impl LocalAudioLibrary {
             .unwrap_or(false)
     }
 
-    fn folder_image_uri(&self, path: &Path) -> Option<String> {
+    fn image_uri(&self, path: &Path) -> Option<String> {
         let reference = self.path_to_ref(path).ok()?;
-        folder_artwork(path).map(|_| self.artwork_uri(&reference))
+        media_artwork(path).map(|_| self.artwork_uri(&reference))
+    }
+
+    fn folder_image_uri(&self, path: &Path) -> Option<String> {
+        self.image_uri(path)
     }
 
     fn artwork_uri(&self, reference: &str) -> String {
@@ -578,10 +582,7 @@ impl LocalAudioPlayer {
                     .as_ref()
                     .and_then(|metadata| metadata.display_artist())
                     .unwrap_or_else(|| "Local files".to_string());
-                let artwork_url = path
-                    .parent()
-                    .and_then(|folder| library.folder_image_uri(folder))
-                    .unwrap_or_default();
+                let artwork_url = library.image_uri(&path).unwrap_or_default();
 
                 let _ = info_sender.send(SpotifyPlayerInfo {
                     status: SpotifyPlayerState::Playing,
@@ -786,6 +787,28 @@ fn is_folder_artwork_name(path: &Path) -> bool {
         .map(|name| name.to_ascii_lowercase());
     name.as_deref()
         .is_some_and(|name| FOLDER_ARTWORK_NAMES.contains(&name))
+}
+
+fn media_artwork(path: &Path) -> Option<PathBuf> {
+    if path.is_dir() {
+        return folder_artwork(path);
+    }
+
+    file_stem_artwork(path).or_else(|| path.parent().and_then(folder_artwork))
+}
+
+fn file_stem_artwork(path: &Path) -> Option<PathBuf> {
+    let parent = path.parent()?;
+    let stem = path.file_stem()?.to_str()?;
+
+    for extension in ["jpg", "jpeg", "png", "webp"] {
+        let artwork = parent.join(format!("{stem}.{extension}"));
+        if artwork.is_file() {
+            return Some(artwork);
+        }
+    }
+
+    None
 }
 
 fn read_audio_metadata(path: &Path) -> Option<LocalAudioMetadata> {
@@ -1047,6 +1070,43 @@ mod tests {
 
         assert_eq!(root, 0);
         assert_eq!(relative, "Channel - Title.webm");
+    }
+
+    #[test]
+    fn youtube_files_use_matching_sibling_cover_art() {
+        let root = std::env::temp_dir().join(format!(
+            "carechords-youtube-cover-test-{}",
+            std::process::id()
+        ));
+        let _ = fs::remove_dir_all(&root);
+        fs::create_dir_all(&root).unwrap();
+        File::create(root.join("Channel - Title.webm")).unwrap();
+        File::create(root.join("Channel - Title.jpg")).unwrap();
+
+        let library = LocalAudioLibrary::new_youtube(&LocalAudioSettings {
+            roots: vec![root.to_string_lossy().to_string()],
+            allowed_extensions: vec!["webm".to_string()],
+        });
+
+        let entries = library.list(Some("root:0")).unwrap();
+        let item = entries
+            .iter()
+            .find(|entry| entry.path == "root:0/Channel - Title.webm")
+            .unwrap();
+
+        assert!(
+            item.image_uri
+                .as_deref()
+                .is_some_and(|uri| uri.starts_with("/library/youtube/artwork?path="))
+        );
+        assert_eq!(
+            library
+                .resolve_artwork_ref("youtube:file:root:0/Channel - Title.webm")
+                .unwrap(),
+            root.join("Channel - Title.jpg")
+        );
+
+        fs::remove_dir_all(&root).unwrap();
     }
 
     #[test]
